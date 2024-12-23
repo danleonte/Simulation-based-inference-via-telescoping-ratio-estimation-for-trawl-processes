@@ -1,0 +1,42 @@
+{
+    "os": "Windows-10-10.0.26100-SP0",
+    "python": "3.10.11",
+    "heartbeatAt": "2024-12-18T23:11:16.763436",
+    "startedAt": "2024-12-18T23:11:15.507668",
+    "docker": null,
+    "cuda": null,
+    "args": [],
+    "state": "running",
+    "program": "d:\\sbi_ambit\\sbi_for_trawl_processes_and_ambit_fields\\train.py",
+    "codePath": "train.py",
+    "git": {
+        "remote": "https://github.com/danleonte/SBI_for_trawl_processes_and_ambit_fields.git",
+        "commit": "9dd6398a54f24eddb0495e98fc95844a3ef2b438"
+    },
+    "email": "dl2916@ic.ac.uk",
+    "root": "D:/sbi_ambit/SBI_for_trawl_processes_and_ambit_fields",
+    "host": "DESKTOP-M0M022R",
+    "username": "dleon",
+    "executable": "D:\\env_3_10\\Scripts\\python.exe",
+    "cpu_count": 4,
+    "cpu_count_logical": 8,
+    "cpu_freq": {
+        "current": 1910.0,
+        "min": 0.0,
+        "max": 2112.0
+    },
+    "cpu_freq_per_core": [
+        {
+            "current": 1910.0,
+            "min": 0.0,
+            "max": 2112.0
+        }
+    ],
+    "disk": {
+        "total": 209.95995712280273,
+        "used": 98.96016311645508
+    },
+    "memory": {
+        "total": 31.819236755371094
+    }
+}
