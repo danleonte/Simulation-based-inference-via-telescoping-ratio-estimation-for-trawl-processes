@@ -7,9 +7,10 @@ Created on Thu Dec 19 19:14:40 2024
 import jax
 import jax.numpy as jnp
 from functools import partial
+import os
+import datetime
 
 
-# Corrected update_step function
 @jax.jit
 def update_step(state, grads):
     """

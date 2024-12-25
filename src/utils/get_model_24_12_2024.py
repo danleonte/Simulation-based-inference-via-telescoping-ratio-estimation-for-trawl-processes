@@ -1,10 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-Created on Tue Dec 24 23:37:24 2024
+Created on Sun Dec 15 01:14:55 2024
 
 @author: dleon
 """
-
 import jax
 import jax.numpy as jnp
 from jax.random import PRNGKey
@@ -13,7 +12,7 @@ if True:
     from path_setup import setup_sys_path
     setup_sys_path()
 
-from src.model.LSTM_based_nn import LSTMModel
+from src.model.LSTM_based_nn import LSTMModel_with_theta, LSTMModel_without_theta
 
 
 def get_model(config_file):
@@ -39,6 +38,11 @@ def get_model(config_file):
         final_output_size = model_config['final_output_size']
 
         # Initialize model
+        if model_config['with_theta']:
+            LSTMModel = LSTMModel_with_theta
+        else:
+            LSTMModel = LSTMModel_without_theta
+
         model = LSTMModel(
             lstm_hidden_size=lstm_hidden_size,
             num_lstm_layers=num_lstm_layers,
@@ -51,14 +55,17 @@ def get_model(config_file):
         # [batch_size, sequence_length, feature_size]
         dummy_input = jax.random.normal(subkey, (batch_size, seq_len, 1))
 
+        # Initialize carry states
+        carry = model.initialize_carry(batch_size=dummy_input.shape[0])
+
         # Low-dimensional parameter (can be of any size)
         if model_config['with_theta']:
 
             dummy_theta = jnp.random.normal(subkey, (batch_size, theta_size))
-            params = model.init(subkey, dummy_input, dummy_theta)
+            params = model.init(subkey, dummy_input, dummy_theta, carry)
 
         else:
 
-            params = model.init(subkey, dummy_input)
+            params = model.init(subkey, dummy_input, carry)
 
-    return model, params, key
+    return model, params, carry, key

@@ -1,0 +1,103 @@
+wandb_version: 1
+
+prng_key:
+  desc: null
+  value: 237
+learn_config:
+  desc: null
+  value:
+    learn_acf: true
+    learn_marginal: false
+    learn_both: false
+trawl_config:
+  desc: null
+  value:
+    tau: 1.0
+    seq_len: 1000
+    theta_size: 5
+    batch_size: 64
+    marginal_distr: NIG
+    acf: sup_IG
+    trawl_type: sup_ig_nig_5p
+    acf_prior_hyperparams:
+      distr_name: uniform
+      gamma_prior_hyperparams:
+      - 10.0
+      - 20.0
+      eta_prior_hyperparams:
+      - 10.0
+      - 20.0
+    marginal_distr_hyperparams:
+      distr_name: uniform
+      loc_prior_hyperparams:
+      - -1.0
+      - 1.0
+      scale_prior_hyperparams:
+      - 0.5
+      - 1.5
+      beta_prior_hyperparams:
+      - -5.0
+      - 5.0
+model_config:
+  desc: null
+  value:
+    model_name: LSTMModel
+    lstm_hidden_size: 64
+    num_lstm_layers: 2
+    linear_layer_sizes:
+    - 32
+    - 16
+    - 8
+    - 4
+    mean_aggregation: false
+    final_output_size: 2
+    with_theta: false
+    experiment_dir: summary_statistics
+    experiment_subdir: exp_1
+train_config:
+  desc: null
+  value:
+    n_iterations: 1000
+    n_acc_steps_per_iterations: 10
+    batch_size: 64
+val_config:
+  desc: null
+  value:
+    val_freq: 200
+    val_n_batches: 10
+optimizer:
+  desc: null
+  value:
+    name: adam
+    lr: 0.001
+_wandb:
+  desc: null
+  value:
+    python_version: 3.10.11
+    cli_version: 0.15.3
+    framework: keras
+    is_jupyter_run: false
+    is_kaggle_kernel: false
+    start_time: 1735161506.356957
+    t:
+      1:
+      - 2
+      - 3
+      - 12
+      - 45
+      - 55
+      2:
+      - 2
+      - 3
+      - 12
+      - 45
+      - 55
+      3:
+      - 16
+      - 23
+      4: 3.10.11
+      5: 0.15.3
+      8:
+      - 3
+      - 5
+      - 13
