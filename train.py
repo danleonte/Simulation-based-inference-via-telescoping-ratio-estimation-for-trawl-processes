@@ -14,7 +14,7 @@ Created on Fri Dec 13 13:43:15 2024
 
 
 import optax
-from flax.training import train_state, checkpoints
+from flax.training import train_state
 from jax.random import PRNGKey
 import jax.numpy as jnp
 import numpy as np

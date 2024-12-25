@@ -9,7 +9,8 @@ class LSTMModel(nn.Module):
     num_lstm_layers: int
     linear_layer_sizes: Sequence[int]
     mean_aggregation: bool
-    final_output_size: int = 1
+    final_output_size: int
+    # dropout_rate: float
 
     def setup(self):
         # LSTM layers
@@ -31,6 +32,9 @@ class LSTMModel(nn.Module):
         self.linear_layers = [
             nn.Dense(features=size) for size in self.linear_layer_sizes
         ]
+
+        # Dropout layer
+        # self.dropout = nn.Dropout(rate=self.dropout_rate)
 
         # Final output layer
         self.output_layer = nn.Dense(features=self.final_output_size)
@@ -91,8 +95,9 @@ if __name__ == "__main__":
 
     # Generate dummy data
     key = jax.random.PRNGKey(0)
-    dummy_input = jax.random.normal(key, (32, 10, 1)) #batch_size, seq_len, fake dimension
-    dummy_theta = jax.random.normal(key, (32, 5))     #batch_size, theta_size
+    # batch_size, seq_len, fake dimension
+    dummy_input = jax.random.normal(key, (32, 10, 1))
+    dummy_theta = jax.random.normal(key, (32, 5))  # batch_size, theta_size
 
     # Initialize parameters
     params_without_theta = model_without_theta.init(key, dummy_input)
