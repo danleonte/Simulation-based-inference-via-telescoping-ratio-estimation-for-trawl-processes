@@ -5,7 +5,7 @@ learn_config:
   learn_both: False
 trawl_config:
   tau: 1.0
-  seq_len: 1000
+  seq_len: 1500
   theta_size: 5
   batch_size: 64
   marginal_distr: NIG
@@ -23,7 +23,6 @@ trawl_config:
 model_config:
     model_name: LSTMModel
     lstm_hidden_size: 64
-    num_lstm_layers: 3
     linear_layer_sizes: [32,25,16,8,4]
     mean_aggregation: False
     final_output_size: 2
@@ -31,7 +30,7 @@ model_config:
     experiment_dir: summary_statistics
     experiment_subdir: exp_1
 train_config:
-  n_iterations: 1000 
+  n_iterations: 801 
   n_acc_steps_per_iterations: 10
   batch_size: 64
 val_config:
