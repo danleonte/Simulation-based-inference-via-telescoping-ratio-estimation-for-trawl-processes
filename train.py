@@ -139,17 +139,22 @@ def train_and_evaluate(config_file_path):
 
     @jax.jit
     def compute_validation_loss(params, val_trawls, val_thetas):
-        """Compute average loss over validation set using fori_loop."""
+        """Compute mean and standard deviation of validation loss."""
         def body_fun(i, acc):
             trawl_val = jax.lax.dynamic_slice_in_dim(val_trawls, i, 1)[0]
             theta_val = jax.lax.dynamic_slice_in_dim(val_thetas, i, 1)[0]
-            return acc + compute_loss(params, trawl_val, theta_val)
+            loss = compute_loss(params, trawl_val, theta_val)
+            return acc + (loss, loss**2)
 
-        total_loss = jax.lax.fori_loop(
-            0, val_trawls.shape[0], body_fun, jnp.array(0., dtype=jnp.float32)
+        total_loss, total_loss_sq = jax.lax.fori_loop(
+            0, val_trawls.shape[0], body_fun, (jnp.array(0.), jnp.array(0.))
         )
 
-        return total_loss / val_trawls.shape[0]
+        mean_loss = total_loss / val_trawls.shape[0]
+        std_loss = jnp.sqrt(
+            (total_loss_sq / val_trawls.shape[0]) - (mean_loss**2)
+        )
+        return mean_loss, std_loss
 
     # Initialize best validation loss tracking
     best_val_loss = float('inf')
@@ -204,9 +209,17 @@ def train_and_evaluate(config_file_path):
 
         # Compute validation loss periodically
         if iteration % val_freq == 0:
-            val_loss = compute_validation_loss(
-                state.params, val_trawls, val_thetas)
-            metrics["val_loss"] = val_loss.item()
+            val_mean_loss, val_std_loss = compute_validation_loss(
+                state.params, val_trawls, val_thetas
+            )
+            val_loss_ci_lower = val_mean_loss - 1.96 * val_std_loss
+            val_loss_ci_upper = val_mean_loss + 1.96 * val_std_loss
+
+            metrics.update({
+                val_loss: val_mean_loss.item(),
+                val_loss+"_ci_lower": val_loss_ci_lower.item(),
+                val_loss+"_ci_upper": val_loss_ci_upper.item()
+            })
 
             ###################################################################
             # WHY DOES THIS HANG???
@@ -248,6 +261,8 @@ def train_and_evaluate(config_file_path):
         f.write(f"Best Model Information:\n")
         f.write(f"Iteration: {best_iteration}\n")
         f.write(f"Validation Loss: {best_val_loss:.6f}\n")
+        # f.write(
+        #    f"Validation Loss Confidence Interval: [{val_loss_ci_lower:.6f}, {val_loss_ci_upper:.6f}]\n")
         f.write(
             f"\nTraining completed at: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
 
@@ -266,3 +281,5 @@ if __name__ == "__main__":
 # play with optimization techniques
 # add clasifier
 # add metrics to classifier
+
+# for acf, display a boxplot of absolute / percentage wise differences in true and infered acfs
