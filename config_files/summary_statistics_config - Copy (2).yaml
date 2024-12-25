@@ -22,8 +22,9 @@ trawl_config:
     beta_prior_hyperparams: [-5.,5.] 
 model_config:
     model_name: LSTMModel
-    lstm_hidden_size: 64
-    linear_layer_sizes: [32,16,8,4]
+    lstm_hidden_size: 128
+    num_lstm_layers: 1
+    linear_layer_sizes: [64,32,16,8,4]
     mean_aggregation: False
     final_output_size: 2
     with_theta: False
