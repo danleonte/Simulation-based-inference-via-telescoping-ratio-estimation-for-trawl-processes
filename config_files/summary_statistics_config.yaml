@@ -1,11 +1,11 @@
 prng_key: 1111
 learn_config:
-  learn_acf: True
-  learn_marginal: False
+  learn_acf: False
+  learn_marginal: True
   learn_both: False
 trawl_config:
   tau: 1.0
-  seq_len: 3000
+  seq_len: 1500
   theta_size: 5
   batch_size: 64
   marginal_distr: NIG
