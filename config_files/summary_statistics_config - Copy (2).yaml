@@ -23,10 +23,10 @@ trawl_config:
 model_config:
     model_name: LSTMModel
     lstm_hidden_size: 32
-    num_lstm_layers: 4
-    linear_layer_sizes: [25,16,8,4]
+    num_lstm_layers: 1
+    linear_layer_sizes: [16,8,4]
     mean_aggregation: False
-    final_output_size: 2
+    final_output_size: 3
     with_theta: False
     experiment_dir: summary_statistics
     experiment_subdir: exp_1

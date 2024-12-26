@@ -139,22 +139,17 @@ def train_and_evaluate(config_file_path):
 
     @jax.jit
     def compute_validation_loss(params, val_trawls, val_thetas):
-        """Compute mean and standard deviation of validation loss."""
+        """Compute average loss over validation set using fori_loop."""
         def body_fun(i, acc):
             trawl_val = jax.lax.dynamic_slice_in_dim(val_trawls, i, 1)[0]
             theta_val = jax.lax.dynamic_slice_in_dim(val_thetas, i, 1)[0]
-            loss = compute_loss(params, trawl_val, theta_val)
-            return acc + (loss, loss**2)
+            return acc + compute_loss(params, trawl_val, theta_val)
 
-        total_loss, total_loss_sq = jax.lax.fori_loop(
-            0, val_trawls.shape[0], body_fun, (jnp.array(0.), jnp.array(0.))
+        total_loss = jax.lax.fori_loop(
+            0, val_trawls.shape[0], body_fun, jnp.array(0., dtype=jnp.float32)
         )
 
-        mean_loss = total_loss / val_trawls.shape[0]
-        std_loss = jnp.sqrt(
-            (total_loss_sq / val_trawls.shape[0]) - (mean_loss**2)
-        )
-        return mean_loss, std_loss
+        return total_loss / val_trawls.shape[0]
 
     # Initialize best validation loss tracking
     best_val_loss = float('inf')
@@ -209,17 +204,9 @@ def train_and_evaluate(config_file_path):
 
         # Compute validation loss periodically
         if iteration % val_freq == 0:
-            val_mean_loss, val_std_loss = compute_validation_loss(
-                state.params, val_trawls, val_thetas
-            )
-            val_loss_ci_lower = val_mean_loss - 1.96 * val_std_loss
-            val_loss_ci_upper = val_mean_loss + 1.96 * val_std_loss
-
-            metrics.update({
-                val_loss: val_mean_loss.item(),
-                val_loss+"_ci_lower": val_loss_ci_lower.item(),
-                val_loss+"_ci_upper": val_loss_ci_upper.item()
-            })
+            val_loss = compute_validation_loss(
+                state.params, val_trawls, val_thetas)
+            metrics["val_loss"] = val_loss.item()
 
             ###################################################################
             # WHY DOES THIS HANG???
