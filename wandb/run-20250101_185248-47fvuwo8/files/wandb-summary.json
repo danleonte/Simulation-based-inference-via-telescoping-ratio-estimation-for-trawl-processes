@@ -1,0 +1,1 @@
+{"train_marginal_loss": 1.2667357921600342, "val_loss": 1.4252681732177734, "val_loss_upper_CI": 1.498338792771101, "val_loss_lower_CI": 1.352197553664446, "_timestamp": 1735750576.7059138, "_runtime": 207.72652173042297, "_step": 15}

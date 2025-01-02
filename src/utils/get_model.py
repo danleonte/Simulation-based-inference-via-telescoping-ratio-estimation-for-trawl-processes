@@ -18,6 +18,23 @@ from src.model.LSTM_based_nn import LSTMModel
 
 def get_model(config_file):
 
+    model_name = config_file['model_config']['model_name']
+
+    if model_name == 'LSTMModel':
+
+        return get_model_LSTM(config_file)
+
+    elif model_name == 'MLP':
+
+        raise ValueError('not yet implemented')
+        return get_model_MLP(config_file)
+
+    else:
+        raise ValueError('model_name not recognized, please check config file')
+
+
+def get_model_LSTM(config_file, initialize=True):
+
     key = PRNGKey(config_file['prng_key'])
     key, subkey = jax.random.split(key)
 
@@ -38,7 +55,7 @@ def get_model(config_file):
         mean_aggregation = model_config['mean_aggregation']
         final_output_size = model_config['final_output_size']
 
-        # Initialize model
+        # Create model
         model = LSTMModel(
             lstm_hidden_size=lstm_hidden_size,
             num_lstm_layers=num_lstm_layers,
@@ -46,6 +63,11 @@ def get_model(config_file):
             mean_aggregation=mean_aggregation,
             final_output_size=final_output_size
         )
+
+        if not initialize:
+            return model
+
+        # Initialize model
 
         # Dummy input
         # [batch_size, sequence_length, feature_size]
@@ -62,3 +84,7 @@ def get_model(config_file):
             params = model.init(subkey, dummy_input)
 
     return model, params, key
+
+
+def get_model_MLP(config_file):
+    pass

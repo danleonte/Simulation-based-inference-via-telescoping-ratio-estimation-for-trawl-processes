@@ -38,9 +38,6 @@ def train_and_evaluate(config_file_path):
     with open(config_file_path, 'r') as f:
         config = yaml.safe_load(f)
 
-    # Initialize wandb
-    wandb.init(project="SBI_trawls", config=config)
-
     ###########################################################################
     # Get params and hyperparams
     learn_config = config['learn_config']
@@ -49,6 +46,13 @@ def train_and_evaluate(config_file_path):
     learn_both = learn_config['learn_both']
 
     assert learn_acf + learn_marginal == 1 and learn_both == False
+
+    # Initialize wandb
+    group_name = (
+        "acf" if learn_acf else
+        "marginal" if learn_marginal else
+        "both")
+    wandb.init(project="SBI_trawls", group=group_name, config=config)
 
     trawl_config = config['trawl_config']
     batch_size = trawl_config['batch_size']
@@ -79,6 +83,9 @@ def train_and_evaluate(config_file_path):
             val_data.append((trawl_val, theta_marginal_jax_val))
 
     # Convert validation data to JAX arrays
+    # Saves it in the format [#batches, batch_size, vector_dimension]
+    # It's a bit weird, might change it in the future
+    # then need to also change the validaton loss function
     val_trawls = jnp.stack([x[0] for x in val_data])
     val_thetas = jnp.stack([x[1] for x in val_data])
 
@@ -86,7 +93,7 @@ def train_and_evaluate(config_file_path):
 
     ###########################################################################
     # Create directory for validation data and model checkpoints
-    base_checkpoint_dir = "models"
+    base_checkpoint_dir = os.path.join("models", 'summary_statistics')
     checkpoint_subdir = "learn_acf" if learn_acf else "learn_marginal"
     experiment_dir = os.path.join(
         base_checkpoint_dir, checkpoint_subdir, wandb.run.name)
@@ -137,19 +144,52 @@ def train_and_evaluate(config_file_path):
     # get grads for training
     compute_loss_and_grad = jax.jit(jax.value_and_grad(compute_loss))
 
-    @jax.jit
-    def compute_validation_loss(params, val_trawls, val_thetas):
-        """Compute average loss over validation set using fori_loop."""
-        def body_fun(i, acc):
-            trawl_val = jax.lax.dynamic_slice_in_dim(val_trawls, i, 1)[0]
-            theta_val = jax.lax.dynamic_slice_in_dim(val_thetas, i, 1)[0]
-            return acc + compute_loss(params, trawl_val, theta_val)
+    # @jax.jit
+    # def compute_validation_loss(params, val_trawls, val_thetas):
+    #    """Compute average loss over validation set using fori_loop."""
+    #    def body_fun(i, acc):
+    #        trawl_val = jax.lax.dynamic_slice_in_dim(val_trawls, i, 1)[0]
+    #        theta_val = jax.lax.dynamic_slice_in_dim(val_thetas, i, 1)[0]
+    #        return acc + compute_loss(params, trawl_val, theta_val)
+    #
+    #    total_loss = jax.lax.fori_loop(
+    #        0, val_trawls.shape[0], body_fun, jnp.array(0., dtype=jnp.float32)
+    #    )
+    #
+    #    return total_loss / val_trawls.shape[0]
 
-        total_loss = jax.lax.fori_loop(
-            0, val_trawls.shape[0], body_fun, jnp.array(0., dtype=jnp.float32)
+    # replaced by the code below, which also computes st dev
+
+    @jax.jit
+    def compute_validation_stats(params, val_trawls, val_thetas):
+        """Compute mean and std of validation loss.
+
+        The batches are saved in the slightly unusual format
+        [nr_batches, batch_size, dimension]
+
+        so loading them one by one actually loads a whole batch
+        """
+        def body_fun(i, acc):
+            trawl_val = jax.lax.dynamic_slice_in_dim(
+                val_trawls, i, 1)[0]
+            theta_val = jax.lax.dynamic_slice_in_dim(
+                val_thetas, i, 1)[0]
+            loss = compute_loss(params, trawl_val, theta_val)
+            return acc + jnp.array([loss, loss**2])
+
+        # Accumulate sum and sum of squares
+        total = jax.lax.fori_loop(
+            0, val_trawls.shape[0], body_fun, jnp.zeros(2)
         )
 
-        return total_loss / val_trawls.shape[0]
+        n = val_trawls.shape[0]
+        mean = total[0] / n
+        # Use Welford's method to compute stable variance
+        variance = (total[1] / n) - (mean**2)
+        # avoid negative values due to numerical issues
+        std = jnp.sqrt(jnp.maximum(variance, 0.0))
+
+        return mean, std
 
     # Initialize best validation loss tracking
     best_val_loss = float('inf')
@@ -204,9 +244,16 @@ def train_and_evaluate(config_file_path):
 
         # Compute validation loss periodically
         if iteration % val_freq == 0:
-            val_loss = compute_validation_loss(
+
+            val_loss, val_loss_std = compute_validation_stats(
                 state.params, val_trawls, val_thetas)
-            metrics["val_loss"] = val_loss.item()
+
+            # Log metrics under the same group for better visualization
+            metrics.update({
+                "val_metrics/val_loss": val_loss.item(),
+                "val_metrics/val_loss_upper": val_loss.item() + 1.96 * val_loss_std.item(),
+                "val_metrics/val_loss_lower": val_loss.item() - 1.96 * val_loss_std.item(),
+            })
 
             ###################################################################
             # WHY DOES THIS HANG???
@@ -259,7 +306,7 @@ def train_and_evaluate(config_file_path):
 if __name__ == "__main__":
     import glob
     # Loop over configs
-    for config_file_path in glob.glob("config_files/*.yaml"):
+    for config_file_path in glob.glob("config_files/summary_statistics/*.yaml"):
         train_and_evaluate(config_file_path)
 
 

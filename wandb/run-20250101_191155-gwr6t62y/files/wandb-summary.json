@@ -1,0 +1,1 @@
+{"train_marginal_loss": 0.8528630137443542, "val_metrics/val_loss": 0.8282701373100281, "val_metrics/val_loss_upper": 0.9029513442516327, "val_metrics/val_loss_lower": 0.7535889303684234, "_timestamp": 1735753577.3849869, "_runtime": 2062.2597188949585, "_step": 345}
