@@ -34,7 +34,7 @@ train_config:
   batch_size: 64
 val_config:
   val_freq: 100
-  val_n_batches: 20
+  val_n_batches: 50
 optimizer:
   name: adam
   lr: 0.001
