@@ -4,7 +4,9 @@ Created on Tue Dec 24 23:37:24 2024
 
 @author: dleon
 """
-
+import os
+import yaml
+import pickle
 import jax
 import jax.numpy as jnp
 from jax.random import PRNGKey
@@ -88,3 +90,38 @@ def get_model_LSTM(config_file, initialize=True):
 
 def get_model_MLP(config_file):
     pass
+
+
+###############################################################################
+def get_projection_function():
+
+    summary_path = os.path.join("models", "summary_statistics")
+    acf_path = os.path.join(summary_path, "learn_acf", "best_model")
+    marginal_path = os.path.join(summary_path, "learn_marginal", "best_model")
+
+    # Load configs
+    with open(os.path.join(acf_path, "config.yaml"), 'r') as f:
+        acf_config = yaml.safe_load(f)
+
+    with open(os.path.join(marginal_path, "config.yaml"), 'r') as f:
+        marginal_config = yaml.safe_load(f)
+
+    # Load models
+    acf_model, _, __ = get_model(acf_config)
+    marginal_model, _, __ = get_model(marginal_config)
+
+    # Load params
+    with open(os.path.join(acf_path, "params.pkl"), 'rb') as file:
+        acf_params = {'params': pickle.load(file)}
+
+    with open(os.path.join(marginal_path, "params.pkl"), 'rb') as file:
+        marginal_params = {'params': pickle.load(file)}
+
+    @jax.jit
+    def project(trawl):
+
+        acf_model.apply(acf_params, trawl)
+        marginal_model.apply(marginal_params, trawl)
+        return jnp.concatenate([acf_model, marginal_model], axis=1)
+
+    return project

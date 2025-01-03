@@ -302,6 +302,10 @@ def train_and_evaluate(config_file_path):
 
     wandb.finish()
 
+    save_config_path = os.path.join(val_data_dir, 'config')
+    with open(save_config_path, 'w') as file:
+        yaml.dump(config, file, default_flow_style=False)
+
 
 if __name__ == "__main__":
     import glob
