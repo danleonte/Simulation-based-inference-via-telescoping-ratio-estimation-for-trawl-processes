@@ -257,7 +257,6 @@ def train_and_evaluate(config_file_path):
         metrics = {
             train_loss: loss.item()
         }
-        print(metrics)
 
         # Compute validation loss periodically
         if iteration % val_freq == 0:
@@ -327,7 +326,7 @@ def train_and_evaluate(config_file_path):
 if __name__ == "__main__":
     import glob
     # Loop over configs
-    for config_file_path in glob.glob("config_files/summary_statistics/CNN/*.yaml"):
+    for config_file_path in glob.glob("config_files/summary_statistics/LSTM/*.yaml"):
         train_and_evaluate(config_file_path)
 
 
