@@ -39,6 +39,9 @@ def train_classifier(config_file_path):
     use_summary_statistics = tre_config['use_summary_statistics']
     replace_acf = tre_config['replace_full_trawl_with_acf']
 
+    if use_summary_statistics:
+        project = get_projection_function()
+
     # Initialize wandb
     group_name = (f"classifier_tre_{tre_type}_" if use_tre else "nre_") + (
         "summary_" if use_summary_statistics else 'full_trawl_')
@@ -69,6 +72,10 @@ def train_classifier(config_file_path):
             val_key)
         trawl_val, val_key = trawl_simulator(
             theta_acf_val, theta_marginal_tf_val, val_key)
+
+        # if using summary statistics, project the trawl
+        if use_summary_statistics:
+            trawl_val = project(trawl_val)
 
         theta_val = jnp.concatenate(
             [theta_acf_val, theta_marginal_jax_val], axis=1)
@@ -153,8 +160,11 @@ def train_classifier(config_file_path):
         theta_acf_a, key = theta_acf_simulator(key)
         theta_marginal_jax_a, theta_marginal_tf_a, key = theta_marginal_simulator(
             key)
-        trawl_a, key = trawl_simulator(theta_acf_a, theta_marginal_tf_a, key)
         theta_a = jnp.concatenate([theta_acf_a, theta_marginal_jax_a], axis=1)
+
+        trawl_a, key = trawl_simulator(theta_acf_a, theta_marginal_tf_a, key)
+        if use_summary_statistics:
+            trawl_a = project(trawl_a)
 
         # data B
         theta_acf_b, key = theta_acf_simulator(key)

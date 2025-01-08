@@ -1,0 +1,1 @@
+{"train_acf_loss": 4.874115943908691, "val_metrics/val_loss": 14.92853832244873, "val_metrics/val_loss_upper": 15.150627875197717, "val_metrics/val_loss_lower": 14.706448769699744, "_timestamp": 1736297765.4875953, "_runtime": 5226.520193338394, "_step": 67}

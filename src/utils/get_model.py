@@ -16,6 +16,7 @@ if True:
     setup_sys_path()
 
 from src.model.LSTM_based_nn import LSTMModel
+from src.model.Conv_based_nn import AcfCNN
 
 
 def get_model(config_file):
@@ -25,6 +26,10 @@ def get_model(config_file):
     if model_name == 'LSTMModel':
 
         return get_model_LSTM(config_file)
+
+    elif model_name == 'AcfCNN':
+
+        return get_model_Acf_CNN(config_file)
 
     elif model_name == 'MLP':
 
@@ -37,53 +42,112 @@ def get_model(config_file):
 
 def get_model_LSTM(config_file, initialize=True):
 
+    # Sanity checks
+    trawl_config = config_file['trawl_config']
+    model_config = config_file['model_config']
+
+    assert model_config['model_name'] == 'LSTMModel'
+    assert model_config['with_theta'] in [True, False]
+    ###################################################
+
+    # Get hyperparams
     key = PRNGKey(config_file['prng_key'])
     key, subkey = jax.random.split(key)
 
-    if config_file['model_config']['model_name'] == 'LSTMModel':
+    seq_len = trawl_config['seq_len']
+    batch_size = trawl_config['batch_size']
+    theta_size = trawl_config['theta_size']
 
-        trawl_config = config_file['trawl_config']
+    lstm_hidden_size = model_config['lstm_hidden_size']
+    num_lstm_layers = model_config['num_lstm_layers']
+    linear_layer_sizes = model_config['linear_layer_sizes']
+    mean_aggregation = model_config['mean_aggregation']
+    final_output_size = model_config['final_output_size']
 
-        seq_len = trawl_config['seq_len']
-        batch_size = trawl_config['batch_size']
-        theta_size = trawl_config['theta_size']
+    # Create model
+    model = LSTMModel(
+        lstm_hidden_size=lstm_hidden_size,
+        num_lstm_layers=num_lstm_layers,
+        linear_layer_sizes=linear_layer_sizes,
+        mean_aggregation=mean_aggregation,
+        final_output_size=final_output_size
+    )
 
-        model_config = config_file['model_config']
-        assert model_config['with_theta'] in [True, False]
+    if not initialize:
+        return model
 
-        lstm_hidden_size = model_config['lstm_hidden_size']
-        num_lstm_layers = model_config['num_lstm_layers']
-        linear_layer_sizes = model_config['linear_layer_sizes']
-        mean_aggregation = model_config['mean_aggregation']
-        final_output_size = model_config['final_output_size']
+    # Initialize model
 
-        # Create model
-        model = LSTMModel(
-            lstm_hidden_size=lstm_hidden_size,
-            num_lstm_layers=num_lstm_layers,
-            linear_layer_sizes=linear_layer_sizes,
-            mean_aggregation=mean_aggregation,
-            final_output_size=final_output_size
-        )
+    # Dummy input
+    # [batch_size, sequence_length, feature_size]
+    dummy_input = jax.random.normal(subkey, (batch_size, seq_len, 1))
 
-        if not initialize:
-            return model
+    # Low-dimensional parameter (can be of any size)
+    if model_config['with_theta']:
 
-        # Initialize model
+        dummy_theta = jnp.random.normal(subkey, (batch_size, theta_size))
+        params = model.init(subkey, dummy_input, dummy_theta)
 
-        # Dummy input
-        # [batch_size, sequence_length, feature_size]
-        dummy_input = jax.random.normal(subkey, (batch_size, seq_len, 1))
+    else:
 
-        # Low-dimensional parameter (can be of any size)
-        if model_config['with_theta']:
+        params = model.init(subkey, dummy_input)
 
-            dummy_theta = jnp.random.normal(subkey, (batch_size, theta_size))
-            params = model.init(subkey, dummy_input, dummy_theta)
+    return model, params, key
 
-        else:
 
-            params = model.init(subkey, dummy_input)
+def get_model_Acf_CNN(config_file, initialize=True):
+
+    # Sanity checks
+    trawl_config = config_file['trawl_config']
+    model_config = config_file['model_config']
+
+    assert model_config['model_name'] == 'AcfCNN'
+    assert not model_config['with_theta']
+    ###########################################################################
+
+    # Get hyperparams
+    key = PRNGKey(config_file['prng_key'])
+    key, subkey = jax.random.split(key)
+
+    seq_len = trawl_config['seq_len']
+    batch_size = trawl_config['batch_size']
+    theta_size = trawl_config['theta_size']
+
+    max_lag = model_config['max_lag']
+    conv_channels = model_config['conv_channels']
+    fc_sizes = model_config['fc_sizes']
+    conv_kernels = model_config['conv_kernels']
+    final_output_size = model_config['final_output_size']
+    dropout_rate = model_config['dropout_rate']
+    deterministic = model_config['deterministic']
+
+    model = AcfCNN(
+        max_lag=max_lag,
+        conv_channels=conv_channels,
+        fc_sizes=fc_sizes,
+        conv_kernels=conv_kernels,
+        final_output_size=final_output_size,
+        dropout_rate=dropout_rate
+    )
+
+    if not initialize:
+        return model
+
+    # Initialize model
+
+    # Dummy input
+    # [batch_size, sequence_length, feature_size]
+    dummy_input = jax.random.normal(subkey, (batch_size, seq_len, 1))
+
+    # Low-dimensional parameter (can be of any size)
+    if model_config['with_theta']:
+
+        dummy_theta = jnp.random.normal(subkey, (batch_size, theta_size))
+        params = model.init(subkey, dummy_input, dummy_theta)
+
+    else:
+
+        params = model.init(subkey, dummy_input)
 
     return model, params, key
 
@@ -112,16 +176,16 @@ def get_projection_function():
 
     # Load params
     with open(os.path.join(acf_path, "params.pkl"), 'rb') as file:
-        acf_params = {'params': pickle.load(file)}
+        acf_params = pickle.load(file)
 
     with open(os.path.join(marginal_path, "params.pkl"), 'rb') as file:
-        marginal_params = {'params': pickle.load(file)}
+        marginal_params = pickle.load(file)
 
     @jax.jit
     def project(trawl):
 
-        acf_model.apply(acf_params, trawl)
-        marginal_model.apply(marginal_params, trawl)
-        return jnp.concatenate([acf_model, marginal_model], axis=1)
+        acf_projection = acf_model.apply(acf_params, trawl)
+        marginal_projection = marginal_model.apply(marginal_params, trawl)
+        return jnp.concatenate([acf_projection, marginal_projection], axis=1)
 
     return project

@@ -1,0 +1,8 @@
+Training Summary
+================
+
+Best Model Information:
+Iteration: 1000
+Validation Loss: 2.522498
+
+Training completed at: 2025-01-03 18:47:27

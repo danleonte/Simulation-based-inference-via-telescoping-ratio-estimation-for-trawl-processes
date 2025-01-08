@@ -118,25 +118,35 @@ def train_and_evaluate(config_file_path):
     # Create learning rate schedule
     schedule_fn = optax.piecewise_constant_schedule(
         init_value=lr,
-        boundaries_and_scales={150: lr/10}  # At step 100, multiply lr by 0.1
+        boundaries_and_scales={250: lr/10}  # At step 100, multiply lr by 0.1
     )
 
     if config['optimizer']['name'] == 'adam':
         optimizer = optax.adam(schedule_fn)
 
+    # dropout_seed = np.random.randint(low=1, high=10**4)
+    # dropout_rng = jax.random.PRNGKey(dropout_seed)
+
     state = train_state.TrainState.create(
         apply_fn=model.apply,
         # jax.experimental.optimizers.adam(config["learning_rate"]),
         params=params,
+        # train=True,
+        # rngs={'dropout': jax.random.PRNGKey(dropout_seed)},
         tx=optimizer
     )
     ###########################################################################
     # Loss functions
 
     @jax.jit
-    def compute_loss(params, trawl, theta_acf_or_marginal_jax, p=1):
-        """Base loss function without gradients."""
-        pred_theta = model.apply(params, trawl)
+    def compute_loss(params, trawl, theta_acf_or_marginal_jax, dropout_rng, p=1):
+        """Base loss function for training with dropout RNG handling."""
+        pred_theta = state.apply_fn(
+            params,
+            trawl,
+            train=True,  # Hardcoded since this is only for training
+            rngs={'dropout': dropout_rng}
+        )
         loss = jnp.mean(
             jnp.abs(theta_acf_or_marginal_jax - pred_theta)**p)**(1/p)
         return loss
@@ -161,32 +171,23 @@ def train_and_evaluate(config_file_path):
     # replaced by the code below, which also computes st dev
 
     @jax.jit
-    def compute_validation_stats(params, val_trawls, val_thetas):
-        """Compute mean and std of validation loss.
-
-        The batches are saved in the slightly unusual format
-        [nr_batches, batch_size, dimension]
-
-        so loading them one by one actually loads a whole batch
-        """
+    def compute_validation_stats(params, val_trawls, val_thetas, p=1):
+        """Compute mean and std of validation loss."""
         def body_fun(i, acc):
-            trawl_val = jax.lax.dynamic_slice_in_dim(
-                val_trawls, i, 1)[0]
-            theta_val = jax.lax.dynamic_slice_in_dim(
-                val_thetas, i, 1)[0]
-            loss = compute_loss(params, trawl_val, theta_val)
+            trawl_val = jax.lax.dynamic_slice_in_dim(val_trawls, i, 1)[0]
+            theta_val = jax.lax.dynamic_slice_in_dim(val_thetas, i, 1)[0]
+            # No dropout during validation
+            pred_theta = state.apply_fn(params, trawl_val, train=False)
+            loss = jnp.mean(jnp.abs(theta_val - pred_theta))**(1/p)
             return acc + jnp.array([loss, loss**2])
 
-        # Accumulate sum and sum of squares
         total = jax.lax.fori_loop(
             0, val_trawls.shape[0], body_fun, jnp.zeros(2)
         )
 
         n = val_trawls.shape[0]
         mean = total[0] / n
-        # Use Welford's method to compute stable variance
         variance = (total[1] / n) - (mean**2)
-        # avoid negative values due to numerical issues
         std = jnp.sqrt(jnp.maximum(variance, 0.0))
 
         return mean, std
@@ -218,6 +219,12 @@ def train_and_evaluate(config_file_path):
     # Training loop
     for iteration in range(config["train_config"]["n_iterations"]):
 
+        # Split RNG for simulation and dropout
+        if key.ndim > 1:
+            dropout_key = jax.random.split(key[0])[0]
+        else:
+            dropout_key = jax.random.split(key)[0]
+
         theta_acf, key = theta_acf_simulator(key)
         theta_marginal_jax, theta_marginal_tf, key = theta_marginal_simulator(
             key)
@@ -225,12 +232,21 @@ def train_and_evaluate(config_file_path):
 
         # Compute loss and gradients
         if learn_acf:
-            loss, grads = compute_loss_and_grad(
-                state.params, trawl, theta_acf)
 
+            standardized_trawl = (
+                trawl - jnp.mean(trawl, axis=1, keepdims=True))/jnp.std(trawl, axis=1, keepdims=True)
+
+            loss, grads = compute_loss_and_grad(
+                state.params,
+                standardized_trawl,
+                theta_acf,
+                dropout_key)  # Use fresh dropout key
         elif learn_marginal:
             loss, grads = compute_loss_and_grad(
-                state.params, trawl, theta_marginal_jax)
+                state.params,
+                trawl,
+                theta_marginal_jax,
+                dropout_key)  # Use fresh dropout key
 
         # Update model parameters
         state = update_step(state, grads)
@@ -241,6 +257,7 @@ def train_and_evaluate(config_file_path):
         metrics = {
             train_loss: loss.item()
         }
+        print(metrics)
 
         # Compute validation loss periodically
         if iteration % val_freq == 0:
@@ -251,8 +268,8 @@ def train_and_evaluate(config_file_path):
             # Log metrics under the same group for better visualization
             metrics.update({
                 "val_metrics/val_loss": val_loss.item(),
-                "val_metrics/val_loss_upper": val_loss.item() + 1.96 * val_loss_std.item(),
-                "val_metrics/val_loss_lower": val_loss.item() - 1.96 * val_loss_std.item(),
+                "val_metrics/val_loss_upper": val_loss.item() + 1.96 * val_loss_std.item() / val_trawls.shape[0]**0.5,
+                "val_metrics/val_loss_lower": val_loss.item() - 1.96 * val_loss_std.item() / val_trawls.shape[0]**0.5,
             })
 
             ###################################################################
@@ -310,7 +327,7 @@ def train_and_evaluate(config_file_path):
 if __name__ == "__main__":
     import glob
     # Loop over configs
-    for config_file_path in glob.glob("config_files/summary_statistics/*.yaml"):
+    for config_file_path in glob.glob("config_files/summary_statistics/CNN/*.yaml"):
         train_and_evaluate(config_file_path)
 
 
