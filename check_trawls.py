@@ -61,10 +61,18 @@ for i in range(50):
     trawl_means_.append(jnp.mean(trawl, axis=1))
     trawl_stds_.append(jnp.std(trawl, axis=1))
 
+trawl_means_ = np.array(trawl_means_)
+trawl_stds_ = np.array(trawl_stds_)
 
-trawl_means = np.mean(np.array(trawl_means_), axis=0)
-trawl_stds = np.mean(np.array(trawl_stds_), axis=0)
+trawl_means = np.mean(trawl_means_, axis=0)
+trawl_stds = np.mean(trawl_stds_, axis=0)
 
 
 theoretical_mean = theta_marginal_jax[:, 0]
 theoretical_std = theta_marginal_jax[:, 1]
+
+
+# CHECK MARGINAL GMM
+
+
+# CHECK ACF GMM

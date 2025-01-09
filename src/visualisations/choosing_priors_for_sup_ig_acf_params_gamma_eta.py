@@ -15,7 +15,7 @@ if True:
 
 import jax
 import jax.numpy as jnp
-from src.utils.acf_functions import corr_supp_ig_envelope
+from src.utils.acf_functions import corr_sup_ig_envelope
 from src.utils.get_transformed_distr import get_transformed_beta_distr
 import tensorflow_probability.substrates.jax as tfp
 tfd = tfp.distributions
@@ -28,7 +28,7 @@ gamma_key = jax.random.PRNGKey(10)
 eta_key = jax.random.PRNGKey(20)
 
 
-distr_name = input("Enter prior distribution: beta or uniform")
+distr_name = input("Enter prior distribution: beta or uniform \n")
 
 
 if distr_name == 'beta':
@@ -42,8 +42,8 @@ if distr_name == 'beta':
 
 elif distr_name == 'uniform':
 
-    gamma_hyperparams = jnp.array([10., 20.])
-    eta_hyperparams = jnp.array([10., 20.])
+    gamma_hyperparams = jnp.array([5., 15.])  # jnp.array([5., 15.])
+    eta_hyperparams = jnp.array([10., 20.])  # jnp.array([5., 15.])
 
     gamma_sampler = tfp.distributions.Uniform(
         low=gamma_hyperparams[0], high=gamma_hyperparams[1])
@@ -59,7 +59,7 @@ eta_samples = eta_sampler.sample(500, eta_key)
 
 acf_params = jnp.vstack([gamma_samples, eta_samples])
 
-result = jnp.array([corr_supp_ig_envelope(lags[i], acf_params) for i in lags])
+result = jnp.array([corr_sup_ig_envelope(lags[i], acf_params) for i in lags])
 
 
 # Convert the data into a DataFrame for easier plotting with seaborn

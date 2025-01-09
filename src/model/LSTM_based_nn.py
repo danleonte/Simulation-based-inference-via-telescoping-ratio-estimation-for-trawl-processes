@@ -10,7 +10,7 @@ class LSTMModel(nn.Module):
     linear_layer_sizes: Sequence[int]
     mean_aggregation: bool
     final_output_size: int
-    # dropout_rate: float
+    dropout_rate: float
 
     def setup(self):
         # LSTM layers
@@ -34,12 +34,12 @@ class LSTMModel(nn.Module):
         ]
 
         # Dropout layer
-        # self.dropout = nn.Dropout(rate=self.dropout_rate)
+        self.dropout = nn.Dropout(rate=self.dropout_rate)
 
         # Final output layer
         self.output_layer = nn.Dense(features=self.final_output_size)
 
-    def __call__(self, x, theta: Optional[jax.Array] = None):
+    def __call__(self, x, theta: Optional[jax.Array] = None, train: bool = False):
         # Expand 2D input to 3D if necessary
         if x.ndim == 2:
             x = jnp.expand_dims(x, axis=-1)
@@ -60,9 +60,14 @@ class LSTMModel(nn.Module):
             x = jnp.concatenate([x, theta_projected], axis=-1)
 
         # Pass through linear layers with ELU activation
-        for linear_layer in self.linear_layers:
+        for linear_layer in self.linear_layers[:-1]:
             x = linear_layer(x)
             x = nn.elu(x)
+            x = self.dropout(x, deterministic=not train)
+
+        # Final linear layer without dropout
+        x = self.linear_layers[-1](x)
+        x = nn.elu(x)
 
         return self.output_layer(x)
 

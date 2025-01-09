@@ -61,13 +61,13 @@ def generate_nig_marginal_params(mu_hyperparams,
     jax_alpha = jnp.sqrt(jax_beta**2+jax_gamma**2)
 
     # convert to 4 param tf format
-    tf_mu = jax_mu - jax_beta * jax_scale / jax_gamma
-    tf_scale = jax_scale * jax_gamma**3 / jax_alpha**2
+    tf_delta = jax_scale**2 * jax_gamma**3 / jax_alpha**2
+    tf_mu = jax_mu - jax_beta * tf_delta / jax_gamma
     tf_alpha = jax_alpha
     tf_beta = jax_beta
 
     theta_jax = jnp.vstack([jax_mu, jax_scale, jax_beta])
-    theta_tf = jnp.vstack([tf_mu, tf_scale, tf_alpha, tf_beta])
+    theta_tf = jnp.vstack([tf_mu, tf_delta, tf_alpha, tf_beta])
 
     return jnp.squeeze(theta_jax, axis=-1), jnp.squeeze(theta_tf, axis=-1), key
 
