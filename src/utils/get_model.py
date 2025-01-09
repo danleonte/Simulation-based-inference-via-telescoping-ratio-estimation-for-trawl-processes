@@ -63,6 +63,7 @@ def get_model_LSTM(config_file, initialize=True):
     linear_layer_sizes = model_config['linear_layer_sizes']
     mean_aggregation = model_config['mean_aggregation']
     final_output_size = model_config['final_output_size']
+    dropout_rate = model_config['dropout_rate']
 
     # Create model
     model = LSTMModel(
@@ -70,7 +71,8 @@ def get_model_LSTM(config_file, initialize=True):
         num_lstm_layers=num_lstm_layers,
         linear_layer_sizes=linear_layer_sizes,
         mean_aggregation=mean_aggregation,
-        final_output_size=final_output_size
+        final_output_size=final_output_size,
+        dropout_rate=dropout_rate
     )
 
     if not initialize:

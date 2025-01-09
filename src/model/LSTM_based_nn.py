@@ -80,6 +80,7 @@ if __name__ == "__main__":
     linear_layer_sizes = (32, 16, 8)
     mean_aggregation = False
     final_output_size = 5
+    dropout_rate = 0.1
 
     # Create two instances of the same model
     model_without_theta = LSTMModel(
@@ -87,7 +88,8 @@ if __name__ == "__main__":
         num_lstm_layers=num_lstm_layers,
         linear_layer_sizes=linear_layer_sizes,
         mean_aggregation=mean_aggregation,
-        final_output_size=final_output_size
+        final_output_size=final_output_size,
+        dropout_rate=dropout_rate
     )
 
     model_with_theta = LSTMModel(
@@ -95,7 +97,8 @@ if __name__ == "__main__":
         num_lstm_layers=num_lstm_layers,
         linear_layer_sizes=linear_layer_sizes,
         mean_aggregation=mean_aggregation,
-        final_output_size=final_output_size
+        final_output_size=final_output_size,
+        dropout_rate=dropout_rate
     )
 
     # Generate dummy data

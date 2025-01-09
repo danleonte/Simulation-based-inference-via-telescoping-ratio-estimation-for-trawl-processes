@@ -7,7 +7,7 @@ trawl_config:
   tau: 1.0
   seq_len: 1500
   theta_size: 5
-  batch_size: 128
+  batch_size: 64
   marginal_distr: NIG
   acf: sup_IG
   trawl_type: sup_ig_nig_5p
@@ -35,7 +35,7 @@ train_config:
   n_iterations: 501
 val_config:
   val_freq: 100
-  val_n_batches: 10
+  val_n_batches: 20
 optimizer:
   name: adam
   lr: 0.001
