@@ -24,6 +24,7 @@ import wandb
 import os
 import pickle
 import yaml
+from src.utils.acf_functions import get_acf
 from src.utils.get_data_generator import get_theta_and_trawl_generator
 from src.utils.get_model import get_model
 from src.utils.utils import update_step, summary_stats_loss_fn
@@ -56,6 +57,13 @@ def train_and_evaluate(config_file_path):
 
     trawl_config = config['trawl_config']
     batch_size = trawl_config['batch_size']
+
+    loss_config = config['loss_config']
+    p = loss_config['p']
+    use_acf_directly = loss_config['use_acf_directly']
+    nr_acf_lags = loss_config['nr_acf_lags']
+    acf_func = jax.jit(
+        jax.vmap(get_acf(trawl_config['acf']), in_axes=(None, 0)))
 
     ###########################################################################
     # Get data generators
@@ -114,15 +122,36 @@ def train_and_evaluate(config_file_path):
 
     # Initialize optimizer
     lr = config["optimizer"]["lr"]
+    total_steps = config["train_config"]["n_iterations"]
+    warmup_steps = 250
+    decay_steps = total_steps - warmup_steps
 
     # Create learning rate schedule
-    schedule_fn = optax.piecewise_constant_schedule(
-        init_value=lr,
-        boundaries_and_scales={250: lr/10}  # At step 100, multiply lr by 0.1
-    )
+    # schedule_fn = optax.piecewise_constant_schedule(
+    #    init_value=lr,
+    #    boundaries_and_scales={250: lr/10}  # At step 100, multiply lr by 0.1
+    # )
+    schedule_fn = optax.join_schedules([
+        # Constant learning rate for warmup_steps
+        optax.constant_schedule(lr),
+        # Cosine decay for the remaining steps
+        optax.cosine_decay_schedule(
+            init_value=lr,
+            decay_steps=decay_steps,
+            alpha=0.1
+        )
+    ], boundaries=[warmup_steps])
 
     if config['optimizer']['name'] == 'adam':
-        optimizer = optax.adam(schedule_fn)
+        if 'weight_decay' in config['optimizer']:
+            # AdamW = Adam with weight decay
+            optimizer = optax.adamw(
+                learning_rate=schedule_fn,
+                weight_decay=config['optimizer']['weight_decay']
+            )
+        else:
+            # Regular Adam if no weight_decay specified
+            optimizer = optax.adam(learning_rate=schedule_fn)
 
     # dropout_seed = np.random.randint(low=1, high=10**4)
     # dropout_rng = jax.random.PRNGKey(dropout_seed)
@@ -147,8 +176,19 @@ def train_and_evaluate(config_file_path):
             train=True,  # Hardcoded since this is only for training
             rngs={'dropout': dropout_rng}
         )
-        loss = jnp.mean(
-            jnp.abs(theta_acf_or_marginal_jax - pred_theta)**p)**(1/p)
+        if learn_acf and use_acf_directly:
+
+            H = jnp.arange(1, nr_acf_lags+1)
+            pred_theta = jnp.exp(pred_theta)
+            pred_acf = acf_func(H, pred_theta)
+            theoretical_acf = acf_func(
+                H, theta_acf_or_marginal_jax)  # this is theta_acf
+            loss = jnp.mean(
+                jnp.abs((pred_acf - theoretical_acf))**p)**(1/p)
+
+        else:
+            loss = jnp.mean(
+                jnp.abs(theta_acf_or_marginal_jax - pred_theta)**p)**(1/p)
         return loss
 
     # get grads for training
@@ -174,11 +214,28 @@ def train_and_evaluate(config_file_path):
     def compute_validation_stats(params, val_trawls, val_thetas, p=1):
         """Compute mean and std of validation loss."""
         def body_fun(i, acc):
-            trawl_val = jax.lax.dynamic_slice_in_dim(val_trawls, i, 1)[0]
+
             theta_val = jax.lax.dynamic_slice_in_dim(val_thetas, i, 1)[0]
+            trawl_val = jax.lax.dynamic_slice_in_dim(val_trawls, i, 1)[0]
+            if learn_acf:
+                trawl_val = (trawl_val - jnp.mean(trawl_val, axis=1,
+                             keepdims=True))/jnp.std(trawl_val, axis=1, keepdims=True)
             # No dropout during validation
             pred_theta = state.apply_fn(params, trawl_val, train=False)
-            loss = jnp.mean(jnp.abs(theta_val - pred_theta))**(1/p)
+            # this is actually on the log scale for acf
+
+            if learn_acf and use_acf_directly:
+
+                pred_theta = jnp.exp(pred_theta)
+
+                H = jnp.arange(1, nr_acf_lags+1)
+                pred_acf = acf_func(H, pred_theta)
+                theoretical_acf = acf_func(H, theta_val)  # this is theta_acf
+                loss = jnp.mean(
+                    jnp.abs((pred_acf - theoretical_acf))**p)**(1/p)
+
+            else:
+                loss = jnp.mean(jnp.abs(theta_val - pred_theta)**p)**(1/p)
             return acc + jnp.array([loss, loss**2])
 
         total = jax.lax.fori_loop(
@@ -240,13 +297,15 @@ def train_and_evaluate(config_file_path):
                 state.params,
                 standardized_trawl,
                 theta_acf,
-                dropout_key)  # Use fresh dropout key
+                dropout_key,
+                p)  # Use fresh dropout key
         elif learn_marginal:
             loss, grads = compute_loss_and_grad(
                 state.params,
                 trawl,
                 theta_marginal_jax,
-                dropout_key)  # Use fresh dropout key
+                dropout_key,
+                p)  # Use fresh dropout key
 
         # Update model parameters
         state = update_step(state, grads)
@@ -262,7 +321,7 @@ def train_and_evaluate(config_file_path):
         if iteration % val_freq == 0:
 
             val_loss, val_loss_std = compute_validation_stats(
-                state.params, val_trawls, val_thetas)
+                state.params, val_trawls, val_thetas, p)
 
             # Log metrics under the same group for better visualization
             metrics.update({
@@ -328,6 +387,8 @@ if __name__ == "__main__":
     # Loop over configs
     for config_file_path in glob.glob("config_files/summary_statistics/LSTM/*.yaml"):
         train_and_evaluate(config_file_path)
+
+    # config_file_path = 'config_files/summary_statistics/Transformer\\config1.yaml'
 
 
 # TO DO: Log in loss per parameter, without names, just numbers

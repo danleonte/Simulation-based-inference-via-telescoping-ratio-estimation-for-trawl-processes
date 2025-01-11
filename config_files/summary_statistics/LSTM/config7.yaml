@@ -1,4 +1,8 @@
 prng_key: 16141
+loss_config:
+  p : 1
+  nr_acf_lags: 30
+  use_acf_directly: True
 learn_config:
   learn_acf: True
   learn_marginal: False
@@ -25,16 +29,17 @@ model_config:
     lstm_hidden_size: 64
     num_lstm_layers: 3
     linear_layer_sizes: [32,16,8,4]
-    mean_aggregation: False
+    mean_aggregation: True
     final_output_size: 2
     dropout_rate: 0.1 
     with_theta: False
     experiment_dir: summary_statistics
 train_config:
-  n_iterations: 501
+  n_iterations: 801
 val_config:
-  val_freq: 100
-  val_n_batches: 20
+  val_freq: 200
+  val_n_batches: 40
 optimizer:
   name: adam
-  lr: 0.001
+  lr: 0.0005
+  weight_decay: 0.0001

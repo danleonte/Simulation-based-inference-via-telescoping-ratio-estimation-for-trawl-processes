@@ -17,6 +17,8 @@ if True:
 
 from src.model.LSTM_based_nn import LSTMModel
 from src.model.Conv_based_nn import AcfCNN
+# You'll need to import this
+from src.model.Transformer_based_nn import TimeSeriesTransformerBase
 
 
 def get_model(config_file):
@@ -30,6 +32,9 @@ def get_model(config_file):
     elif model_name == 'AcfCNN':
 
         return get_model_Acf_CNN(config_file)
+
+    elif model_name == 'TimeSeriesTransformerBase':
+        return get_model_transformer(config_file)
 
     elif model_name == 'MLP':
 
@@ -121,7 +126,6 @@ def get_model_Acf_CNN(config_file, initialize=True):
     conv_kernels = model_config['conv_kernels']
     final_output_size = model_config['final_output_size']
     dropout_rate = model_config['dropout_rate']
-    deterministic = model_config['deterministic']
 
     model = AcfCNN(
         max_lag=max_lag,
@@ -156,6 +160,58 @@ def get_model_Acf_CNN(config_file, initialize=True):
 
 def get_model_MLP(config_file):
     pass
+
+
+def get_model_transformer(config_file, initialize=True):
+    # Sanity checks
+    trawl_config = config_file['trawl_config']
+    model_config = config_file['model_config']
+
+    assert model_config['model_name'] == 'TimeSeriesTransformerBase'
+    assert model_config['with_theta'] in [True, False]
+    ###################################################
+
+    # Get hyperparams
+    key = PRNGKey(config_file['prng_key'])
+    key, subkey = jax.random.split(key)
+
+    seq_len = trawl_config['seq_len']
+    batch_size = trawl_config['batch_size']
+
+    # Get transformer-specific parameters from config
+    hidden_size = model_config['hidden_size']
+    num_heads = model_config['num_heads']
+    num_layers = model_config['num_layers']
+    mlp_dim = model_config['mlp_dim']
+    linear_layer_sizes = model_config['linear_layer_sizes']
+    dropout_rate = model_config['dropout_rate']
+    final_output_size = model_config['final_output_size']
+    # Default to False if not specified
+    freq_attention = model_config.get('freq_attention', False)
+
+    # Create model
+    model = TimeSeriesTransformerBase(
+        hidden_size=hidden_size,
+        num_heads=num_heads,
+        num_layers=num_layers,
+        mlp_dim=mlp_dim,
+        linear_layer_sizes=linear_layer_sizes,
+        dropout_rate=dropout_rate,
+        final_output_size=final_output_size,
+        freq_attention=freq_attention
+    )
+
+    if not initialize:
+        return model
+
+    # Initialize model
+    # Dummy input [batch_size, sequence_length]
+    dummy_input = jax.random.normal(subkey, (batch_size, seq_len))
+
+    # Initialize with deterministic=True for consistency
+    params = model.init(subkey, dummy_input)
+
+    return model, params, key
 
 
 ###############################################################################
