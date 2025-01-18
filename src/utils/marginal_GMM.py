@@ -19,6 +19,11 @@ def compute_alpha(gamma, beta):
 
 
 def transform_to_tf_params(jax_mu, jax_scale, beta):
+    """"returns mu, dleta, gamma, beta
+
+    NOT
+
+    mu, delta, alpha ,beta"""
     gamma = compute_gamma(beta)
     alpha = compute_alpha(gamma, beta)
     tf_delta = jax_scale**2 * gamma**3 / alpha**2

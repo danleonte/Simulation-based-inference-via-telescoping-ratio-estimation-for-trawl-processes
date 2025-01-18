@@ -13,6 +13,9 @@ Created on Fri Dec 13 13:43:15 2024
 """
 
 
+from src.utils.utils import update_step, summary_stats_loss_fn
+from src.utils.get_model import get_model
+from src.utils.get_data_generator import get_theta_and_trawl_generator
 import optax
 from flax.training import train_state
 from jax.random import PRNGKey
@@ -24,13 +27,13 @@ import wandb
 import os
 import pickle
 import yaml
-from src.utils.acf_functions import get_acf
-from src.utils.get_data_generator import get_theta_and_trawl_generator
-from src.utils.get_model import get_model
-from src.utils.utils import update_step, summary_stats_loss_fn
+from src.utils.acf_functions import get_acf, plot_theoretical_empirical_inferred_acf
+from src.utils.KL_divergence import vec_monte_carlo_kl_3_param_nig
+from functools import partial
 if True:
     from path_setup import setup_sys_path
     setup_sys_path()
+# config_file_path = 'config_files/summary_statistics/Transformer\\config1.yaml'
 
 
 def train_and_evaluate(config_file_path):
@@ -58,13 +61,21 @@ def train_and_evaluate(config_file_path):
     trawl_config = config['trawl_config']
     batch_size = trawl_config['batch_size']
 
+    # more hyperparams for the loss function
     loss_config = config['loss_config']
     p = loss_config['p']
-    use_acf_directly = loss_config['use_acf_directly']
-    nr_acf_lags = loss_config['nr_acf_lags']
-    acf_func = jax.jit(
-        jax.vmap(get_acf(trawl_config['acf']), in_axes=(None, 0)))
 
+    if learn_acf:
+
+        use_acf_directly = loss_config['use_acf_directly']
+        nr_acf_lags = loss_config['nr_acf_lags']
+        acf_func = jax.jit(
+            jax.vmap(get_acf(trawl_config['acf']), in_axes=(None, 0)))
+
+    elif learn_marginal:
+
+        use_kl_div = loss_config['use_kl_div']
+        num_KL_samples = loss_config['num_KL_samples']
     ###########################################################################
     # Get data generators
     theta_acf_simulator, theta_marginal_simulator, trawl_simulator = get_theta_and_trawl_generator(
@@ -118,7 +129,7 @@ def train_and_evaluate(config_file_path):
     ###########################################################################
     # Create model and initialize parameters
     model, params, key = get_model(config)
-    key = jax.random.split(PRNGKey(config['prng_key']), batch_size)
+    key = jax.random.split(PRNGKey(config['prng_key']+2351), batch_size)
 
     # Initialize optimizer
     lr = config["optimizer"]["lr"]
@@ -138,7 +149,7 @@ def train_and_evaluate(config_file_path):
         optax.cosine_decay_schedule(
             init_value=lr,
             decay_steps=decay_steps,
-            alpha=0.1
+            alpha=0.05
         )
     ], boundaries=[warmup_steps])
 
@@ -158,18 +169,30 @@ def train_and_evaluate(config_file_path):
 
     state = train_state.TrainState.create(
         apply_fn=model.apply,
-        # jax.experimental.optimizers.adam(config["learning_rate"]),
         params=params,
-        # train=True,
-        # rngs={'dropout': jax.random.PRNGKey(dropout_seed)},
         tx=optimizer
     )
     ###########################################################################
     # Loss functions
 
-    @jax.jit
-    def compute_loss(params, trawl, theta_acf_or_marginal_jax, dropout_rng, p=1):
-        """Base loss function for training with dropout RNG handling."""
+    @partial(jax.jit, static_argnames=('num_KL_samples',))
+    def compute_loss(params, trawl, theta_acf_or_marginal_jax, dropout_rng, p, key, num_KL_samples=10**3):
+        """Base loss function for training with dropout RNG handling.
+        Args:
+
+            params: weights and biases of the model
+            trawl: realisation of the trawl process, jnp array of shape [batch_dim, seq_len]
+            theta_acf_or_marginal_jax: 
+            p: integer that specifies which p norm we use, if we use the p norm. see below
+            key: jax.random.PRNGKey, without a batch size, as per flax's convetion
+
+        Returns:
+
+            to add
+
+        Based on the config file, the loss can be computed in one of multiple ways.
+        We can either compare 
+        """
         pred_theta = state.apply_fn(
             params,
             trawl,
@@ -178,40 +201,50 @@ def train_and_evaluate(config_file_path):
         )
         if learn_acf and use_acf_directly:
 
-            H = jnp.arange(1, nr_acf_lags+1)
+            # predict log_acf_params
             pred_theta = jnp.exp(pred_theta)
+
+            # compute L^p distance between true and inferred acf
+            H = jnp.arange(1, nr_acf_lags+1)
             pred_acf = acf_func(H, pred_theta)
             theoretical_acf = acf_func(
                 H, theta_acf_or_marginal_jax)  # this is theta_acf
             loss = jnp.mean(
                 jnp.abs((pred_acf - theoretical_acf))**p)**(1/p)
 
+        elif learn_marginal and use_kl_div:
+
+            # predict mu, log_scale, beta
+
+            pred_mu, pred_log_scale, pred_beta = pred_theta[:, [
+                0]], pred_theta[:, [1]], pred_theta[:, [2]]
+            pred_theta = jnp.concatenate(
+                [pred_mu, jnp.exp(pred_log_scale), pred_beta], axis=1)
+
+            # compute KL divergence between true and infered NIG distr
+            KL_key = jax.random.split(dropout_rng, batch_size)
+
+            loss = vec_monte_carlo_kl_3_param_nig(theta_acf_or_marginal_jax,
+                                                  pred_theta, KL_key, num_KL_samples)
+
+            loss = jnp.mean(loss)
+
         else:
+
+            # predict actual params
+
             loss = jnp.mean(
                 jnp.abs(theta_acf_or_marginal_jax - pred_theta)**p)**(1/p)
         return loss
 
     # get grads for training
-    compute_loss_and_grad = jax.jit(jax.value_and_grad(compute_loss))
+    # key and num_KL_samples are only used when we learn the marginal params
+    # via minimized MC approximation of the KL divergence
+    compute_loss_and_grad = jax.jit(jax.value_and_grad(
+        compute_loss), static_argnames=('num_KL_samples',))
 
-    # @jax.jit
-    # def compute_validation_loss(params, val_trawls, val_thetas):
-    #    """Compute average loss over validation set using fori_loop."""
-    #    def body_fun(i, acc):
-    #        trawl_val = jax.lax.dynamic_slice_in_dim(val_trawls, i, 1)[0]
-    #        theta_val = jax.lax.dynamic_slice_in_dim(val_thetas, i, 1)[0]
-    #        return acc + compute_loss(params, trawl_val, theta_val)
-    #
-    #    total_loss = jax.lax.fori_loop(
-    #        0, val_trawls.shape[0], body_fun, jnp.array(0., dtype=jnp.float32)
-    #    )
-    #
-    #    return total_loss / val_trawls.shape[0]
-
-    # replaced by the code below, which also computes st dev
-
-    @jax.jit
-    def compute_validation_stats(params, val_trawls, val_thetas, p=1):
+    @partial(jax.jit, static_argnames=('num_KL_samples',))
+    def compute_validation_stats(params, val_trawls, val_thetas, p, key, num_KL_samples):
         """Compute mean and std of validation loss."""
         def body_fun(i, acc):
 
@@ -234,8 +267,13 @@ def train_and_evaluate(config_file_path):
                 loss = jnp.mean(
                     jnp.abs((pred_acf - theoretical_acf))**p)**(1/p)
 
+            elif learn_marginal and use_kl_div:
+
+                raise ValueError('not yet implemented')
+
             else:
                 loss = jnp.mean(jnp.abs(theta_val - pred_theta)**p)**(1/p)
+
             return acc + jnp.array([loss, loss**2])
 
         total = jax.lax.fori_loop(
@@ -253,24 +291,6 @@ def train_and_evaluate(config_file_path):
     best_val_loss = float('inf')
     best_iteration = -1
     best_model_path = os.path.join(experiment_dir, "best_model")
-    ###########################################################################
-
-    # @jax.jit
-    # def compute_loss_and_grad_acf_and_marginal(params, trawl, theta_acf, theta_marginal_jax):
-    #    """
-    #    Compute loss and gradients.
-    #    """
-    #    def loss_fn_wrapped(params):
-    #        pred_theta = model.apply(params, trawl)
-    #        total_loss, (acf_loss, marginal_loss) = summary_stats_loss_fn(
-    #            pred_theta, theta_acf, theta_marginal_jax)
-    #        return total_loss, (acf_loss, marginal_loss)
-    #
-    #    (total_loss, (acf_loss, marginal_loss)), grads = jax.value_and_grad(
-    #        lambda params: loss_fn_wrapped(params), has_aux=True
-    #    )(params)
-    #    return total_loss, acf_loss, marginal_loss, grads
-
     ###########################################################################
 
     # Training loop
@@ -298,14 +318,16 @@ def train_and_evaluate(config_file_path):
                 standardized_trawl,
                 theta_acf,
                 dropout_key,
-                p)  # Use fresh dropout key
+                p,
+                key)  # Use fresh dropout key
         elif learn_marginal:
             loss, grads = compute_loss_and_grad(
                 state.params,
                 trawl,
                 theta_marginal_jax,
                 dropout_key,
-                p)  # Use fresh dropout key
+                p,
+                key)  # Use fresh dropout key
 
         # Update model parameters
         state = update_step(state, grads)
@@ -330,21 +352,6 @@ def train_and_evaluate(config_file_path):
                 "val_metrics/val_loss_lower": val_loss.item() - 1.96 * val_loss_std.item() / val_trawls.shape[0]**0.5,
             })
 
-            ###################################################################
-            # WHY DOES THIS HANG???
-            # Save regular checkpoints
-            # checkpoints.save_checkpoint(
-            #    ckpt_dir=checkpoint_dir,
-            #    target=state,
-            #    step=iteration,
-            #    prefix="checkpoint_iter_",
-            #    overwrite=False
-            # )
-
-            # Use this to load checkpoint
-            # state = checkpoints.restore_checkpoint(ckpt_dir=checkpoint_dir, target=state, step=iteration_number)
-            ###################################################################
-
             # Save just the parameters instead of full state
             params_filename = os.path.join(
                 experiment_dir, f"params_iter_{iteration}.pkl")
@@ -355,6 +362,26 @@ def train_and_evaluate(config_file_path):
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
                 best_iteration = iteration
+
+            # upload plots as well
+
+            if learn_acf:  # TO CHANGE
+
+                pred_theta = state.apply_fn(
+                    state.params,
+                    standardized_trawl,
+                    train=False
+                )
+
+                pred_theta = jnp.exp(pred_theta)
+                for i in range(5):
+                    fig_ = plot_theoretical_empirical_inferred_acf(
+                        standardized_trawl[i], theta_acf[i], pred_theta[i], 'sup_IG', nr_acf_lags)
+
+                    wandb.log({f"Acf plot {i}": wandb.Image(fig_)})
+
+            elif learn_marginal:
+                pass
 
         wandb.log(metrics)
 

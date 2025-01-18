@@ -6,6 +6,9 @@ Created on Fri Dec 13 13:11:48 2024
 """
 import jax
 import jax.numpy as jnp
+from statsmodels.tsa.stattools import acf as compute_empirical_acf
+import matplotlib.pyplot as plt
+import numpy as np
 
 
 @jax.jit
@@ -48,3 +51,20 @@ def get_acf(acf_type):
     else:
 
         raise ValueError(f'acf_type {acf_type} not implemented yet')
+
+
+def plot_theoretical_empirical_inferred_acf(trawl, theoretical_theta, inferred_theta, trawl_type, nlags):
+
+    empirical_acf = compute_empirical_acf(np.array(trawl), nlags=nlags)[1:]
+
+    acf_func = get_acf(trawl_type)
+    H = np.arange(1, nlags+1)
+    theoretical_acf = acf_func(H, theoretical_theta)
+    inferred_acf = acf_func(H, inferred_theta)
+
+    f, ax = plt.subplots()
+    ax.plot(H, theoretical_acf, label='theoretical')
+    ax.plot(H, inferred_acf, label='inferred')
+    ax.plot(H, empirical_acf, label='empirical')
+    plt.legend()
+    return f
