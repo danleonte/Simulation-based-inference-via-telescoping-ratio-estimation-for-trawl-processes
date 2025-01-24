@@ -27,8 +27,7 @@ import wandb
 import os
 import pickle
 import yaml
-from src.utils.acf_functions import get_acf, plot_theoretical_empirical_inferred_acf
-from src.utils.trawl_training_utils import loss_functions_wrapper
+from src.utils.acf_functions import get_acf, plot_acfs
 from functools import partial
 if True:
     from path_setup import setup_sys_path
@@ -375,7 +374,7 @@ def train_and_evaluate(config_file_path):
 
                 pred_theta = jnp.exp(pred_theta)
                 for i in range(5):
-                    fig_ = plot_theoretical_empirical_inferred_acf(
+                    fig_ = plot_acfs(
                         standardized_trawl[i], theta_acf[i], pred_theta[i], 'sup_IG', nr_acf_lags)
 
                     wandb.log({f"Acf plot {i}": wandb.Image(fig_)})

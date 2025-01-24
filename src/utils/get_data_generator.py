@@ -24,7 +24,8 @@ def get_theta_and_trawl_generator(config):
     trawl_config = config['trawl_config']
     batch_size = trawl_config['batch_size']
 
-    if trawl_config['acf'] == 'sup_IG' and trawl_config['marginal_distr'] == 'NIG':
+    if trawl_config['acf'] == 'sup_IG' and trawl_config['marginal_distr'] == 'NIG' and \
+            trawl_config['trawl_process_type'] == 'sup_ig_nig_5p':
 
         # get simulators
         theta_acf_simulator = jax.jit(jax.vmap(generate_sup_ig_acf_params_jax,

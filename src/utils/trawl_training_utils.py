@@ -26,9 +26,9 @@ def get_pred_theta_acf_from_nn(pred_theta, trawl_func_name):
         raise ValueError
 
 
-def get_pred_theta_marginal_from_nn(pred_theta, marginal_distr, trawl_type):
+def get_pred_theta_marginal_from_nn(pred_theta, marginal_distr, trawl_process_type):
 
-    if marginal_distr == 'NIG' and trawl_type == 'sup_ig_nig_5p':
+    if marginal_distr == 'NIG' and trawl_process_type == 'sup_ig_nig_5p':
 
         return pred_theta.at[:, 1].set(jnp.exp(pred_theta[:, 1]))
 
@@ -151,7 +151,7 @@ def loss_functions_wrapper(state, config):
     elif learn_marginal:
 
         marginal_distr = trawl_config['marginal_distr']
-        trawl_type = trawl_config['trawl_type']
+        trawl_process_type = trawl_config['trawl_process_type']
 
         @partial(jax.jit, static_argnames=('train', 'num_KL_samples'))
         def compute_loss(params, trawl, theta_marginal, dropout_rng, train, num_KL_samples):
@@ -159,7 +159,7 @@ def loss_functions_wrapper(state, config):
             pred_theta = predict_theta(params, trawl, dropout_rng, train, True)
             # check if we predict parameters on the log scale etc
             pred_theta = get_pred_theta_marginal_from_nn(
-                pred_theta, marginal_distr, trawl_type)
+                pred_theta, marginal_distr, trawl_process_type)
 
             # KL key, if using MC approximation
             KL_key = jax.random.split(dropout_rng, batch_size)
@@ -170,7 +170,7 @@ def loss_functions_wrapper(state, config):
                 return _direct_params_loss(theta_marginal, pred_theta)
 
             # can assume we're using KL div here
-            if marginal_distr == 'NIG' and trawl_type == 'sup_ig_nig_5p':
+            if marginal_distr == 'NIG' and trawl_process_type == 'sup_ig_nig_5p':
 
                 kl_loss = vec_monte_carlo_kl_3_param_nig(
                     theta_marginal,
@@ -193,16 +193,23 @@ def loss_functions_wrapper(state, config):
 
     if learn_acf:
 
-        @jax.jit
-        def compute_validation_stats(params, val_trawls, val_thetas_acf, dropout_rng):
+        # DROPOUT RNG NOT USED IN ACF
 
-            # ADD DROPOUT RNG HERE
-            def body_fun(i, acc, dropout_rng):
+        @jax.jit
+        # , dropout_rng):
+        def compute_validation_stats(params, val_trawls, val_thetas_acf):
+
+            # DROPOUT RNG NOT USED IN ACF; using a fixed kee instead
+            def body_fun(i, acc):
+
+                ######################################
+                dropout_rng = jax.random.PRNGKey(4321)
+                ######################################
 
                 theta_val = jax.lax.dynamic_slice_in_dim(
                     val_thetas_acf, i, 1)[0]
                 trawl_val = jax.lax.dynamic_slice_in_dim(
-                    val_thetas_acf, i, 1)[0]
+                    val_trawls, i, 1)[0]
                 loss = compute_loss(params, trawl_val,
                                     theta_val, dropout_rng, False)
 
@@ -222,27 +229,36 @@ def loss_functions_wrapper(state, config):
     elif learn_marginal:
 
         @partial(jax.jit, static_argnames=('num_KL_samples'))
-        def compute_validation_stats(params, val_trawls, val_thetas_marginal, num_KL_samples):
+        def compute_validation_stats(params, val_trawls, val_thetas_marginal, dropout_rng, num_KL_samples):
 
-            def body_fun(i, acc):
+            def body_fun(i, carry):
+
+                dropout_rng, acc = carry
+                # Split RNG for this iteration
+                dropout_rng, subkey = jax.random.split(dropout_rng)
 
                 theta_val = jax.lax.dynamic_slice_in_dim(
                     val_thetas_marginal, i, 1)[0]
                 trawl_val = jax.lax.dynamic_slice_in_dim(
-                    val_thetas_marginal, i, 1)[0]
-                loss = compute_loss(params, trawl_val, theta_val, False)
+                    val_trawls, i, 1)[0]
 
-                return acc + jnp.array([loss, loss**2])
+                loss = compute_loss(params, trawl_val, theta_val,
+                                    subkey, False, num_KL_samples)
 
-            total = jax.lax.fori_loop(
-                0, val_trawls.shape[0], body_fun, jnp.zeros(2)
+                return (dropout_rng, acc + jnp.array([loss, loss**2]))
+
+            # Initialize carry with both RNG and accumulator
+            init_carry = (dropout_rng, jnp.zeros(2))
+
+            # Run the loop, keeping track of both RNG and accumulated stats
+            _, total = jax.lax.fori_loop(
+                0, val_trawls.shape[0], body_fun, init_carry
             )
 
             n = val_trawls.shape[0]
             mean = total[0] / n
             variance = (total[1] / n) - (mean**2)
             std = jnp.sqrt(jnp.maximum(variance, 0.0))
+            return mean, std, dropout_rng
 
-            return mean, std
-
-    return compute_loss, compute_loss_and_grad, compute_validation_stats
+    return predict_theta, compute_loss, compute_loss_and_grad, compute_validation_stats

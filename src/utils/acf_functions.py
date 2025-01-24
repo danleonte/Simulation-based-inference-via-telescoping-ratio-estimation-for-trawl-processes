@@ -53,7 +53,8 @@ def get_acf(acf_type):
         raise ValueError(f'acf_type {acf_type} not implemented yet')
 
 
-def plot_theoretical_empirical_inferred_acf(trawl, theoretical_theta, inferred_theta, trawl_type, nlags):
+def _old_plot_theoretical_empirical_inferred_acf(trawl, theoretical_theta, inferred_theta, trawl_type, nlags):
+    """ Plots the empirical, theoretical, infered and GMM acf functions"""
 
     empirical_acf = compute_empirical_acf(np.array(trawl), nlags=nlags)[1:]
 

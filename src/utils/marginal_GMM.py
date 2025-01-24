@@ -136,9 +136,9 @@ def estimate_jax_parameters(trawl):
     ]
 
     initial_guess = np.array([
-        1.0,  # jax_mu
-        2.0,  # jax_scale
-        2.0   # jax_beta
+        np.mean(trawl),  # jax_mu
+        np.std(trawl),  # jax_scale
+        0.0   # jax_beta
     ])
 
     class JAXGMM(GMM):

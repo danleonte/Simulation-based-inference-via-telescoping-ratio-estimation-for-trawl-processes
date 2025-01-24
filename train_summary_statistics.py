@@ -6,27 +6,31 @@ Created on Sun Jan 19 14:40:41 2025
 """
 
 
-from src.utils.utils import update_step, summary_stats_loss_fn
-from src.utils.get_model import get_model
-from src.utils.get_data_generator import get_theta_and_trawl_generator
-import optax
-from flax.training import train_state
-from jax.random import PRNGKey
-import jax.numpy as jnp
-import numpy as np
-import datetime
-import jax
-import wandb
-import os
-import pickle
-import yaml
-from src.utils.acf_functions import get_acf, plot_theoretical_empirical_inferred_acf
-from src.utils.trawl_training_utils import loss_functions_wrapper
-from functools import partial
 if True:
     from path_setup import setup_sys_path
     setup_sys_path()
-# config_file_path = 'config_files/summary_statistics/Transformer\\config1.yaml'
+
+import os
+import jax
+import yaml
+import wandb
+import optax
+import pickle
+import datetime
+import numpy as np
+import jax.numpy as jnp
+from functools import partial
+from jax.random import PRNGKey
+from flax.training import train_state
+from src.utils.get_model import get_model
+from src.utils.acf_functions import get_acf
+from src.utils.summary_statistics_plotting import plot_acfs
+from src.utils.get_data_generator import get_theta_and_trawl_generator
+from src.utils.trawl_training_utils import get_pred_theta_acf_from_nn, \
+    get_pred_theta_marginal_from_nn, loss_functions_wrapper
+
+
+# config_file_path = 'config_files/summary_statistics/LSTM\\config1.yaml'
 
 
 def train_and_evaluate(config_file_path):
@@ -116,7 +120,7 @@ def train_and_evaluate(config_file_path):
     # Initialize optimizer
     lr = config["optimizer"]["lr"]
     total_steps = config["train_config"]["n_iterations"]
-    warmup_steps = 250
+    warmup_steps = 500
     decay_steps = total_steps - warmup_steps
 
     schedule_fn = optax.join_schedules([
@@ -151,7 +155,9 @@ def train_and_evaluate(config_file_path):
     # Get params and hyperparams for the loss function
     loss_config = config['loss_config']
     num_KL_samples = loss_config['num_KL_samples']
-    compute_loss, compute_loss_and_grad, \
+
+    # Loss functions
+    predict_theta, compute_loss, compute_loss_and_grad, \
         compute_validation_stats = loss_functions_wrapper(state, config)
 
     # Initialize best validation loss tracking
@@ -176,11 +182,11 @@ def train_and_evaluate(config_file_path):
                 params, trawl, theta_acf, dropout_subkey_to_use, True)
 
         elif learn_marginal:
-            loss, grads = compute_loss(
+            loss, grads = compute_loss_and_grad(
                 params, trawl, theta_marginal_jax, dropout_subkey_to_use, True, num_KL_samples)
 
         # Update model parameters
-        state = update_step(state, grads)
+        state = state.apply_gradients(grads=grads)
 
         # Validation and logging
         loss_name = 'acf_loss' if learn_acf else 'marginal_loss'
@@ -199,8 +205,8 @@ def train_and_evaluate(config_file_path):
 
             elif learn_marginal:
 
-                val_loss, val_loss_std = compute_validation_stats(
-                    params, val_trawls, val_thetas, num_KL_samples)
+                val_loss, val_loss_std, dropout_key = compute_validation_stats(
+                    params, val_trawls, val_thetas, dropout_key, num_KL_samples)
 
             # Log metrics under the same group for better visualization
             metrics.update({
@@ -220,25 +226,23 @@ def train_and_evaluate(config_file_path):
                 best_val_loss = val_loss
                 best_iteration = iteration
 
+            pred_theta = predict_theta(
+                params, trawl, dropout_key, False, learn_acf)
+
             if learn_acf:
 
-                # ADD PLOTS
-                pred_theta = state.apply_fn(
-                    state.params,
-                    standardized_trawl,
-                    train=False
-                )
+                pred_theta = get_pred_theta_acf_from_nn(
+                    pred_theta, trawl_config['acf'])
 
-                pred_theta = jnp.exp(pred_theta)
                 for i in range(5):
-                    fig_ = plot_theoretical_empirical_inferred_acf(
-                        standardized_trawl[i], theta_acf[i], pred_theta[i], 'sup_IG', nr_acf_lags)
-
+                    fig_ = plot_acfs(
+                        trawl[i], theta_acf[i], pred_theta[i], config)
                     wandb.log({f"Acf plot {i}": wandb.Image(fig_)})
 
             elif learn_marginal:
 
-                # ADD PLOTS
+                pred_theta = get_pred_theta_marginal_from_nn(
+                    pred_theta, trawl_config['marginal_distr'], trawl_config['trawl_process_type'])
                 pass
 
         wandb.log(metrics)

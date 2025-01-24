@@ -1,4 +1,4 @@
-prng_key: 24255
+prng_key: 25411
 loss_config:
   p : 2
   nr_acf_lags: 35
@@ -28,12 +28,12 @@ trawl_config:
     beta_prior_hyperparams: [-5.,5.] 
 model_config:
     model_name: LSTMModel
-    lstm_hidden_size: 16
-    num_lstm_layers: 2
-    linear_layer_sizes: [32,24,16,8,4]
+    lstm_hidden_size: 18
+    num_lstm_layers: 3
+    linear_layer_sizes: [32,16,8,4]
     mean_aggregation: True
     final_output_size: 2
-    dropout_rate: 0.2
+    dropout_rate: 0.15 
     with_theta: False
     experiment_dir: summary_statistics
     experiment_subdir: exp_1
@@ -45,4 +45,4 @@ val_config:
 optimizer:
   name: adam
   lr: 0.001
-  weight_decay: 0.0001
+  weight_decay: 0.00025
