@@ -6,8 +6,8 @@ loss_config:
   num_KL_samples: 5000
   use_kl_div: None
 learn_config:
-  learn_acf: True
-  learn_marginal: False
+  learn_acf: False
+  learn_marginal: True
   learn_both: False
 trawl_config:
   tau: 1.0
@@ -32,7 +32,7 @@ model_config:
     num_lstm_layers: 1
     linear_layer_sizes: [32,16,8,4]
     mean_aggregation: True
-    final_output_size: 2
+    final_output_size: 3
     with_theta: False
     dropout_rate: 0.15 
     experiment_dir: summary_statistics

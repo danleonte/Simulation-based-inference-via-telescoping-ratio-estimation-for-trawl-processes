@@ -26,8 +26,7 @@ from src.utils.get_model import get_model
 from src.utils.acf_functions import get_acf
 from src.utils.summary_statistics_plotting import plot_acfs
 from src.utils.get_data_generator import get_theta_and_trawl_generator
-from src.utils.trawl_training_utils import get_pred_theta_acf_from_nn, \
-    get_pred_theta_marginal_from_nn, loss_functions_wrapper
+from src.utils.trawl_training_utils import loss_functions_wrapper
 
 
 # config_file_path = 'config_files/summary_statistics/LSTM\\config1.yaml'
@@ -201,7 +200,7 @@ def train_and_evaluate(config_file_path):
             if learn_acf:
 
                 val_loss, val_loss_std = compute_validation_stats(
-                    params, val_trawls, val_thetas)
+                    params, val_trawls, val_thetas, num_KL_samples)
 
             elif learn_marginal:
 
@@ -231,9 +230,6 @@ def train_and_evaluate(config_file_path):
 
             if learn_acf:
 
-                pred_theta = get_pred_theta_acf_from_nn(
-                    pred_theta, trawl_config['acf'])
-
                 for i in range(5):
                     fig_ = plot_acfs(
                         trawl[i], theta_acf[i], pred_theta[i], config)
@@ -241,8 +237,6 @@ def train_and_evaluate(config_file_path):
 
             elif learn_marginal:
 
-                pred_theta = get_pred_theta_marginal_from_nn(
-                    pred_theta, trawl_config['marginal_distr'], trawl_config['trawl_process_type'])
                 pass
 
         wandb.log(metrics)
