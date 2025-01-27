@@ -186,6 +186,7 @@ def train_and_evaluate(config_file_path):
 
         # Update model parameters
         state = state.apply_gradients(grads=grads)
+        params = state.params
 
         # Validation and logging
         loss_name = 'acf_loss' if learn_acf else 'marginal_loss'
