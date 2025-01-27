@@ -4,10 +4,10 @@ loss_config:
   nr_acf_lags: 35
   use_acf_directly: True
   num_KL_samples: 5000
-  use_kl_div: None
+  use_kl_div: True
 learn_config:
-  learn_acf: False
-  learn_marginal: True
+  learn_acf: True
+  learn_marginal: False
   learn_both: False
 trawl_config:
   tau: 1.0
