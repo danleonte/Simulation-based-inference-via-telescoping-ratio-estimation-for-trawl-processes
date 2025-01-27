@@ -32,7 +32,7 @@ model_config:
     num_lstm_layers: 1
     linear_layer_sizes: [32,16,8,4]
     mean_aggregation: True
-    final_output_size: 3
+    final_output_size: 2
     with_theta: False
     dropout_rate: 0.15 
     experiment_dir: summary_statistics

@@ -178,7 +178,7 @@ def train_and_evaluate(config_file_path):
         # Compute loss and gradients
         if learn_acf:
             loss, grads = compute_loss_and_grad(
-                params, trawl, theta_acf, dropout_subkey_to_use, True)
+                params, trawl, theta_acf, dropout_subkey_to_use, True, num_KL_samples)
 
         elif learn_marginal:
             loss, grads = compute_loss_and_grad(
