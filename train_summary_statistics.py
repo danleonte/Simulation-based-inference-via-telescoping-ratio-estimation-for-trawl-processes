@@ -226,7 +226,7 @@ def train_and_evaluate(config_file_path):
                 best_iteration = iteration
 
             pred_theta = predict_theta(
-                params, trawl, dropout_key, False, learn_acf)
+                params, trawl, dropout_key, False)
 
             if learn_acf:
 
