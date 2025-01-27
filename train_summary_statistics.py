@@ -197,15 +197,15 @@ def train_and_evaluate(config_file_path):
         # Compute validation loss periodically
         if iteration % val_freq == 0:
 
-            if learn_acf:
+            # if learn_acf:
+            #
+            #    val_loss, val_loss_std = compute_validation_stats(
+            #        params, val_trawls, val_thetas, num_KL_samples)
+            #
+            # elif learn_marginal:
 
-                val_loss, val_loss_std = compute_validation_stats(
-                    params, val_trawls, val_thetas, num_KL_samples)
-
-            elif learn_marginal:
-
-                val_loss, val_loss_std, dropout_key = compute_validation_stats(
-                    params, val_trawls, val_thetas, dropout_key, num_KL_samples)
+            val_loss, val_loss_std, dropout_key = compute_validation_stats(
+                params, val_trawls, val_thetas, dropout_key, num_KL_samples)
 
             # Log metrics under the same group for better visualization
             metrics.update({
