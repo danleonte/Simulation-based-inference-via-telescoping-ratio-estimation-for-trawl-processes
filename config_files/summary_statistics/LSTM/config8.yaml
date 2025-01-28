@@ -4,7 +4,7 @@ loss_config:
   nr_acf_lags: 35
   use_acf_directly: True
   num_KL_samples: 5000
-  use_kl_div: None
+  use_kl_div: True
 learn_config:
   learn_acf: True
   learn_marginal: False
