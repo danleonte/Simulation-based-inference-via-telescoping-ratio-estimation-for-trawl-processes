@@ -265,10 +265,16 @@ def train_and_evaluate(config_file_path):
 
             wandb.log(metrics)
 
-        # Final best model summary
-        print(f"\nTraining completed. Best model:")
-        print(f"Iteration: {best_iteration}")
-        print(f"Validation Loss: {best_val_loss:.6f}")
+        # Save best model info
+        best_model_info_path = os.path.join(
+            val_data_dir, "best_model_info.txt")
+        with open(best_model_info_path, 'w') as f:
+            f.write(f"Best model iteration: {best_iteration}\n")
+            f.write(f"Best validation loss: {best_val_loss:.6f}\n")
+
+        config_save_path = os.path.join(val_data_dir, "config.yaml")
+        with open(config_save_path, 'w') as f:
+            yaml.dump(config, f)
 
     finally:
         # At the very end of the function
