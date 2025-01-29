@@ -54,6 +54,7 @@ def train_and_evaluate(config_file_path):
         timestamp = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
         config_name = os.path.basename(config_file_path).replace('.yaml', '')
         run_name = f"{timestamp}_{config_name}"
+        run_name = 'acf' if learn_acf else 'marginal'
 
         group_name = (
             "acf" if learn_acf else
@@ -202,6 +203,9 @@ def train_and_evaluate(config_file_path):
                     num_KL_samples *= 2
 
                 if iteration == 5500:
+                    num_KL_samples *= 2
+
+                if iteration = 9000:
                     num_KL_samples *= 2
 
             # Update model parameters
