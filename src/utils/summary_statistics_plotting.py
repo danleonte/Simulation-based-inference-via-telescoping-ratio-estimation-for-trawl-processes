@@ -4,6 +4,12 @@ Created on Fri Jan 24 14:29:30 2025
 
 @author: dleon
 """
+import tensorflow_probability.substrates.jax as tfp
+if True:
+    from path_setup import setup_sys_path
+    setup_sys_path()
+
+
 import jax
 import jax.numpy as jnp
 from statsmodels.tsa.stattools import acf as compute_empirical_acf
@@ -11,6 +17,11 @@ from src.utils.acf_functions import get_acf
 from src.utils.weighted_GMM_acf import estimate_acf_parameters
 import matplotlib.pyplot as plt
 import numpy as np
+from src.utils.marginal_GMM import transform_to_tf_params
+
+
+tfp_dist = tfp.distributions
+norminvgauss = tfp_dist.NormalInverseGaussian
 
 
 def plot_acfs(trawl, theta_acf, pred_theta, config, initial_guess=None):
@@ -50,5 +61,29 @@ def plot_acfs(trawl, theta_acf, pred_theta, config, initial_guess=None):
         return f
 
 
-def plot_marginal_distributions(trawl, theta_marginal, pred_theta, config):
-    pass
+def plot_marginals(jax_theta_marginal, jax_pred_theta, config):
+
+    trawl_config = config['trawl_config']
+    trawl_process_type = trawl_config['trawl_process_type']
+
+    if trawl_process_type == 'sup_ig_nig_5p':
+
+        z = jnp.linspace(-5, 5, 75)
+
+        mu, delta, gamma, beta = transform_to_tf_params(
+            jax_theta_marginal[0], jax_theta_marginal[1], jax_theta_marginal[2])
+        pred_mu, pred_delta, pred_gamma, pred_beta = transform_to_tf_params(
+            jax_pred_theta[0], jax_pred_theta[1], jax_pred_theta[2])
+
+        alpha = jnp.sqrt(gamma**2+beta**2)
+        pred_alpha = jnp.sqrt(pred_gamma**2 + pred_beta**2)
+
+        f, ax = plt.subplots()
+        ax.plot(z,  norminvgauss(mu, delta, alpha, beta).prob(z), label='true')
+        ax.plot(z, norminvgauss(pred_mu, pred_delta,
+                pred_alpha, pred_beta).prob(z), label='pred')
+        plt.legend()
+        return f
+
+    else:
+        raise ValueError

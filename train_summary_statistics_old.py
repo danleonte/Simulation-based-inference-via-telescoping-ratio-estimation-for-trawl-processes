@@ -351,6 +351,15 @@ def train_and_evaluate(config_file_path):
                 "val_metrics/val_loss_lower": val_loss.item() - 1.96 * val_loss_std.item() / val_trawls.shape[0]**0.5,
             })
 
+            if iteration == 2000:
+                num_KL_samples *= 2
+
+            if iteration == 5000:
+                num_KL_samples *= 2
+
+            if iteration == 5500:
+                num_KL_samples *= 2
+
             # Save just the parameters instead of full state
             params_filename = os.path.join(
                 experiment_dir, f"params_iter_{iteration}.pkl")
@@ -411,7 +420,7 @@ def train_and_evaluate(config_file_path):
 if __name__ == "__main__":
     import glob
     # Loop over configs
-    for config_file_path in glob.glob("config_files/summary_statistics/LSTM/*.yaml"):
+    for config_file_path in glob.glob("config_files/summary_statistics/LSTM/marginal/*.yaml"):
         train_and_evaluate(config_file_path)
 
     # config_file_path = 'config_files/summary_statistics/Transformer\\config1.yaml'

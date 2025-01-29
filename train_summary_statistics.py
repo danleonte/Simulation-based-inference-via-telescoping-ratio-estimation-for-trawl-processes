@@ -24,12 +24,12 @@ from jax.random import PRNGKey
 from flax.training import train_state
 from src.utils.get_model import get_model
 from src.utils.acf_functions import get_acf
-from src.utils.summary_statistics_plotting import plot_acfs
+from src.utils.summary_statistics_plotting import plot_acfs, plot_marginals
 from src.utils.get_data_generator import get_theta_and_trawl_generator
 from src.utils.trawl_training_utils import loss_functions_wrapper
 
 
-# config_file_path = 'config_files/summary_statistics/LSTM\\config1.yaml'
+# config_file_path = 'config_files/summary_statistics/LSTM/marginal\\config3.yaml'
 
 
 def train_and_evaluate(config_file_path):
@@ -51,7 +51,7 @@ def train_and_evaluate(config_file_path):
         assert learn_acf + learn_marginal == 1 and learn_both == False
 
         # Initialize wandb
-        timestamp = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M")
+        timestamp = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
         config_name = os.path.basename(config_file_path).replace('.yaml', '')
         run_name = f"{timestamp}_{config_name}"
 
@@ -195,6 +195,15 @@ def train_and_evaluate(config_file_path):
                 loss, grads = compute_loss_and_grad(
                     params, trawl, theta_marginal_jax, dropout_subkey_to_use, True, num_KL_samples)
 
+                if iteration == 1000:
+                    num_KL_samples *= 2
+
+                if iteration == 3000:
+                    num_KL_samples *= 2
+
+                if iteration == 5500:
+                    num_KL_samples *= 2
+
             # Update model parameters
             state = state.apply_gradients(grads=grads)
             params = state.params
@@ -249,10 +258,12 @@ def train_and_evaluate(config_file_path):
 
                 elif learn_marginal:
 
-                    pass
+                    for i in range(5):
+                        fig_ = plot_marginals(
+                            theta_marginal_jax[i], pred_theta[i], config)
+                        wandb.log({f"Acf plot {i}": wandb.Image(fig_)})
 
-            if iteration % 5 == 0:
-                wandb.log(metrics)
+            wandb.log(metrics)
 
         # Final best model summary
         print(f"\nTraining completed. Best model:")
@@ -267,5 +278,5 @@ def train_and_evaluate(config_file_path):
 if __name__ == "__main__":
     import glob
     # Loop over configs
-    for config_file_path in glob.glob("config_files/summary_statistics/LSTM/*.yaml"):
+    for config_file_path in glob.glob("config_files/summary_statistics/LSTM/marginal/*.yaml"):
         train_and_evaluate(config_file_path)
