@@ -205,7 +205,7 @@ def train_and_evaluate(config_file_path):
                 if iteration == 5500:
                     num_KL_samples *= 2
 
-                if iteration = 9000:
+                if iteration == 9000:
                     num_KL_samples *= 2
 
             # Update model parameters

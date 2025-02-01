@@ -3,10 +3,8 @@ tre_config:
   use_tre: True
   tre_type: beta 
   use_summary_statistics: True
-  summary_statistics_model_paths: 
-      acf: learn_acf
-      marginal: learn_marginal
   replace_full_trawl_with_acf: True
+  nlags: 35
 trawl_config:
   tau: 1.0
   seq_len: 1500
@@ -14,7 +12,7 @@ trawl_config:
   batch_size: 64
   marginal_distr: NIG
   acf: sup_IG
-  trawl_type: sup_ig_nig_5p
+  trawl_process_type: sup_ig_nig_5p
   acf_prior_hyperparams:
     distr_name: uniform
     gamma_prior_hyperparams: [10.,20.]
@@ -30,17 +28,15 @@ model_config:
     num_lstm_layers: 2
     linear_layer_sizes: [32,16,8,4]
     mean_aggregation: False
-    final_output_size: 3
-    with_theta: False
-    experiment_dir: summary_statistics
-    experiment_subdir: exp_1
+    final_output_size: 1
+    dropout_rate: 0.15 
+    with_theta: True
 train_config:
-  n_iterations: 801 
-  n_acc_steps_per_iterations: 10
-  batch_size: 64
+  n_iterations: 6001 
 val_config:
-  val_freq: 200
-  val_n_batches: 10
+  val_freq: 300
+  val_n_batches: 40
 optimizer:
   name: adam
   lr: 0.001
+  weight_decay: 0.0001
