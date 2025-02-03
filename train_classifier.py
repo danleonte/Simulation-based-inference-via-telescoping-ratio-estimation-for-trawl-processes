@@ -12,6 +12,7 @@ Created on Thu Dec 26 20:41:54 2024
 @author: dleon
 """
 
+from netcal.presentation import ReliabilityDiagram
 from src.model.Extended_model_nn import ExtendedModel
 from src.utils.classifier_utils import get_projection_function
 from src.utils.get_data_generator import get_theta_and_trawl_generator
@@ -21,6 +22,7 @@ from flax.training import train_state
 from jax.random import PRNGKey
 from functools import partial
 import jax.numpy as jnp
+import matplotlib.pyplot as plt
 import numpy as np
 import datetime
 import pickle
@@ -29,6 +31,7 @@ import wandb
 import yaml
 import jax
 import os
+import netcal
 if True:
     from path_setup import setup_sys_path
     setup_sys_path()
@@ -50,7 +53,7 @@ if True:
 # standardize the time series on top of chopping the theta
 
 
-# classifier_config_file_path = 'config_files/classifier\\classifier_config.yaml'
+# classifier_config_file_path = 'config_files/classifier\\classifier_config1.yaml'
 
 def train_classifier(classifier_config_file_path):
 
@@ -253,55 +256,75 @@ def train_classifier(classifier_config_file_path):
             S = 2 * jnp.mean(pred_Y * Y)
             classifier_output = jax.nn.sigmoid(pred_Y)
             B = 2 * jnp.mean(classifier_output)
+            accuracy = jnp.mean(pred_Y == Y)
 
-            return bce_loss, (S, B)
+            return bce_loss, (S, B, accuracy, classifier_output)
 
         compute_loss_and_grad = jax.jit(jax.value_and_grad(
             compute_loss, has_aux=True), static_argnames=('train',))
 
+        ################### helper for validations ############################
+
         @jax.jit
-        def compute_validation_loss(params, val_trawls, val_thetas,):
+        def process_sample(params, trawl_val, theta_val):
+            """JIT-compiled function to process a single validation sample."""
+            batch_size = theta_val.shape[0]
 
-            def body_fun(i, acc):
-                theta_val = jax.lax.dynamic_slice_in_dim(val_thetas, i, 1)[0]
-                trawl_val = jax.lax.dynamic_slice_in_dim(val_trawls, i, 1)[0]
-                batch_size = theta_val.shape[0]
+            # Shuffle
+            trawl_val = jnp.vstack([trawl_val, theta_val])  # normal, normal
+            theta_val = jnp.vstack(
+                [theta_val, jnp.roll(theta_val, -1)])  # normal, shuffled
+            Y_val = jnp.vstack(
+                [jnp.ones([batch_size, 1]), jnp.zeros([batch_size, 1])])  # 1, then 0
 
-                # shuffle
-                trawl_val = jnp.vstack(
-                    [trawl_val, theta_val])  # normal, normal
-                theta_val = jnp.vstack(
-                    [theta_val, jnp.roll(theta_val, -1)])  # normal, shuffled
-                Y_val = jnp.vstack(
-                    [jnp.ones([batch_size, 1]), jnp.zeros([batch_size, 1])])  # 1, then 0
+            # Compute loss, S, B, accuracy, classifier output
+            bce_loss, (S, B, accuracy, classifier_output) = compute_loss(
+                params, trawl_val, theta_val, Y_val, jax.random.PRNGKey(
+                    0), False
+            )
 
-                bce_loss, (S, B) = compute_loss(params, trawl_val,
-                                                theta_val, Y_val, jax.random.PRNGKey(0), False)
-                return acc + jnp.array([bce_loss, bce_loss**2, S, S**2, B, B**2])
+            # Return values for accumulation
+            return jnp.array([bce_loss, bce_loss**2, S, S**2, B, B**2, accuracy, accuracy**2]), classifier_output
 
-            # Run the loop with just the accumulator
-            total = jax.lax.fori_loop(
-                0, val_trawls.shape[0], body_fun, jnp.zeros(6))
+        def compute_validation_loss(params, val_trawls, val_thetas):
+            num_samples = val_trawls.shape[0]
 
-            n = val_trawls.shape[0]
+            # Initialize accumulators
+            total = jnp.zeros(8)
 
-            # Compute means
-            mean_loss = total[0] / n
-            mean_S = total[2] / n
-            mean_B = total[4] / n
+            # Store classifier outputs dynamically
+            all_classifier_outputs = []
 
-            # Compute standard deviations
-            variance_loss = (total[1] / n) - (mean_loss**2)
-            variance_S = (total[3] / n) - (mean_S**2)
-            variance_B = (total[5] / n) - (mean_B**2)
+            for i in range(num_samples):
+                theta_val = val_thetas[i]
+                trawl_val = val_trawls[i]
 
-            std_loss = jnp.sqrt(jnp.maximum(variance_loss, 0.0))
-            std_S = jnp.sqrt(jnp.maximum(variance_S, 0.0))
-            std_B = jnp.sqrt(jnp.maximum(variance_B, 0.0))
+                # **Call JIT-compiled function**
+                sample_stats, classifier_output = process_sample(
+                    params, trawl_val, theta_val)
 
-            return mean_loss, std_loss, mean_S, std_S, mean_B, std_B
+                # Accumulate statistics
+                total += sample_stats
 
-        #######################################################################
+                # Store classifier outputs dynamically
+                all_classifier_outputs.append(classifier_output)
+
+            # Convert classifier outputs to JAX array
+            all_classifier_outputs = jnp.concatenate(
+                all_classifier_outputs, axis=0)
+
+            # Compute means & standard deviations efficiently
+            means = total[::2] / num_samples
+            variances = (total[1::2] / num_samples) - (means**2)
+            stds = jnp.sqrt(jnp.maximum(variances, 0.0))
+
+            # Unpack values
+            mean_loss, mean_S, mean_B, mean_accuracy = means
+            std_loss, std_S, std_B, std_accuracy = stds
+
+            return mean_loss, std_loss, mean_S, std_S, mean_B, std_B, mean_accuracy, std_accuracy, all_classifier_outputs
+
+            #######################################################################
         #                         Training loop                               #
         #######################################################################
 
@@ -339,7 +362,7 @@ def train_classifier(classifier_config_file_path):
             Y = jnp.concatenate([jnp.ones(batch_size), jnp.zeros(batch_size)])
 
             dropout_key, dropout_subkey_to_use = jax.random.split(dropout_key)
-            (bce_loss, (S, B)), grads = compute_loss_and_grad(
+            (bce_loss, (S, B, accuracy, _)), grads = compute_loss_and_grad(
                 state.params, trawl, theta, Y, dropout_subkey_to_use, True)
 
             # Update model parameters
@@ -355,7 +378,7 @@ def train_classifier(classifier_config_file_path):
             # Compute validation loss periodically
             if iteration % val_freq == 0:
 
-                val_bce, val_std_bce, val_S, val_std_S, val_B, val_std_B = compute_validation_loss(
+                val_bce, val_std_bce, val_S, val_std_S, val_B, val_std_B, val_acc, val_std_acc, all_classifier_outputs = compute_validation_loss(
                     params, val_trawls, val_thetas)
 
                 # metrics.update({
@@ -380,6 +403,38 @@ def train_classifier(classifier_config_file_path):
                 if val_bce < best_val_loss:
                     best_val_loss = val_bce
                     best_iteration = iteration
+
+                ################## diagnosing classifiers #################
+                Y_calibration = jnp.hstack(
+                    [jnp.ones([batch_size]), jnp.zeros([batch_size])])
+                Y_calibration = np.concatenate(
+                    [Y_calibration]*len(val_trawls))
+
+                all_classifier_outputs = np.array(all_classifier_outputs)
+
+                # uncalibrated reliability diagrams
+                diagram_eq = ReliabilityDiagram(
+                    20, equal_intervals=False)
+                diagram_eq = diagram_eq.plot(
+                    all_classifier_outputs, Y_calibration)
+
+                diagram_un = ReliabilityDiagram(
+                    20, equal_intervals=True)
+                diagram_un = diagram_un.plot(
+                    all_classifier_outputs, Y_calibration)
+
+                hist_beta, ax = plt.subplots()
+                ax.hist(
+                    all_classifier_outputs[Y_calibration == 1], label='Y=1', alpha=0.5, density=True)
+                ax.hist(
+                    all_classifier_outputs[Y_calibration == 0], label='Y=0', alpha=0.5, density=True)
+                ax.set_title(
+                    r'Histogram of $c(\mathbf{x},\mathbf{\theta})$ classifier')
+                ax.legend(loc='upper center')
+
+                wandb.log({f"Diagram eq": wandb.Image(diagram_eq)})
+                wandb.log({f"Diagram uneq": wandb.Image(diagram_un)})
+                wandb.log({f"Histogram": wandb.Image(hist_beta)})
 
             wandb.log(metrics)
 
