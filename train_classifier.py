@@ -414,23 +414,23 @@ def train_classifier(classifier_config_file_path):
 
                 # uncalibrated reliability diagrams
                 diagram_eq = ReliabilityDiagram(
-                    20, equal_intervals=False)
+                    20, equal_intervals=False);
                 diagram_eq = diagram_eq.plot(
-                    all_classifier_outputs, Y_calibration)
+                    all_classifier_outputs, Y_calibration);
 
                 diagram_un = ReliabilityDiagram(
-                    20, equal_intervals=True)
+                    20, equal_intervals=True);
                 diagram_un = diagram_un.plot(
-                    all_classifier_outputs, Y_calibration)
+                    all_classifier_outputs, Y_calibration);
 
-                hist_beta, ax = plt.subplots()
+                hist_beta, ax = plt.subplots();
                 ax.hist(
-                    all_classifier_outputs[Y_calibration == 1], label='Y=1', alpha=0.5, density=True)
+                    all_classifier_outputs[Y_calibration == 1], label='Y=1', alpha=0.5, density=True);
                 ax.hist(
-                    all_classifier_outputs[Y_calibration == 0], label='Y=0', alpha=0.5, density=True)
+                    all_classifier_outputs[Y_calibration == 0], label='Y=0', alpha=0.5, density=True);
                 ax.set_title(
-                    r'Histogram of $c(\mathbf{x},\mathbf{\theta})$ classifier')
-                ax.legend(loc='upper center')
+                    r'Histogram of $c(\mathbf{x},\mathbf{\theta})$ classifier');
+                ax.legend(loc='upper center');
 
                 wandb.log({f"Diagram eq": wandb.Image(diagram_eq)})
                 wandb.log({f"Diagram uneq": wandb.Image(diagram_un)})
