@@ -416,17 +416,17 @@ def train_classifier(classifier_config_file_path):
                             all_classifier_outputs)
 
                         # uncalibrated reliability diagrams
-                        fig_eq, ax_eq = plt.subplots()
+                        # fig_eq, ax_eq = plt.subplots();
                         diagram_eq = ReliabilityDiagram(
                             15, equal_intervals=False)
-                        diagram_eq.plot(
-                            all_classifier_outputs, Y_calibration, ax=ax_eq)
+                        fig_eq = diagram_eq.plot(
+                            all_classifier_outputs, Y_calibration).get_figure()  # , ax=ax_eq)
 
-                        fig_un, ax_un = plt.subplots()
+                        # fig_un, ax_un = plt.subplots();
                         diagram_un = ReliabilityDiagram(
                             15, equal_intervals=True)
-                        diagram_un = diagram_un.plot(
-                            all_classifier_outputs, Y_calibration, ax=ax_un)
+                        fig_un = diagram_un.plot(
+                            all_classifier_outputs, Y_calibration).get_figure()
 
                         hist_beta, ax = plt.subplots()
                         ax.hist(
