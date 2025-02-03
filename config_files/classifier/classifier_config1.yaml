@@ -8,8 +8,9 @@ tre_config:
 trawl_config:
   tau: 1.0
   seq_len: 1500
+  input_size: 5
   theta_size: 5
-  batch_size: 64
+  batch_size: 128
   marginal_distr: NIG
   acf: sup_IG
   trawl_process_type: sup_ig_nig_5p
@@ -23,19 +24,16 @@ trawl_config:
     scale_prior_hyperparams: [0.5,1.5]
     beta_prior_hyperparams: [-5.,5.] 
 model_config:
-    model_name: LSTMModel
-    lstm_hidden_size: 32
-    num_lstm_layers: 2
+    model_name: DenseModel
     linear_layer_sizes: [32,16,8,4]
-    mean_aggregation: False
     final_output_size: 1
     dropout_rate: 0.15 
     with_theta: True
 train_config:
-  n_iterations: 6001 
+  n_iterations: 9001 
 val_config:
   val_freq: 300
-  val_n_batches: 40
+  val_n_batches: 20
 optimizer:
   name: adam
   lr: 0.001

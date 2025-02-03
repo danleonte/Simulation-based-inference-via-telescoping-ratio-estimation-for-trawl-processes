@@ -12,31 +12,30 @@ Created on Thu Dec 26 20:41:54 2024
 @author: dleon
 """
 
-
+from src.model.Extended_model_nn import ExtendedModel
 from src.utils.classifier_utils import get_projection_function
-from src.utils.trawl_training_utils import loss_functions_wrapper
 from src.utils.get_data_generator import get_theta_and_trawl_generator
-from src.utils.summary_statistics_plotting import plot_acfs, plot_marginals
-from src.utils.acf_functions import get_acf
 from src.utils.get_model import get_model
-import os
-import jax
-import yaml
-import wandb
-import optax
-import pickle
-import datetime
-import numpy as np
-import jax.numpy as jnp
-from functools import partial
-from jax.random import PRNGKey
-from flax.training import train_state
 from statsmodels.tsa.stattools import acf as compute_empirical_acf
+from flax.training import train_state
+from jax.random import PRNGKey
+from functools import partial
+import jax.numpy as jnp
+import numpy as np
+import datetime
+import pickle
+import optax
+import wandb
+import yaml
+import jax
+import os
 if True:
     from path_setup import setup_sys_path
     setup_sys_path()
 
-#############################
+################################################
+###########################################
+###########################################
 
 
 # training: BCE loss
@@ -124,9 +123,9 @@ def train_classifier(classifier_config_file_path):
                                        for trawl_ in trawl_val])
 
                 ########################################
-
-            val_data.append((trawl_val, jnp.concatenate(
-                [theta_acf_val, theta_marginal_jax_val], axis=1)))
+            theta_val = jnp.concatenate(
+                [theta_acf_val, theta_marginal_jax_val], axis=1)
+            val_data.append((trawl_val, theta_val))
 
         # Convert validation data to JAX arrays
         # Saves it in the format [#batches, batch_size, vector_dimension]
@@ -178,8 +177,17 @@ def train_classifier(classifier_config_file_path):
         # load extended model
         if (not use_summary_statistics) and use_tre:
 
+            to_double_check = True
+            assert not to_double_check
+
             ######  EXTENDED MODEL HERE ########
             # CHECK KEYS ARE UPDATED
+            model = ExtendedModel(base_model=model,  trawl_process_type=trawl_config['trawl_process_type'],
+                                  tre_type=tre_type, use_summary_statistics=use_summary_statistics)
+
+            # Initialize parameters
+            # don't use val_key afterwards
+            params = model.init(val_key[0], trawl_val, theta_val)
 
             # Initialize optimizer
         lr = classifier_config["optimizer"]["lr"]
@@ -233,41 +241,71 @@ def train_classifier(classifier_config_file_path):
                 train=train,
                 rngs={'dropout': dropout_rng}
             )
-            return optax.losses.sigmoid_binary_cross_entropy(logits=pred_Y, labels=Y)
+            if Y.ndim > 1:
+                Y = Y.squeeze(-1)
+            if pred_Y.ndim > 1:
+                pred_Y = pred_Y.squeeze(-1)
+
+            bce_loss = jnp.mean(optax.losses.sigmoid_binary_cross_entropy(
+                logits=pred_Y, labels=Y))
+
+            # half of them are 0s, half of them are 1, so we have to x2
+            S = 2 * jnp.mean(pred_Y * Y)
+            classifier_output = jax.nn.sigmoid(pred_Y)
+            B = 2 * jnp.mean(Y * classifier_output)
+
+            return bce_loss, (S, B)
 
         compute_loss_and_grad = jax.jit(jax.value_and_grad(
-            compute_loss), static_argnames=('train',))
+            compute_loss, has_aux=True), static_argnames=('train',))
 
         @jax.jit
-        def compute_validation_loss(params, val_trawls, val_thetas):
-
-            ADD S AND B METRICS
+        def compute_validation_loss(params, val_trawls, val_thetas,):
 
             def body_fun(i, acc):
                 theta_val = jax.lax.dynamic_slice_in_dim(val_thetas, i, 1)[0]
                 trawl_val = jax.lax.dynamic_slice_in_dim(val_trawls, i, 1)[0]
-                loss = compute_loss(params, trawl_val,
-                                    theta_val, jax.random.PRNGKey(0), False)
-                return acc + jnp.array([loss, loss**2])
+                batch_size = theta_val.shape[0]
+
+                # shuffle
+                trawl_val = jnp.vstack(
+                    [trawl_val, theta_val])  # normal, normal
+                theta_val = jnp.vstack(
+                    [theta_val, jnp.roll(theta_val, -1)])  # normal, shuffled
+                Y_val = jnp.vstack(
+                    [jnp.ones([batch_size, 1]), jnp.zeros([batch_size, 1])])  # 1, then 0
+
+                bce_loss, (S, B) = compute_loss(params, trawl_val,
+                                                theta_val, Y_val, jax.random.PRNGKey(0), False)
+                return acc + jnp.array([bce_loss, bce_loss**2, S, S**2, B, B**2])
 
             # Run the loop with just the accumulator
             total = jax.lax.fori_loop(
-                0, val_trawls.shape[0], body_fun, jnp.zeros(2))
+                0, val_trawls.shape[0], body_fun, jnp.zeros(6))
 
             n = val_trawls.shape[0]
-            mean = total[0] / n
-            variance = (total[1] / n) - (mean**2)
-            std = jnp.sqrt(jnp.maximum(variance, 0.0))
 
-            return mean, std
+            # Compute means
+            mean_loss = total[0] / n
+            mean_S = total[2] / n
+            mean_B = total[4] / n
+
+            # Compute standard deviations
+            variance_loss = (total[1] / n) - (mean_loss**2)
+            variance_S = (total[3] / n) - (mean_S**2)
+            variance_B = (total[5] / n) - (mean_B**2)
+
+            std_loss = jnp.sqrt(jnp.maximum(variance_loss, 0.0))
+            std_S = jnp.sqrt(jnp.maximum(variance_S, 0.0))
+            std_B = jnp.sqrt(jnp.maximum(variance_B, 0.0))
+
+            return mean_loss, std_loss, mean_S, std_S, mean_B, std_B
 
         #######################################################################
         #                         Training loop                               #
         #######################################################################
 
         for iteration in range(classifier_config["train_config"]["n_iterations"]):
-
-            dropout_key, dropout_subkey_to_use = jax.random.split(dropout_key)
 
             # Generate data and shuffle
             # data A
@@ -298,33 +336,63 @@ def train_classifier(classifier_config_file_path):
 
             theta = jnp.vstack([theta_a, theta_b])
             trawl = jnp.vstack([trawl_a, trawl_a])
-            Y = jnp.vstack([jnp.ones(batch_size), jnp.zeros(batch_size)])
+            Y = jnp.concatenate([jnp.ones(batch_size), jnp.zeros(batch_size)])
 
-            loss, grads = compute_loss_and_grad(
+            dropout_key, dropout_subkey_to_use = jax.random.split(dropout_key)
+            (bce_loss, (S, B)), grads = compute_loss_and_grad(
                 state.params, trawl, theta, Y, dropout_subkey_to_use, True)
 
             # Update model parameters
             state = state.apply_gradients(grads=grads)
             params = state.params
 
+            metrics = {
+                'bce_loss': bce_loss.item()
+            }
             ###################################################################
             #               Validation  inside the training loop              #
             ###################################################################
             # Compute validation loss periodically
             if iteration % val_freq == 0:
 
-                TO ADD
+                val_bce, val_std_bce, val_S, val_std_S, val_B, val_std_B = compute_validation_loss(
+                    params, val_trawls, val_thetas)
 
-            # Save best model info
-            best_model_info_path = os.path.join(
-                val_data_dir, "best_model_info.txt")
-            with open(best_model_info_path, 'w') as f:
-                f.write(f"Best model iteration: {best_iteration}\n")
-                f.write(f"Best validation loss: {best_val_loss:.6f}\n")
+                # metrics.update({
+                #    "val_metrics/val_bce_loss": val_loss.item(),
+                #    "val_metrics/val_bce_upper": val_loss.item() + 1.96 * val_loss_std.item() / val_trawls.shape[0]**0.5,
+                #    "val_metrics/val_bce_lower": val_loss.item() - 1.96 * val_loss_std.item() / val_trawls.shape[0]**0.5,
+                # })
 
-            config_save_path = os.path.join(val_data_dir, "config.yaml")
-            with open(config_save_path, 'w') as f:
-                yaml.dump(classifier_config, f)
+                metrics.update({
+                    "val_bce": val_bce.item(),
+                    "val_S": val_S.item(),
+                    "val_B": val_B.item()
+                })
+
+                # Save just the parameters instead of full state
+                params_filename = os.path.join(
+                    experiment_dir, f"params_iter_{iteration}.pkl")
+                with open(params_filename, 'wb') as f:
+                    pickle.dump(state.params, f)
+
+                # Keep track of best model
+                if val_bce < best_val_loss:
+                    best_val_loss = val_bce
+                    best_iteration = iteration
+
+            wandb.log(metrics)
+
+        # Save best model info
+        best_model_info_path = os.path.join(
+            val_data_dir, "best_model_info.txt")
+        with open(best_model_info_path, 'w') as f:
+            f.write(f"Best model iteration: {best_iteration}\n")
+            f.write(f"Best validation loss: {best_val_loss:.6f}\n")
+
+        config_save_path = os.path.join(val_data_dir, "config.yaml")
+        with open(config_save_path, 'w') as f:
+            yaml.dump(classifier_config, f)
 
     finally:
         # At the very end of the function

@@ -16,23 +16,23 @@ if True:
     setup_sys_path()
 
 from src.model.LSTM_based_nn import LSTMModel
-from src.model.Dense_Model import DenseModel
+from src.model.Dense_model import DenseModel
 from src.model.Conv_based_nn import AcfCNN
 # You'll need to import this
 from src.model.Transformer_based_nn import TimeSeriesTransformerBase
 
 
-def get_model(config_file):
+def get_model(config_file, initialize=True):
     model_name = config_file['model_config']['model_name']
 
     if model_name == 'LSTMModel':
-        return get_model_LSTM(config_file)
+        return get_model_LSTM(config_file, initialize)
     elif model_name == 'AcfCNN':
-        return get_model_Acf_CNN(config_file)
+        return get_model_Acf_CNN(config_file, initialize)
     elif model_name == 'TimeSeriesTransformerBase':
-        return get_model_transformer(config_file)
+        return get_model_transformer(config_file, initialize)
     elif model_name == 'DenseModel':
-        return get_model_Dense(config_file)
+        return get_model_Dense(config_file, initialize)
     else:
         raise ValueError('model_name not recognized, please check config file')
 
@@ -84,7 +84,7 @@ def get_model_LSTM(config_file, initialize=True):
     # Low-dimensional parameter (can be of any size)
     if model_config['with_theta']:
 
-        dummy_theta = jnp.random.normal(subkey, (batch_size, theta_size))
+        dummy_theta = jax.random.normal(subkey, (batch_size, theta_size))
         params = model.init(subkey, dummy_input, dummy_theta)
 
     else:
@@ -140,7 +140,7 @@ def get_model_Acf_CNN(config_file, initialize=True):
     # Low-dimensional parameter (can be of any size)
     if model_config['with_theta']:
 
-        dummy_theta = jnp.random.normal(subkey, (batch_size, theta_size))
+        dummy_theta = jax.random.normal(subkey, (batch_size, theta_size))
         params = model.init(subkey, dummy_input, dummy_theta)
 
     else:
@@ -163,9 +163,15 @@ def get_model_Dense(config_file, initialize=True):
     key = PRNGKey(config_file['prng_key'])
     key, subkey = jax.random.split(key)
 
-    seq_len = trawl_config['seq_len']
+    seq_len = trawl_config['input_size']  # 3trawl_config['seq_len']
     batch_size = trawl_config['batch_size']
     theta_size = trawl_config['theta_size']
+
+    # adjust dimensionality of the input when using summary statistics
+    # if 'tre_config' in config_file.keys():
+    #    tre_config = config_file['tre_config']
+    #    if tre_config['use_summary_statistics']:
+    #        seq_len = tre_config['summary_statistics_input_size']
 
     linear_layer_sizes = model_config['linear_layer_sizes']
     final_output_size = model_config['final_output_size']
@@ -189,7 +195,7 @@ def get_model_Dense(config_file, initialize=True):
 
     # Low-dimensional parameter (can be of any size)
     if model_config['with_theta']:
-        dummy_theta = jnp.random.normal(subkey, (batch_size, theta_size))
+        dummy_theta = jax.random.normal(subkey, (batch_size, theta_size))
         params = model.init(subkey, dummy_input, dummy_theta)
     else:
         params = model.init(subkey, dummy_input)

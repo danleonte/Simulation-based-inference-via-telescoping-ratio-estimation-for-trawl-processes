@@ -11,37 +11,41 @@ from flax import linen as nn
 from typing import Optional
 
 
-def modify_x(x, theta, tre_indicator):
+def modify_x(x, theta, tre_indicator, trawl_process_type):
 
-    gamma_acf, eta_acf, mu, scale, beta = jnp.transpose(theta)
+    # trawl_process_type = classifier_config['trawl_config']['trawl_process_type']
 
-    if tre_indicator == "beta":
-        modified_x = (x - mu)/scale
+    if trawl_process_type == 'sup_ig_nig_5p':
 
-    elif tre_indicator == "sigma":
-        modified_x = (x-mu)
+        gamma_acf, eta_acf, mu, scale, beta = jnp.transpose(theta)
 
-    elif tre_indicator in ("mu", "acf", "nre"):
-        modified_x = x
+        if tre_indicator == "beta":
+            modified_x = (x - mu)/scale
 
-    else:
-        raise ValueError
+        elif tre_indicator == "sigma":
+            modified_x = (x-mu)
 
-    return modified_x
+        elif tre_indicator in ("mu", "acf", "nre"):
+            modified_x = x
+
+        else:
+            raise ValueError
+
+        return modified_x
 
 
-def chop_theta(theta, tre_indicator):
+def chop_theta(theta, tre_type):
 
-    if tre_indicator in ("beta", "nre"):
+    if tre_type in ("beta", "nre"):
         modified_theta = theta
 
-    elif tre_indicator == "sigma":
+    elif tre_type == "sigma":
         modified_theta = theta[:, :4]
 
-    elif tre_indicator == 'mu':
+    elif tre_type == 'mu':
         modified_theta = theta[:, :3]
 
-    elif tre_indicator == 'acf':
+    elif tre_type == 'acf':
 
         modified_theta = theta[:, :2]
     else:
@@ -51,17 +55,21 @@ def chop_theta(theta, tre_indicator):
 
 
 # Approach 1: String in constructor
-class ExtendedModel_for_sup_ig_nig_trawl(nn.Module):
+class ExtendedModel(nn.Module):
     base_model: nn.Module
     # String parameter in constructor ;can be one of mu, sigma, beta, acf or nre
-    tre_indicator: str
-    summary_statistics_indicator: bool
+    trawl_process_type: str
+    tre_type: str
+    use_summary_statistics: bool
+
+    def setup(self):
+        pass  # This is required in Flax when using only static fields
 
     def __call__(self, x, theta):
 
-        if not self.summary_statistics:
-            x = modify_x(x, theta, self.tre_indicator)
+        if not self.use_summary_statistics:
+            x = modify_x(x, theta, self.tre_type, self.trawl_process_type)
 
-        theta = chop_theta(theta, self.tre_indicator)  # only after modifying x
+        theta = chop_theta(theta, self.tre_type)  # only after modifying x
 
         return self.base_model(x, theta)

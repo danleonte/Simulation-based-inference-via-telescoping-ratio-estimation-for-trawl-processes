@@ -17,12 +17,15 @@ import wandb
 import os
 import pickle
 import yaml
-from src.utils.get_data_generator import get_theta_and_trawl_generator
-from src.utils.get_model import get_model
-from src.utils.utils import update_step, summary_stats_loss_fn
+
 if True:
     from path_setup import setup_sys_path
     setup_sys_path()
+
+
+from src.utils.get_data_generator import get_theta_and_trawl_generator
+from src.utils.get_model import get_model
+from src.utils.utils import update_step, summary_stats_loss_fn
 
 
 def train_classifier(config_file_path):
