@@ -416,15 +416,17 @@ def train_classifier(classifier_config_file_path):
                             all_classifier_outputs)
 
                         # uncalibrated reliability diagrams
+                        fig_eq, ax_eq = plt.subplots()
                         diagram_eq = ReliabilityDiagram(
                             15, equal_intervals=False)
-                        diagram_eq = diagram_eq.plot(
-                            all_classifier_outputs, Y_calibration)
+                        diagram_eq.plot(
+                            all_classifier_outputs, Y_calibration, ax=ax_eq)
 
+                        fig_un, ax_un = plt.subplots()
                         diagram_un = ReliabilityDiagram(
                             15, equal_intervals=True)
                         diagram_un = diagram_un.plot(
-                            all_classifier_outputs, Y_calibration)
+                            all_classifier_outputs, Y_calibration, ax=ax_un)
 
                         hist_beta, ax = plt.subplots()
                         ax.hist(
@@ -435,8 +437,8 @@ def train_classifier(classifier_config_file_path):
                             r'Histogram of $c(\mathbf{x},\mathbf{\theta})$ classifier')
                         ax.legend(loc='upper center')
 
-                        wandb.log({f"Diagram eq": wandb.Image(diagram_eq)})
-                        wandb.log({f"Diagram uneq": wandb.Image(diagram_un)})
+                        wandb.log({f"Diagram eq": wandb.Image(fig_eq)})
+                        wandb.log({f"Diagram uneq": wandb.Image(fig_un)})
                         wandb.log({f"Histogram": wandb.Image(hist_beta)})
 
                     except:
