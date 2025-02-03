@@ -405,36 +405,42 @@ def train_classifier(classifier_config_file_path):
                     best_iteration = iteration
 
                 ################## diagnosing classifiers #################
-                Y_calibration = jnp.hstack(
-                    [jnp.ones([batch_size]), jnp.zeros([batch_size])])
-                Y_calibration = np.concatenate(
-                    [Y_calibration]*len(val_trawls))
+                if iteration > 1000 and (iteration % (2 * val_freq) == 0):
+                    try:
+                        Y_calibration = jnp.hstack(
+                            [jnp.ones([batch_size]), jnp.zeros([batch_size])])
+                        Y_calibration = np.concatenate(
+                            [Y_calibration]*len(val_trawls))
 
-                all_classifier_outputs = np.array(all_classifier_outputs)
+                        all_classifier_outputs = np.array(
+                            all_classifier_outputs)
 
-                # uncalibrated reliability diagrams
-                diagram_eq = ReliabilityDiagram(
-                    20, equal_intervals=False);
-                diagram_eq = diagram_eq.plot(
-                    all_classifier_outputs, Y_calibration);
+                        # uncalibrated reliability diagrams
+                        diagram_eq = ReliabilityDiagram(
+                            15, equal_intervals=False)
+                        diagram_eq = diagram_eq.plot(
+                            all_classifier_outputs, Y_calibration)
 
-                diagram_un = ReliabilityDiagram(
-                    20, equal_intervals=True);
-                diagram_un = diagram_un.plot(
-                    all_classifier_outputs, Y_calibration);
+                        diagram_un = ReliabilityDiagram(
+                            15, equal_intervals=True)
+                        diagram_un = diagram_un.plot(
+                            all_classifier_outputs, Y_calibration)
 
-                hist_beta, ax = plt.subplots();
-                ax.hist(
-                    all_classifier_outputs[Y_calibration == 1], label='Y=1', alpha=0.5, density=True);
-                ax.hist(
-                    all_classifier_outputs[Y_calibration == 0], label='Y=0', alpha=0.5, density=True);
-                ax.set_title(
-                    r'Histogram of $c(\mathbf{x},\mathbf{\theta})$ classifier');
-                ax.legend(loc='upper center');
+                        hist_beta, ax = plt.subplots()
+                        ax.hist(
+                            all_classifier_outputs[Y_calibration == 1], label='Y=1', alpha=0.5, density=True)
+                        ax.hist(
+                            all_classifier_outputs[Y_calibration == 0], label='Y=0', alpha=0.5, density=True)
+                        ax.set_title(
+                            r'Histogram of $c(\mathbf{x},\mathbf{\theta})$ classifier')
+                        ax.legend(loc='upper center')
 
-                wandb.log({f"Diagram eq": wandb.Image(diagram_eq)})
-                wandb.log({f"Diagram uneq": wandb.Image(diagram_un)})
-                wandb.log({f"Histogram": wandb.Image(hist_beta)})
+                        wandb.log({f"Diagram eq": wandb.Image(diagram_eq)})
+                        wandb.log({f"Diagram uneq": wandb.Image(diagram_un)})
+                        wandb.log({f"Histogram": wandb.Image(hist_beta)})
+
+                    except:
+                        pass
 
             wandb.log(metrics)
 
