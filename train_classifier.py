@@ -12,6 +12,15 @@ Created on Thu Dec 26 20:41:54 2024
 @author: dleon
 """
 
+import netcal
+import os
+import jax
+import yaml
+import wandb
+import optax
+import pickle
+import datetime
+import numpy as np
 from netcal.presentation import ReliabilityDiagram
 from src.model.Extended_model_nn import ExtendedModel
 from src.utils.classifier_utils import get_projection_function
@@ -23,15 +32,8 @@ from jax.random import PRNGKey
 from functools import partial
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
-import numpy as np
-import datetime
-import pickle
-import optax
-import wandb
-import yaml
-import jax
-import os
-import netcal
+plt.use('Agg')
+
 if True:
     from path_setup import setup_sys_path
     setup_sys_path()
@@ -405,7 +407,8 @@ def train_classifier(classifier_config_file_path):
                     best_iteration = iteration
 
                 ################## diagnosing classifiers #################
-                if iteration > 1000 and (iteration % (2 * val_freq) == 0):
+                if (iteration > 1000) and ((iteration % (2 * val_freq)) == 0):
+
                     try:
                         Y_calibration = jnp.hstack(
                             [jnp.ones([batch_size]), jnp.zeros([batch_size])])
@@ -421,12 +424,14 @@ def train_classifier(classifier_config_file_path):
                             15, equal_intervals=False)
                         fig_eq = diagram_eq.plot(
                             all_classifier_outputs, Y_calibration).get_figure()  # , ax=ax_eq)
+                        plt.close(fig_eq)
 
                         # fig_un, ax_un = plt.subplots();
                         diagram_un = ReliabilityDiagram(
                             15, equal_intervals=True)
                         fig_un = diagram_un.plot(
                             all_classifier_outputs, Y_calibration).get_figure()
+                        plt.close(fig_un)
 
                         hist_beta, ax = plt.subplots()
                         ax.hist(
@@ -436,6 +441,7 @@ def train_classifier(classifier_config_file_path):
                         ax.set_title(
                             r'Histogram of $c(\mathbf{x},\mathbf{\theta})$ classifier')
                         ax.legend(loc='upper center')
+                        plt.close(hist_beta)
 
                         wandb.log({f"Diagram eq": wandb.Image(fig_eq)})
                         wandb.log({f"Diagram uneq": wandb.Image(fig_un)})
