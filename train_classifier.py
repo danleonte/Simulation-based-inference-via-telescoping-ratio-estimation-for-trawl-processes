@@ -11,32 +11,36 @@ Created on Thu Dec 26 20:41:54 2024
 
 @author: dleon
 """
-
-import netcal
-import os
-import jax
-import yaml
-import wandb
-import optax
-import pickle
-import datetime
-import numpy as np
-from netcal.presentation import ReliabilityDiagram
-from src.model.Extended_model_nn import ExtendedModel
-from src.utils.classifier_utils import get_projection_function
-from src.utils.get_data_generator import get_theta_and_trawl_generator
-from src.utils.get_model import get_model
-from statsmodels.tsa.stattools import acf as compute_empirical_acf
-from flax.training import train_state
-from jax.random import PRNGKey
-from functools import partial
 import jax.numpy as jnp
-import matplotlib.pyplot as plt
-plt.use('Agg')
+from functools import partial
+from jax.random import PRNGKey
+from flax.training import train_state
+from statsmodels.tsa.stattools import acf as compute_empirical_acf
+from src.utils.get_model import get_model
+from src.utils.get_data_generator import get_theta_and_trawl_generator
+from src.utils.classifier_utils import get_projection_function
+from src.model.Extended_model_nn import ExtendedModel
+from netcal.presentation import ReliabilityDiagram
+import numpy as np
+import datetime
+import pickle
+import optax
+import wandb
+import yaml
+import jax
+import os
+import netcal
+import matplotlib
+matplotlib.use('Agg')
+
+# Set the backend before importing pyplot
+
 
 if True:
     from path_setup import setup_sys_path
     setup_sys_path()
+    import matplotlib.pyplot as plt
+
 
 ################################################
 ###########################################
