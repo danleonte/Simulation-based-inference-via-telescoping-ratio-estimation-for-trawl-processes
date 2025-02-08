@@ -422,21 +422,27 @@ def train_classifier(classifier_config_file_path):
                         all_classifier_outputs = np.array(
                             all_classifier_outputs)
 
-                        # uncalibrated reliability diagrams
-                        # fig_eq, ax_eq = plt.subplots();
+                        # Reliability diagram with equal intervals
                         diagram_eq = ReliabilityDiagram(
                             15, equal_intervals=False)
                         fig_eq = diagram_eq.plot(
-                            all_classifier_outputs, Y_calibration).get_figure()  # , ax=ax_eq)
+                            all_classifier_outputs, Y_calibration).get_figure()
+                        fig_eq.canvas.draw()  # Force render
+                        wandb.log({"Diagram eq": wandb.Image(fig_eq)},
+                                  step=iteration)  # Add step
                         plt.close(fig_eq)
 
-                        # fig_un, ax_un = plt.subplots();
+                        # Reliability diagram with unequal intervals
                         diagram_un = ReliabilityDiagram(
                             15, equal_intervals=True)
                         fig_un = diagram_un.plot(
                             all_classifier_outputs, Y_calibration).get_figure()
+                        fig_un.canvas.draw()  # Force render
+                        wandb.log({"Diagram uneq": wandb.Image(
+                            fig_un)}, step=iteration)  # Add step
                         plt.close(fig_un)
 
+                        # Histogram
                         hist_beta, ax = plt.subplots()
                         ax.hist(
                             all_classifier_outputs[Y_calibration == 1], label='Y=1', alpha=0.5, density=True)
@@ -445,14 +451,14 @@ def train_classifier(classifier_config_file_path):
                         ax.set_title(
                             r'Histogram of $c(\mathbf{x},\mathbf{\theta})$ classifier')
                         ax.legend(loc='upper center')
+                        hist_beta.canvas.draw()  # Force render
+                        wandb.log({"Histogram": wandb.Image(hist_beta)},
+                                  step=iteration)  # Add step
                         plt.close(hist_beta)
 
-                        wandb.log({f"Diagram eq": wandb.Image(fig_eq)})
-                        wandb.log({f"Diagram uneq": wandb.Image(fig_un)})
-                        wandb.log({f"Histogram": wandb.Image(hist_beta)})
-
-                    except:
-                        pass
+                    except Exception as e:
+                        # Add error logging
+                        print(f"Error in plotting: {str(e)}")
 
             wandb.log(metrics)
 
