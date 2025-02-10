@@ -11,6 +11,10 @@ Created on Thu Dec 26 20:41:54 2024
 
 @author: dleon
 """
+
+# Set the backend before importing pyplot
+
+
 import jax.numpy as jnp
 from functools import partial
 from jax.random import PRNGKey
@@ -30,16 +34,10 @@ import yaml
 import jax
 import os
 import netcal
-import matplotlib
-matplotlib.use('Agg')
-
-# Set the backend before importing pyplot
-
-
+import matplotlib.pyplot as plt
 if True:
     from path_setup import setup_sys_path
     setup_sys_path()
-    import matplotlib.pyplot as plt
 
 
 ################################################
@@ -171,6 +169,10 @@ def train_classifier(classifier_config_file_path):
                 np.array(val_trawls))
         np.save(os.path.join(val_data_dir, "val_thetas.npy"),
                 np.array(val_thetas))
+
+        # Path to save validation figures
+        val_figures_dir = os.path.join(val_data_dir, "figures")
+        os.makedirs(val_figures_dir, exist_ok=True)
 
         #######################################################################
         #                        Get model                                    #
@@ -411,54 +413,51 @@ def train_classifier(classifier_config_file_path):
                     best_iteration = iteration
 
                 ################## diagnosing classifiers #################
-                if (iteration > 1000) and ((iteration % (2 * val_freq)) == 0):
 
-                    try:
-                        Y_calibration = jnp.hstack(
-                            [jnp.ones([batch_size]), jnp.zeros([batch_size])])
-                        Y_calibration = np.concatenate(
-                            [Y_calibration]*len(val_trawls))
+                if iteration > 500:
+                    print('plotting reliability diagrams')
 
-                        all_classifier_outputs = np.array(
-                            all_classifier_outputs)
+                    Y_calibration = jnp.hstack(
+                        [jnp.ones([batch_size]), jnp.zeros([batch_size])])
+                    Y_calibration = np.concatenate(
+                        [Y_calibration]*len(val_trawls))
 
-                        # Reliability diagram with equal intervals
-                        diagram_eq = ReliabilityDiagram(
-                            15, equal_intervals=False)
-                        fig_eq = diagram_eq.plot(
-                            all_classifier_outputs, Y_calibration).get_figure()
-                        fig_eq.canvas.draw()  # Force render
-                        wandb.log({"Diagram eq": wandb.Image(fig_eq)},
-                                  step=iteration)  # Add step
-                        plt.close(fig_eq)
+                    all_classifier_outputs = np.array(
+                        all_classifier_outputs)
 
-                        # Reliability diagram with unequal intervals
-                        diagram_un = ReliabilityDiagram(
-                            15, equal_intervals=True)
-                        fig_un = diagram_un.plot(
-                            all_classifier_outputs, Y_calibration).get_figure()
-                        fig_un.canvas.draw()  # Force render
-                        wandb.log({"Diagram uneq": wandb.Image(
-                            fig_un)}, step=iteration)  # Add step
-                        plt.close(fig_un)
+                    # Reliability diagram with equal intervals
+                    diagram_eq = ReliabilityDiagram(
+                        15, equal_intervals=False)
+                    fig_eq = diagram_eq.plot(
+                        all_classifier_outputs, Y_calibration).get_figure()
+                    # fig_eq.canvas.draw()  # Force render
+                    wandb.log({"Diagram eq": wandb.Image(fig_eq)},
+                              step=iteration)  # Add step
+                    plt.close(fig_eq)
 
-                        # Histogram
-                        hist_beta, ax = plt.subplots()
-                        ax.hist(
-                            all_classifier_outputs[Y_calibration == 1], label='Y=1', alpha=0.5, density=True)
-                        ax.hist(
-                            all_classifier_outputs[Y_calibration == 0], label='Y=0', alpha=0.5, density=True)
-                        ax.set_title(
-                            r'Histogram of $c(\mathbf{x},\mathbf{\theta})$ classifier')
-                        ax.legend(loc='upper center')
-                        hist_beta.canvas.draw()  # Force render
-                        wandb.log({"Histogram": wandb.Image(hist_beta)},
-                                  step=iteration)  # Add step
-                        plt.close(hist_beta)
+                    # Reliability diagram with unequal intervals
+                    diagram_un = ReliabilityDiagram(
+                        15, equal_intervals=True)
+                    fig_un = diagram_un.plot(
+                        all_classifier_outputs, Y_calibration).get_figure()
+                    # fig_un.canvas.draw()  # Force render
+                    wandb.log({"Diagram uneq": wandb.Image(
+                        fig_un)}, step=iteration)  # Add step
+                    plt.close(fig_un)
 
-                    except Exception as e:
-                        # Add error logging
-                        print(f"Error in plotting: {str(e)}")
+                    # Histogram
+                    hist_beta, ax = plt.subplots()
+                    ax.hist(
+                        all_classifier_outputs[Y_calibration == 1], label='Y=1', alpha=0.5, density=True)
+                    ax.hist(
+                        all_classifier_outputs[Y_calibration == 0], label='Y=0', alpha=0.5, density=True)
+                    ax.set_title(
+                        r'Histogram of $c(\mathbf{x},\mathbf{\theta})$ classifier')
+                    ax.legend(loc='upper center')
+                    # hist_beta.canvas.draw()  # Force render
+                    wandb.log({"Histogram": wandb.Image(hist_beta)},
+                              step=iteration)  # Add step
+                    plt.close(hist_beta)
 
             wandb.log(metrics)
 
