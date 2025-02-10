@@ -34,10 +34,12 @@ import yaml
 import jax
 import os
 import netcal
-import matplotlib.pyplot as plt
+import matplotlib
+matplotlib.use('Agg')
 if True:
     from path_setup import setup_sys_path
     setup_sys_path()
+    import matplotlib.pyplot as plt
 
 
 ################################################
