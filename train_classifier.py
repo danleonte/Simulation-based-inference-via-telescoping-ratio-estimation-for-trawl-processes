@@ -400,7 +400,8 @@ def train_classifier(classifier_config_file_path):
                 metrics.update({
                     "val_bce": val_bce.item(),
                     "val_S": val_S.item(),
-                    "val_B": val_B.item()
+                    "val_B": val_B.item(),
+                    "val_acc": val_acc.item()
                 })
 
                 # Save just the parameters instead of full state
@@ -428,38 +429,38 @@ def train_classifier(classifier_config_file_path):
                         all_classifier_outputs)
 
                     # Reliability diagram with equal intervals
-                    diagram_eq = ReliabilityDiagram(
-                        15, equal_intervals=False)
-                    fig_eq = diagram_eq.plot(
-                        all_classifier_outputs, Y_calibration).get_figure()
+                    # diagram_eq = ReliabilityDiagram(
+                    #    15, equal_intervals=False)
+                    # fig_eq = diagram_eq.plot(
+                    #    all_classifier_outputs, Y_calibration).get_figure()
                     # fig_eq.canvas.draw()  # Force render
-                    wandb.log({"Diagram eq": wandb.Image(fig_eq)},
-                              step=iteration)  # Add step
-                    plt.close(fig_eq)
+                    # wandb.log({"Diagram eq": wandb.Image(fig_eq)},
+                    #          step=iteration)  # Add step
+                    # plt.close(fig_eq)
 
                     # Reliability diagram with unequal intervals
-                    diagram_un = ReliabilityDiagram(
-                        15, equal_intervals=True)
-                    fig_un = diagram_un.plot(
-                        all_classifier_outputs, Y_calibration).get_figure()
+                    # diagram_un = ReliabilityDiagram(
+                    #    15, equal_intervals=True)
+                    # fig_un = diagram_un.plot(
+                    #    all_classifier_outputs, Y_calibration).get_figure()
                     # fig_un.canvas.draw()  # Force render
-                    wandb.log({"Diagram uneq": wandb.Image(
-                        fig_un)}, step=iteration)  # Add step
-                    plt.close(fig_un)
+                    # wandb.log({"Diagram uneq": wandb.Image(
+                    #    fig_un)}, step=iteration)  # Add step
+                    # plt.close(fig_un)
 
                     # Histogram
-                    hist_beta, ax = plt.subplots()
-                    ax.hist(
-                        all_classifier_outputs[Y_calibration == 1], label='Y=1', alpha=0.5, density=True)
-                    ax.hist(
-                        all_classifier_outputs[Y_calibration == 0], label='Y=0', alpha=0.5, density=True)
-                    ax.set_title(
-                        r'Histogram of $c(\mathbf{x},\mathbf{\theta})$ classifier')
-                    ax.legend(loc='upper center')
+                    # hist_beta, ax = plt.subplots()
+                    # ax.hist(
+                    #    all_classifier_outputs[Y_calibration == 1], label='Y=1', alpha=0.5, density=True)
+                    # ax.hist(
+                    #    all_classifier_outputs[Y_calibration == 0], label='Y=0', alpha=0.5, density=True)
+                    # ax.set_title(
+                    #    r'Histogram of $c(\mathbf{x},\mathbf{\theta})$ classifier')
+                    # ax.legend(loc='upper center')
                     # hist_beta.canvas.draw()  # Force render
-                    wandb.log({"Histogram": wandb.Image(hist_beta)},
-                              step=iteration)  # Add step
-                    plt.close(hist_beta)
+                    # wandb.log({"Histogram": wandb.Image(hist_beta)},
+                    #          step=iteration)  # Add step
+                    # plt.close(hist_beta)
 
             wandb.log(metrics)
 
