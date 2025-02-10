@@ -79,12 +79,14 @@ def get_projection_function():
     @jax.jit
     def project(trawl):
 
+        # first return acf parmas, then marginal params
+
         # train = False and the dropout_rng which is set to jax.random.PRNGKey(0) is not used
         acf_projection = predict_theta_acf(
             acf_params, trawl, jax.random.PRNGKey(0), False)
         marginal_projection = predict_theta_mar(
             marginal_params, trawl, jax.random.PRNGKey(0), False)
 
-        return jnp.concatenate([marginal_projection, acf_projection], axis=1)
+        return jnp.concatenate([acf_projection, marginal_projection], axis=1)
 
     return project
