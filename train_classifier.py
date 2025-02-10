@@ -59,7 +59,7 @@ if True:
 # standardize the time series on top of chopping the theta
 
 
-# classifier_config_file_path = 'config_files/classifier\\classifier_config1.yaml'
+# classifier_config_file_path = 'config_files/classifier\\TRE_summary_statistics/beta/classifier_config1.yaml'
 
 def train_classifier(classifier_config_file_path):
 
@@ -84,15 +84,19 @@ def train_classifier(classifier_config_file_path):
         #################          Initialize wandb           #################
         timestamp = datetime.datetime.now().strftime("%m_%d_%H_%M_%S")
         project_name = "SBI_trawls_classifier_" + \
-            ('tre_' + tre_type if use_tre else 'nre')
+            ('tre_' + tre_type if use_tre else 'nre') + \
+            (
+                '_with_summary_statistics' if use_summary_statistics else
+                '_with_full_trawl'
+            )
         run_name = f"{timestamp}"
 
-        group_name = (
-            'with_summary_statistics' if use_summary_statistics else
-            'with_full_trawl'
-        )
+        # group_name = (
+        #    'with_summary_statistics' if use_summary_statistics else
+        #    'with_full_trawl'
+        # )
 
-        wandb.init(project=project_name, group=group_name,
+        wandb.init(project=project_name,  # group=group_name,
                    name=run_name, config=classifier_config)
 
         #######################################################################
@@ -188,10 +192,17 @@ def train_classifier(classifier_config_file_path):
             classifier_config['prng_key'] + 22454)  # for dropout
 
         # load extended model
-        if (not use_summary_statistics) and use_tre:
+        # if (not use_summary_statistics) and use_tre:
+        if use_tre:
 
-            to_double_check = True
-            assert not to_double_check
+            # CAN T LEARN THE ACF WITHOUT THE SUMMARY STATISTICS
+            # SO WE RE NOT  CONSIDERING THAT CASE HERE
+            # DO NOT INITIALIZE MODEL
+            del params
+            model = get_model(classifier_config, False)
+            assert tre_type in ('beta', 'mu', 'scale', 'acf')
+            if tre_type == 'acf' and (not use_summary_statistics):
+                assert replace_acf
 
             ######  EXTENDED MODEL HERE ########
             # CHECK KEYS ARE UPDATED
@@ -485,5 +496,5 @@ def train_classifier(classifier_config_file_path):
 if __name__ == "__main__":
     import glob
     # Loop over configs
-    for config_file_path in glob.glob("config_files/classifier/*.yaml"):
+    for config_file_path in glob.glob("config_files/classifier/TRE_summary_statistics/beta/*.yaml"):
         train_classifier(config_file_path)

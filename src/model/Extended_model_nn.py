@@ -34,24 +34,26 @@ def modify_x(x, theta, tre_indicator, trawl_process_type):
         return modified_x
 
 
-def chop_theta(theta, tre_type):
+def chop_theta(theta, tre_type, trawl_process_type):
 
-    if tre_type in ("beta", "nre"):
-        modified_theta = theta
+    if trawl_process_type == 'sup_ig_nig_5p':
 
-    elif tre_type == "sigma":
-        modified_theta = theta[:, :4]
+        if tre_type in ("beta", "nre"):
+            modified_theta = theta
 
-    elif tre_type == 'mu':
-        modified_theta = theta[:, :3]
+        elif tre_type == "sigma":
+            modified_theta = theta[:, :4]
 
-    elif tre_type == 'acf':
+        elif tre_type == 'mu':
+            modified_theta = theta[:, :3]
 
-        modified_theta = theta[:, :2]
-    else:
-        raise ValueError
+        elif tre_type == 'acf':
 
-    return modified_theta
+            modified_theta = theta[:, :2]
+        else:
+            raise ValueError
+
+        return modified_theta
 
 
 # Approach 1: String in constructor
@@ -65,11 +67,12 @@ class ExtendedModel(nn.Module):
     def setup(self):
         pass  # This is required in Flax when using only static fields
 
-    def __call__(self, x, theta):
+    def __call__(self, x, theta, train: bool = False):
 
         if not self.use_summary_statistics:
             x = modify_x(x, theta, self.tre_type, self.trawl_process_type)
 
-        theta = chop_theta(theta, self.tre_type)  # only after modifying x
+        # only after modifying x
+        theta = chop_theta(theta, self.tre_type, self.trawl_process_type)
 
-        return self.base_model(x, theta)
+        return self.base_model(x, theta, train)
