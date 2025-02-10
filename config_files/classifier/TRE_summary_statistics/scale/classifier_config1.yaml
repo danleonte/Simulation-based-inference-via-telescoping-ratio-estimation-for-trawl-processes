@@ -1,7 +1,7 @@
 prng_key: 12111
 tre_config:
   use_tre: True
-  tre_type: scale 
+  tre_type: sigma 
   use_summary_statistics: True
   replace_full_trawl_with_acf: False
   nlags: 35

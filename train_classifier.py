@@ -22,7 +22,7 @@ from flax.training import train_state
 from statsmodels.tsa.stattools import acf as compute_empirical_acf
 from src.utils.get_model import get_model
 from src.utils.get_data_generator import get_theta_and_trawl_generator
-from src.utils.classifier_utils import get_projection_function
+from src.utils.classifier_utils import get_projection_function, tre_shuffle
 from src.model.Extended_model_nn import ExtendedModel
 from netcal.presentation import ReliabilityDiagram
 import numpy as np
@@ -200,7 +200,7 @@ def train_classifier(classifier_config_file_path):
             # DO NOT INITIALIZE MODEL
             del params
             model = get_model(classifier_config, False)
-            assert tre_type in ('beta', 'mu', 'scale', 'acf')
+            assert tre_type in ('beta', 'mu', 'sigma', 'acf')
             if tre_type == 'acf' and (not use_summary_statistics):
                 assert replace_acf
 
@@ -293,11 +293,14 @@ def train_classifier(classifier_config_file_path):
             batch_size = theta_val.shape[0]
 
             # Shuffle
-            trawl_val = jnp.vstack([trawl_val, theta_val])  # normal, normal
-            theta_val = jnp.vstack(
-                [theta_val, jnp.roll(theta_val, -1)])  # normal, shuffled
-            Y_val = jnp.vstack(
-                [jnp.ones([batch_size, 1]), jnp.zeros([batch_size, 1])])  # 1, then 0
+            # trawl_val = jnp.vstack([trawl_val, trawl_val])  # normal, normal
+            # theta_val = jnp.vstack(
+            #    [theta_val, jnp.roll(theta_val, -1)])  # normal, shuffled
+            # Y_val = jnp.vstack(
+            #    [jnp.ones([batch_size, 1]), jnp.zeros([batch_size, 1])])  # 1, then 0
+
+            trawl_val, theta_val, Y_val = tre_shuffle(
+                trawl_val, theta_val, jnp.roll(theta_val, -1), classifier_config)
 
             # Compute loss, S, B, accuracy, classifier output
             bce_loss, (S, B, accuracy, classifier_output) = compute_loss(
@@ -379,9 +382,11 @@ def train_classifier(classifier_config_file_path):
                 trawl_a = jnp.array([compute_empirical_acf(np.array(trawl_), nlags=nlags)[1:]
                                      for trawl_ in trawl_a])
 
-            theta = jnp.vstack([theta_a, theta_b])
-            trawl = jnp.vstack([trawl_a, trawl_a])
-            Y = jnp.concatenate([jnp.ones(batch_size), jnp.zeros(batch_size)])
+            trawl, theta, Y = tre_shuffle(
+                trawl_a, theta_a, theta_b, classifier_config)
+            # theta = jnp.vstack([theta_a, theta_b])
+            # trawl = jnp.vstack([trawl_a, trawl_a])
+            # Y = jnp.concatenate([jnp.ones(batch_size), jnp.zeros(batch_size)])
 
             dropout_key, dropout_subkey_to_use = jax.random.split(dropout_key)
             (bce_loss, (S, B, accuracy, _)), grads = compute_loss_and_grad(
@@ -496,5 +501,5 @@ def train_classifier(classifier_config_file_path):
 if __name__ == "__main__":
     import glob
     # Loop over configs
-    for config_file_path in glob.glob("config_files/classifier/TRE_summary_statistics/beta/*.yaml"):
+    for config_file_path in glob.glob("config_files/classifier/NRE_summary_statistics/*.yaml"):
         train_classifier(config_file_path)

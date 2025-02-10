@@ -90,3 +90,50 @@ def get_projection_function():
         return jnp.concatenate([acf_projection, marginal_projection], axis=1)
 
     return project
+
+
+def tre_shuffle(trawl_a, theta_a, theta_b, classifier_config):
+
+    batch_size = theta_a.shape[0]
+
+    trawl = jnp.vstack([trawl_a, trawl_a])
+    Y = jnp.concatenate([jnp.ones(batch_size), jnp.zeros(batch_size)])
+    ################################################################
+
+    tre_config = classifier_config['tre_config']
+    trawl_config = classifier_config['trawl_config']
+
+    use_tre = tre_config['use_tre']
+    tre_type = tre_config['tre_type']
+    trawl_process_type = trawl_config['trawl_process_type']
+
+    if not use_tre:
+        theta = jnp.vstack([theta_a, theta_b])
+
+        return trawl, theta, Y
+
+    # can assume we are using TRE from here on
+
+    if trawl_process_type == 'sup_ig_nig_5p':
+
+        if tre_type == 'beta':
+            theta_modified = jnp.concatenate(
+                [theta_a[:, :4], theta_b[:, -1:]], axis=1)
+
+        elif tre_type == 'sigma':
+            theta_modified = jnp.concatenate(
+                [theta_a[:, :3], theta_b[:, -2:]], axis=1)
+
+        elif tre_type == 'mu':
+            theta_modified = jnp.concatenate(
+                [theta_a[:, :2], theta_b[:, -3:]], axis=1)
+
+        elif tre_type == 'acf':
+            theta_modified = theta_b
+
+        theta = jnp.vstack([theta_a, theta_modified])
+
+    else:
+        raise ValueError('trawl process type not found')
+
+    return trawl, theta, Y
