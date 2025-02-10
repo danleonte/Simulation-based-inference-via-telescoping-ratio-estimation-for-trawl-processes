@@ -266,7 +266,8 @@ def train_classifier(classifier_config_file_path):
             S = 2 * jnp.mean(pred_Y * Y)
             classifier_output = jax.nn.sigmoid(pred_Y)
             B = 2 * jnp.mean(classifier_output)
-            accuracy = jnp.mean((classifier_output > 0.5) == Y)
+            accuracy = jnp.mean(
+                (classifier_output > 0.5).astype(jnp.float(32) == Y))
 
             return bce_loss, (S, B, accuracy, classifier_output)
 
@@ -417,7 +418,7 @@ def train_classifier(classifier_config_file_path):
 
                 ################## diagnosing classifiers #################
 
-                if iteration > 500:
+                if iteration > 2500 and (iteration % (2 * val_freq) == 0):
                     print('plotting reliability diagrams')
 
                     Y_calibration = jnp.hstack(
@@ -439,14 +440,14 @@ def train_classifier(classifier_config_file_path):
                     # plt.close(fig_eq)
 
                     # Reliability diagram with unequal intervals
-                    # diagram_un = ReliabilityDiagram(
-                    #    15, equal_intervals=True)
-                    # fig_un = diagram_un.plot(
-                    #    all_classifier_outputs, Y_calibration).get_figure()
-                    # fig_un.canvas.draw()  # Force render
-                    # wandb.log({"Diagram uneq": wandb.Image(
-                    #    fig_un)}, step=iteration)  # Add step
-                    # plt.close(fig_un)
+                    diagram_un = ReliabilityDiagram(
+                        15, equal_intervals=True)
+                    fig_un = diagram_un.plot(
+                        all_classifier_outputs, Y_calibration).get_figure()
+                    fig_un.canvas.draw()  # Force render
+                    wandb.log({"Diagram uneq": wandb.Image(
+                        fig_un)}, step=iteration)  # Add step
+                    plt.close(fig_un)
 
                     # Histogram
                     # hist_beta, ax = plt.subplots()
