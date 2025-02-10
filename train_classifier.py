@@ -267,7 +267,7 @@ def train_classifier(classifier_config_file_path):
             classifier_output = jax.nn.sigmoid(pred_Y)
             B = 2 * jnp.mean(classifier_output)
             accuracy = jnp.mean(
-                (classifier_output > 0.5).astype(jnp.float(32) == Y))
+                (classifier_output > 0.5).astype(jnp.float(32)) == Y)
 
             return bce_loss, (S, B, accuracy, classifier_output)
 
