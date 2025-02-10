@@ -381,6 +381,7 @@ def train_classifier(classifier_config_file_path):
             params = state.params
 
             metrics = {
+                'acc': accuracy.item(),
                 'bce_loss': bce_loss.item()
             }
             ###################################################################
