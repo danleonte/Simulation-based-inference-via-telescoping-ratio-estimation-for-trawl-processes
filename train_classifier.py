@@ -501,5 +501,5 @@ def train_classifier(classifier_config_file_path):
 if __name__ == "__main__":
     import glob
     # Loop over configs
-    for config_file_path in glob.glob("config_files/classifier/NRE_summary_statistics/*.yaml"):
+    for config_file_path in glob.glob("config_files/classifier/TRE_summary_statistics/scale/e*.yaml"):
         train_classifier(config_file_path)
