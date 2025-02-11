@@ -1,4 +1,4 @@
-prng_key: 3142526
+prng_key: 31412526
 tre_config:
   use_tre: True
   tre_type: sigma 
@@ -30,7 +30,7 @@ model_config:
     dropout_rate: 0.2
     with_theta: True
 train_config:
-  n_iterations: 9001 
+  n_iterations: 50001 
 val_config:
   val_freq: 300
   val_n_batches: 40
@@ -38,3 +38,4 @@ optimizer:
   name: adam
   lr: 0.0005
   weight_decay: 0.000025
+  alpha: 0.01

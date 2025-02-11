@@ -215,6 +215,11 @@ def train_classifier(classifier_config_file_path):
 
             # Initialize optimizer
         lr = classifier_config["optimizer"]["lr"]
+        if 'alpha' in classifier_config["optimizer"].keys():
+            alpha = classifier_config["optimizer"]["alpha"]
+        else:
+            alpha = 0.05
+
         total_steps = classifier_config["train_config"]["n_iterations"]
         warmup_steps = 500
         decay_steps = total_steps - warmup_steps
@@ -226,7 +231,7 @@ def train_classifier(classifier_config_file_path):
             optax.cosine_decay_schedule(
                 init_value=lr,
                 decay_steps=decay_steps,
-                alpha=0.05
+                alpha=alpha
             )
         ], boundaries=[warmup_steps])
 

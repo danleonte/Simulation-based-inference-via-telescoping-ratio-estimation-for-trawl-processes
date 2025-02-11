@@ -1,4 +1,4 @@
-prng_key: 3145161
+prng_key: 23145161
 tre_config:
   use_tre: True
   tre_type: acf 
@@ -37,3 +37,4 @@ val_config:
 optimizer:
   name: adam
   lr: 0.00025
+  alpha: 0.01

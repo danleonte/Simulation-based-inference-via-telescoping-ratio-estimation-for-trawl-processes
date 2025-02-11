@@ -1,4 +1,4 @@
-prng_key: 1943432
+prng_key: 9943432
 tre_config:
   use_tre: True
   tre_type: acf 
@@ -30,10 +30,11 @@ model_config:
     dropout_rate: 0.25
     with_theta: True
 train_config:
-  n_iterations: 9001 
+  n_iterations: 50001 
 val_config:
   val_freq: 300
   val_n_batches: 40
 optimizer:
   name: adam
   lr: 0.000025
+  alpha: 0.005

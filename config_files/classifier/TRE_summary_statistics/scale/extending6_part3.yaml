@@ -1,4 +1,4 @@
-prng_key: 2551
+prng_key: 23251
 tre_config:
   use_tre: True
   tre_type: sigma 
@@ -37,3 +37,4 @@ val_config:
 optimizer:
   name: adam
   lr: 0.0001
+  alpha: 0.01

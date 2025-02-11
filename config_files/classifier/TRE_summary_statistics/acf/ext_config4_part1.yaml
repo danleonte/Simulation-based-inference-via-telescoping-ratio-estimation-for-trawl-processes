@@ -38,3 +38,4 @@ optimizer:
   name: adam
   lr: 0.005
   weight_decay: 0.001
+  alpha: 0.025

@@ -37,3 +37,4 @@ val_config:
 optimizer:
   name: adam
   lr: 0.00075
+  alpha: 0.01

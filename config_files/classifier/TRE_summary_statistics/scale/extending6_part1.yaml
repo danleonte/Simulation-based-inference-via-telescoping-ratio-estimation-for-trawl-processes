@@ -1,4 +1,4 @@
-prng_key: 255125
+prng_key: 235125
 tre_config:
     use_tre: True
     tre_type: sigma
@@ -27,7 +27,7 @@ model_config:
     model_name: DenseModel
     linear_layer_sizes: [32, 24, 16, 8]
     final_output_size: 1
-    dropout_rate: 0.05
+    dropout_rate: 0.075
     with_theta: True
 train_config:
     n_iterations: 50001
@@ -37,3 +37,4 @@ val_config:
 optimizer:
     name: adam
     lr: 0.0004
+    alpha: 0.01

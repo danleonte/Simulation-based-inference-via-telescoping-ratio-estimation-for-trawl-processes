@@ -1,4 +1,4 @@
-prng_key: 3114142526
+prng_key: 342526
 tre_config:
     use_tre: True
     tre_type: sigma
@@ -38,3 +38,4 @@ optimizer:
     name: adam
     lr: 0.001
     weight_decay: 0.000015
+    alpha: 0.01

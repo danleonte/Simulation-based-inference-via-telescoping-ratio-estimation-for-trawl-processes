@@ -1,4 +1,4 @@
-prng_key: 3142526
+prng_key: 31425269
 tre_config:
     use_tre: True
     tre_type: sigma
@@ -25,9 +25,9 @@ trawl_config:
         beta_prior_hyperparams: [-5., 5.]
 model_config:
     model_name: DenseModel
-    linear_layer_sizes: [64, 32, 16, 8]
+    linear_layer_sizes: [64, 48, 32, 16, 8]
     final_output_size: 1
-    dropout_rate: 0.2
+    dropout_rate: 0.25
     with_theta: True
 train_config:
     n_iterations: 50001
@@ -38,3 +38,4 @@ optimizer:
     name: adam
     lr: 0.0005
     weight_decay: 0.00001
+    alpha: 0.005
