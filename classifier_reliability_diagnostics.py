@@ -59,7 +59,7 @@ def process_sample(params, trawl_val, theta_val):
     # Shuffle
     trawl_val = jnp.vstack([trawl_val, trawl_val])  # normal, normal
     theta_val = jnp.vstack(
-        [theta_val, jnp.roll(theta_val, -1)])  # normal, shuffled
+        [theta_val, jnp.roll(theta_val, -1,axiis=0)])  # normal, shuffled
     Y_val = jnp.vstack(
         [jnp.ones([batch_size, 1]), jnp.zeros([batch_size, 1])])  # 1, then 0
 

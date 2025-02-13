@@ -305,7 +305,7 @@ def train_classifier(classifier_config_file_path):
             #    [jnp.ones([batch_size, 1]), jnp.zeros([batch_size, 1])])  # 1, then 0
 
             trawl_val, theta_val, Y_val = tre_shuffle(
-                trawl_val, theta_val, jnp.roll(theta_val, -1), classifier_config)
+                trawl_val, theta_val, jnp.roll(theta_val, -1, axis=0), classifier_config)
 
             # Compute loss, S, B, accuracy, classifier output
             bce_loss, (S, B, accuracy, classifier_output) = compute_loss(

@@ -88,7 +88,7 @@ def generate_dataset(classifier_config, nr_batches):
             [theta_acf_cal, theta_marginal_jax_cal], axis=1)
 
         trawl_cal, theta_cal, Y = tre_shuffle(
-            trawl_cal, theta_cal, jnp.roll(theta_cal, -1), classifier_config)
+            trawl_cal, theta_cal, jnp.roll(theta_cal, -1, axis=0), classifier_config)
 
         cal_trawls.append(trawl_cal)
         cal_thetas.append(theta_cal)
@@ -319,9 +319,9 @@ if __name__ == '__main__':
 
     # trained_classifier_path = os.path.join(os.getcwd(),'models','classifier',
     #                            'NRE_summary_statistics','best_model')
-    nr_batches = 50
+    nr_batches = 500
     trained_classifier_path = os.path.join(os.getcwd(), 'models', 'classifier',
-                                           'TRE_summary_statistics', 'mu', 'best_model')
+                                           'TRE_summary_statistics', 'beta', 'best_model_degenerate')
 
     calibrate(trained_classifier_path, nr_batches)
     # TRE options: acf, beta, mu, sigma
