@@ -8,7 +8,10 @@ Created on Tue Feb 11 22:45:52 2025
 from sklearn.isotonic import IsotonicRegression
 from sklearn.linear_model import LogisticRegression
 from betacal import BetaCalibration
+from jax.scipy.special import logit
+import pandas as pd
 
+import optax
 import jax.numpy as jnp
 from jax.random import PRNGKey
 from functools import partial
@@ -157,13 +160,7 @@ def calibrate(trained_classifier_path, nr_batches):
         params = pickle.load(file)
         # params = {'params': params['params']['base_model']}
 
-    ######################## post training regression ########################
-
-    # perform isotonic regression, Beta and Plat scaling
-    lr = LogisticRegression(C=99999999999)
-    iso = IsotonicRegression()
-    bc = BetaCalibration(parameters="abm")
-
+    ###########################################################################
     @jax.jit
     def compute_log_r_approx(params, trawl, theta):
         log_r = model.apply(
@@ -172,8 +169,25 @@ def calibrate(trained_classifier_path, nr_batches):
 
         return log_r, classifier_output
 
-    def compute_metrics(params, trawl, theta):
-        pass
+    def compute_metrics(log_r, classifier_output, Y):
+
+        bce_loss = jnp.mean(optax.losses.sigmoid_binary_cross_entropy(
+            logits=log_r, labels=Y))
+
+        # half of them are 0s, half of them are 1, so we have to x2
+        S = 2 * jnp.mean(log_r * Y)
+        B = 2 * jnp.mean(classifier_output)
+        accuracy = jnp.mean(
+            (classifier_output > 0.5).astype(jnp.float32) == Y)
+
+        return bce_loss, S, B
+
+    ######################## post training regression ########################
+
+    # perform isotonic regression, Beta and Plat scaling
+    lr = LogisticRegression(C=99999999999)
+    iso = IsotonicRegression(y_min=0.001, y_max=0.999)
+    bc = BetaCalibration(parameters="abm")
 
     log_r, pred_prob_Y, Y = [], [], []
 
@@ -225,7 +239,7 @@ def calibrate(trained_classifier_path, nr_batches):
     # reliability 2
 
     try:
-        diagram_eq = ReliabilityDiagram(4, equal_intervals=False)
+        diagram_eq = ReliabilityDiagram(6, equal_intervals=False)
         fig_eq = diagram_eq.plot(
             np.array(pred_prob_Y), np.array(Y)).get_figure()
 
@@ -248,19 +262,20 @@ def calibrate(trained_classifier_path, nr_batches):
     ################## CALIBRATED reliability diagrams ####################
 
     # General classifier histogram
-    try:
-        hist_beta, ax = plt.subplots()
-        ax.hist(
-            calibrated_pr[Y == 1].squeeze(), label='Y=1', alpha=0.5, density=True)
-        ax.hist(
-            calibrated_pr[Y == 0].squeeze(), label='Y=0', alpha=0.5, density=True)
-        ax.set_title(
-            r'Histogram of $c(\mathbf{x},\mathbf{\theta})$ classifier')
-        ax.legend(loc='upper center')
-        hist_beta.savefig(os.path.join(
-            trained_classifier_path, 'Calibrated_hist.pdf'))
-    except:
-        print('problems')
+    for i in range(3):
+        try:
+            hist_beta, ax = plt.subplots()
+            ax.hist(
+                calibrated_pr[i][Y == 1].squeeze(), label='Y=1', alpha=0.5, density=True, bins=15)
+            ax.hist(
+                calibrated_pr[i][Y == 0].squeeze(), label='Y=0', alpha=0.5, density=True, bins=15)
+            ax.set_title(
+                r'Histogram of $c(\mathbf{x},\mathbf{\theta})$ classifier')
+            ax.legend(loc='upper center')
+            hist_beta.savefig(os.path.join(
+                trained_classifier_path, f'Calibrated_hist_{methods_text[i]}.pdf'))
+        except:
+            print('problems')
 
     for i in range(3):
 
@@ -276,7 +291,7 @@ def calibrate(trained_classifier_path, nr_batches):
         try:
 
             diagram_eq = ReliabilityDiagram(
-                4, equal_intervals=False)
+                6, equal_intervals=False)
             fig_eq = diagram_eq.plot(
                 calibrated_pr[i], np.array(Y)).get_figure()
 
@@ -285,6 +300,20 @@ def calibrate(trained_classifier_path, nr_batches):
         except:
             print('one reliability map not possible to do')
 
+    ##################### compute metrics ########################
+    metrics = []
+    metrics.append(compute_metrics(log_r.squeeze(), pred_prob_Y.squeeze(), Y))
+    for i in range(3):
+
+        metrics.append(compute_metrics(
+            logit(calibrated_pr[i]), calibrated_pr[i], Y))
+
+    df = pd.DataFrame(np.array(metrics).transpose(),
+                      columns=('uncal', ' lr', 'isotonic', 'beta'),
+                      index=('BCE', 'S', 'B'))
+
+    df.to_excel(os.path.join(trained_classifier_path, 'BCE_S_B.xlsx'))
+
 
 if __name__ == '__main__':
 
@@ -292,7 +321,7 @@ if __name__ == '__main__':
     #                            'NRE_summary_statistics','best_model')
     nr_batches = 50
     trained_classifier_path = os.path.join(os.getcwd(), 'models', 'classifier',
-                                           'TRE_summary_statistics', 'beta', 'best_model')
+                                           'TRE_summary_statistics', 'mu', 'best_model')
 
     calibrate(trained_classifier_path, nr_batches)
     # TRE options: acf, beta, mu, sigma
