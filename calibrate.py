@@ -62,6 +62,7 @@ def generate_dataset(classifier_config, nr_batches):
     # Generate calibration data
     cal_trawls = []
     cal_thetas = []
+    cal_x = []
 
     for _ in range(nr_batches):
 
@@ -76,27 +77,31 @@ def generate_dataset(classifier_config, nr_batches):
 
         ########################################
         if use_summary_statistics:
-            trawl_cal = project_trawl(trawl_cal)
+            x_cal = project_trawl(trawl_cal)
 
         elif (not use_summary_statistics) and replace_acf and use_tre and tre_type == 'acf':
 
-            trawl_cal = jnp.array([compute_empirical_acf(np.array(trawl_), nlags=nlags)[1:]
-                                   for trawl_ in trawl_cal])
+            x_cal = jnp.array([compute_empirical_acf(np.array(trawl_), nlags=nlags)[1:]
+                               for trawl_ in trawl_cal])
+        else:
+            x_cal = trawl_cal
 
             ########################################
         theta_cal = jnp.concatenate(
             [theta_acf_cal, theta_marginal_jax_cal], axis=1)
 
-        trawl_cal, theta_cal, Y = tre_shuffle(
-            trawl_cal, theta_cal, jnp.roll(theta_cal, -1, axis=0), classifier_config)
+        x_cal, theta_cal, Y = tre_shuffle(
+            x_cal, theta_cal, jnp.roll(theta_cal, -1, axis=0), classifier_config)
 
         cal_trawls.append(trawl_cal)
         cal_thetas.append(theta_cal)
+        cal_x.append(x_cal)
 
     cal_trawls = jnp.array(cal_trawls)  # , axis=0)
+    cal_x = jnp.array(cal_x)       # , axis=0)
     cal_thetas = jnp.array(cal_thetas)  # , axis=0)
 
-    return cal_trawls, cal_thetas, Y
+    return cal_trawls, cal_x, cal_thetas, Y
 
 
 def calibrate(trained_classifier_path, nr_batches):
@@ -107,6 +112,7 @@ def calibrate(trained_classifier_path, nr_batches):
 
     # load calidation dataset
     cal_trawls_path = os.path.join(trained_classifier_path, 'cal_trawls.npy')
+    cal_x_path = os.path.join(trained_classifier_path, 'cal_x.npy')
     cal_thetas_path = os.path.join(trained_classifier_path, 'cal_thetas.npy')
     cal_Y_path = os.path.join(trained_classifier_path, 'cal_Y.npy')
 
@@ -114,18 +120,20 @@ def calibrate(trained_classifier_path, nr_batches):
 
         print('Calidation dataset already created')
 
-        cal_trawls = np.load(cal_trawls_path)
+        cal_trawls_ = np.load(cal_trawls_path)
+        cal_x = np.load(cal_x_path)
         cal_thetas = np.load(cal_thetas_path)
         cal_Y = np.load(cal_Y_path)
 
     else:
 
         print('Generating dataset')
-        cal_trawls, cal_thetas, cal_Y = generate_dataset(
+        cal_trawls_, cal_x, cal_thetas, cal_Y = generate_dataset(
             classifier_config, nr_batches)
         print('Generated dataset')
 
-        np.save(file=cal_trawls_path, arr=cal_trawls)
+        np.save(file=cal_trawls_path, arr=cal_trawls_)
+        np.save(file=cal_x_path, arr=cal_x)
         np.save(file=cal_thetas_path, arr=cal_thetas)
         np.save(file=cal_Y_path, arr=cal_Y)
 
@@ -140,7 +148,7 @@ def calibrate(trained_classifier_path, nr_batches):
     replace_acf = tre_config['replace_full_trawl_with_acf']
 
     if use_tre:
-        assert tre_type in ('beta', 'mu', 'sigma', 'acf')
+        assert tre_type in ('beta', 'mu', 'sigma', 'scale')
         if tre_type == 'acf' and (not use_summary_statistics):
             assert replace_acf
 
@@ -149,11 +157,11 @@ def calibrate(trained_classifier_path, nr_batches):
         model = ExtendedModel(base_model=model,  trawl_process_type=trawl_config['trawl_process_type'],
                               tre_type=tre_type, use_summary_statistics=use_summary_statistics)
 
-        model.init(PRNGKey(0), cal_trawls[0], cal_thetas[0])
+        model.init(PRNGKey(0), cal_x[0], cal_thetas[0])
 
     # First check there's only one pickled file for the params, then load params
     list_params_names = [filename for filename in os.listdir(
-        trained_classifier_path) if filename.endswith(".pkl")]
+        trained_classifier_path) if (filename.endswith(".pkl") and filename.startswith('param'))]
     assert len(list_params_names) == 1
 
     with open(os.path.join(trained_classifier_path, list_params_names[0]), 'rb') as file:
@@ -162,9 +170,9 @@ def calibrate(trained_classifier_path, nr_batches):
 
     ###########################################################################
     @jax.jit
-    def compute_log_r_approx(params, trawl, theta):
+    def compute_log_r_approx(params, x, theta):
         log_r = model.apply(
-            variables=params, x=cal_trawls[i], theta=cal_thetas[i], train=False)
+            variables=params, x=x, theta=theta, train=False)
         classifier_output = jax.nn.sigmoid(log_r)
 
         return log_r, classifier_output
@@ -191,11 +199,12 @@ def calibrate(trained_classifier_path, nr_batches):
 
     log_r, pred_prob_Y, Y = [], [], []
 
-    for i in range(cal_trawls.shape[0]):
+    for i in range(cal_x.shape[0]):
 
-        a, b = compute_log_r_approx(params, cal_trawls[i], cal_thetas[i])
-        log_r.append(a)
-        pred_prob_Y.append(b)
+        log_r_to_append, pred_prob_Y_to_append = compute_log_r_approx(
+            params, cal_x[i], cal_thetas[i])
+        log_r.append(log_r_to_append)
+        pred_prob_Y.append(pred_prob_Y_to_append)
         Y.append(cal_Y)
 
     log_r = jnp.concatenate(log_r, axis=0)           # num_samples, 1
@@ -218,7 +227,8 @@ def calibrate(trained_classifier_path, nr_batches):
 
     hist_beta, ax = plt.subplots()
     ax.hist(
-        pred_prob_Y[Y == 1].squeeze(), label='Y=1', alpha=0.5, density=True)
+        pred_prob_Y[Y == 1].squeeze(), label='Y=1', alpha=0.5, density=True,
+        bins=30)
     ax.hist(
         pred_prob_Y[Y == 0].squeeze(), label='Y=0', alpha=0.5, density=True)
     ax.set_title(
@@ -239,7 +249,7 @@ def calibrate(trained_classifier_path, nr_batches):
     # reliability 2
 
     try:
-        diagram_eq = ReliabilityDiagram(6, equal_intervals=False)
+        diagram_eq = ReliabilityDiagram(10, equal_intervals=False)
         fig_eq = diagram_eq.plot(
             np.array(pred_prob_Y), np.array(Y)).get_figure()
 
@@ -291,7 +301,7 @@ def calibrate(trained_classifier_path, nr_batches):
         try:
 
             diagram_eq = ReliabilityDiagram(
-                6, equal_intervals=False)
+                10, equal_intervals=False)
             fig_eq = diagram_eq.plot(
                 calibrated_pr[i], np.array(Y)).get_figure()
 
@@ -319,9 +329,10 @@ if __name__ == '__main__':
 
     # trained_classifier_path = os.path.join(os.getcwd(),'models','classifier',
     #                            'NRE_summary_statistics','best_model')
-    nr_batches = 500
-    trained_classifier_path = os.path.join(os.getcwd(), 'models', 'classifier',
-                                           'TRE_summary_statistics', 'beta', 'best_model_degenerate')
+    nr_batches = 5
+    trained_classifier_path = os.path.join(
+        os.getcwd(), 'models', 'classifier', 'NRE_summary_statistics', 'trial1')
+    # 'TRE_summary_statistics', 'trial_set1', 'scale')
 
     calibrate(trained_classifier_path, nr_batches)
     # TRE options: acf, beta, mu, sigma

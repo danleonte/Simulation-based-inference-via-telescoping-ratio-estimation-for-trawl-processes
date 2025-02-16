@@ -13,6 +13,8 @@ import jax
 import jax.numpy as jnp
 from jax.random import PRNGKey
 from flax.training import train_state
+from jax.nn import sigmoid
+
 
 if True:
     from path_setup import setup_sys_path
@@ -92,11 +94,11 @@ def get_projection_function():
     return project
 
 
-def tre_shuffle(trawl_a, theta_a, theta_b, classifier_config):
+def tre_shuffle(x_a, theta_a, theta_b, classifier_config):
 
     batch_size = theta_a.shape[0]
 
-    trawl = jnp.vstack([trawl_a, trawl_a])
+    x = jnp.vstack([x_a, x_a])
     Y = jnp.concatenate([jnp.ones(batch_size), jnp.zeros(batch_size)])
     ################################################################
 
@@ -110,7 +112,7 @@ def tre_shuffle(trawl_a, theta_a, theta_b, classifier_config):
     if not use_tre:
         theta = jnp.vstack([theta_a, theta_b])
 
-        return trawl, theta, Y
+        return x, theta, Y
 
     # can assume we are using TRE from here on
 
@@ -136,4 +138,4 @@ def tre_shuffle(trawl_a, theta_a, theta_b, classifier_config):
     else:
         raise ValueError('trawl process type not found')
 
-    return trawl, theta, Y
+    return x, theta, Y
