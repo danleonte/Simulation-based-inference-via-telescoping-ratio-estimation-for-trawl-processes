@@ -24,7 +24,7 @@ from src.utils.get_data_generator import get_theta_and_trawl_generator
 ###############################################################################
 
 
-def load_trained_models_for_posterior_inference(folder_path, x, trawl_process_type,
+def load_trained_models_for_posterior_inference(folder_path, dummy_x, trawl_process_type,
                                                 use_tre, use_summary_statistics):
     """
     Loads the trained models, may it be NRE or TRE, and returns two functions,
@@ -44,16 +44,16 @@ def load_trained_models_for_posterior_inference(folder_path, x, trawl_process_ty
     that in the posterior inference script.
     """
 
-    assert x.ndim == 2
+    assert dummy_x.ndim == 2  # should actually be a traw
     if trawl_process_type == 'sup_ig_nig_5p':
-        dummy_theta = jnp.ones((1, 5))
+        dummy_theta = jnp.ones((dummy_x.shape[0], 5))
     else:
         raise ValueError
 
     if use_summary_statistics:
 
         project_trawl = get_projection_function()
-        x = project_trawl(x)
+        dummy_x = project_trawl(dummy_x)
 
     # if using tre, check there are exactly 4 subfolders, each with exactly one
     # set of params
@@ -112,49 +112,20 @@ def load_trained_models_for_posterior_inference(folder_path, x, trawl_process_ty
 
                 use_empirical_acf = True
 
-                empirical_acf_x = jnp.array(
-                    compute_empirical_acf(np.array(x[0]), nlags=n_lags)[1:])[jnp.newaxis, :]
-                _ = model_.init(PRNGKey(0), empirical_acf_x, dummy_theta)
+                # empirical_acf_x = jnp.array(
+                #    compute_empirical_acf(np.array(dummy_x[0]), nlags=n_lags)[1:])[jnp.newaxis, :]
+                empirical_dummy_x = jnp.ones((dummy_x.shape[0], n_lags))
+
+                _ = model_.init(PRNGKey(0), empirical_dummy_x, dummy_theta)
 
                 # TO CHECK
 
             else:
-                _ = model_.init(PRNGKey(0), x, dummy_theta)
+                _ = model_.init(PRNGKey(0), dummy_x, dummy_theta)
 
         #############
         model_list.append(model_)
         #############
-
-    @jax.jit
-    def approximate_log_likelihood_to_evidence(theta):
-
-        log_r = 0
-        theta = theta[jnp.newaxis, :]
-
-        for i in range(len(model_list)):
-
-            model = model_list[i]
-            params = params_list[i]
-            config = config_list[i]
-            calibration_dict = calibration_list[i]
-
-            if i == 0 and use_empirical_acf:
-                x_to_use = empirical_acf_x
-
-            else:
-                x_to_use = x
-
-            log_r_to_add = model.apply(variables=params, x=x_to_use,
-                                       theta=theta, train=False)
-
-            if calibration_dict['use_beta_calibration']:
-
-                log_r_to_add = beta_calibrate_log_r(
-                    log_r_to_add, calibration_dict['params'])
-
-            log_r += log_r_to_add[0]
-
-        return log_r
 
     ################ get bounds, assuming they're all the same ################
     acf_prior_hyperparams = config_list[-1]['trawl_config']['acf_prior_hyperparams']
@@ -171,15 +142,88 @@ def load_trained_models_for_posterior_inference(folder_path, x, trawl_process_ty
     upper_bounds = jnp.array([i[1] for i in bounds])
     total_mass = jnp.prod(upper_bounds - lower_bounds)
 
-    @jax.jit
-    def approximate_log_posterior(theta):
+    ###################### get functions ######################################
 
-        log_likelihood = approximate_log_likelihood_to_evidence(theta)
-        in_bounds = jnp.all((theta > lower_bounds) & (theta < upper_bounds))
-        log_prior = jnp.where(in_bounds, - jnp.log(total_mass), -jnp.inf)
-        return log_likelihood + log_prior
+    if use_empirical_acf:
 
-    return approximate_log_likelihood_to_evidence, approximate_log_posterior
+        @jax.jit
+        def approximate_log_likelihood_to_evidence(x, empirical_acf_x, theta):
+
+            log_r = 0
+
+            for i in range(len(model_list)):
+
+                model = model_list[i]
+                params = params_list[i]
+                config = config_list[i]
+                calibration_dict = calibration_list[i]
+
+                if i == 0 and use_empirical_acf:
+                    x_to_use = empirical_acf_x
+
+                else:
+                    x_to_use = x
+
+                log_r_to_add = model.apply(variables=params, x=x_to_use,
+                                           theta=theta, train=False)
+
+                if calibration_dict['use_beta_calibration']:
+
+                    log_r_to_add = beta_calibrate_log_r(
+                        log_r_to_add, calibration_dict['params'])
+
+                log_r += log_r_to_add
+
+            return log_r
+
+        @jax.jit
+        def approximate_log_posterior(x, empirical_acf_x, theta):
+
+            log_likelihood = approximate_log_likelihood_to_evidence(
+                x, empirical_acf_x, theta)
+            in_bounds = jnp.all((theta > lower_bounds) &
+                                (theta < upper_bounds))
+            log_prior = jnp.where(in_bounds, - jnp.log(total_mass), -jnp.inf)
+            return log_likelihood + log_prior
+
+    else:
+
+        @jax.jit
+        def approximate_log_likelihood_to_evidence(x, theta):
+
+            log_r = 0
+
+            for i in range(len(model_list)):
+
+                model = model_list[i]
+                params = params_list[i]
+                config = config_list[i]
+                calibration_dict = calibration_list[i]
+
+                log_r_to_add = model.apply(variables=params, x=x,
+                                           theta=theta, train=False)
+
+                if calibration_dict['use_beta_calibration']:
+
+                    log_r_to_add = beta_calibrate_log_r(
+                        log_r_to_add, calibration_dict['params'])
+
+                log_r += log_r_to_add
+
+            return log_r
+
+        @jax.jit
+        def approximate_log_posterior(x, theta):
+
+            log_likelihood = approximate_log_likelihood_to_evidence(
+                x, theta)
+            in_bounds = jnp.all((theta > lower_bounds) &
+                                (theta < upper_bounds))
+            log_prior = jnp.where(in_bounds, - jnp.log(total_mass), -jnp.inf)
+            return log_likelihood + log_prior
+
+    return approximate_log_likelihood_to_evidence, approximate_log_posterior, \
+        use_empirical_acf
 
 
 if __name__ == '__main__':
@@ -188,4 +232,6 @@ if __name__ == '__main__':
     trawl_process_type = 'sup_ig_nig_5p'
     use_tre = True
     use_summary_statistics = True
+    dummy_x = jnp.load('trawl.npy')
+    dummy_theta = jnp.ones([dummy_x.shape[0], 5])
     # x = ....

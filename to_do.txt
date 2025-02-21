@@ -1,14 +1,4 @@
-try with uniform first and then if problems 
-
-sample till one is in the corner and check if it fails
-
-set beta (alpha,beta)with high alpha, high beta triangle shape like
-
-
-do the f o term for the IG acf to better understand the meaning of the params
-
-maybe I can reparameteriza the model
-
-vacation 19th to 4th
-
-week of the 9th Thursday same time 
+- add box plots to the acf and GMM pdf to the marginal plots 
+- only output acf parameters in the correct region? same for the marginal ones? might be harder to explore corners
+- this would serve as starting point for MLE
+- try to pass the inferred acf at the lags at which it was trained rather than the acf params

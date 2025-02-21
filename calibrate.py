@@ -110,11 +110,12 @@ def calibrate(trained_classifier_path, nr_batches):
     with open(os.path.join(trained_classifier_path, "config.yaml"), 'r') as f:
         classifier_config = yaml.safe_load(f)
 
+    dataset_path = os.path.join(trained_classifier_path, 'cal_dataset')
     # load calidation dataset
-    cal_trawls_path = os.path.join(trained_classifier_path, 'cal_trawls.npy')
-    cal_x_path = os.path.join(trained_classifier_path, 'cal_x.npy')
-    cal_thetas_path = os.path.join(trained_classifier_path, 'cal_thetas.npy')
-    cal_Y_path = os.path.join(trained_classifier_path, 'cal_Y.npy')
+    cal_trawls_path = os.path.join(dataset_path, 'cal_trawls.npy')
+    cal_x_path = os.path.join(dataset_path, 'cal_x.npy')
+    cal_thetas_path = os.path.join(dataset_path, 'cal_thetas.npy')
+    cal_Y_path = os.path.join(dataset_path, 'cal_Y.npy')
 
     if os.path.isfile(cal_trawls_path) and os.path.isfile(cal_thetas_path) and os.path.isfile(cal_Y_path):
 
@@ -148,7 +149,7 @@ def calibrate(trained_classifier_path, nr_batches):
     replace_acf = tre_config['replace_full_trawl_with_acf']
 
     if use_tre:
-        assert tre_type in ('beta', 'mu', 'sigma', 'scale')
+        assert tre_type in ('beta', 'mu', 'sigma', 'scale', 'acf')
         if tre_type == 'acf' and (not use_summary_statistics):
             assert replace_acf
 
@@ -215,6 +216,12 @@ def calibrate(trained_classifier_path, nr_batches):
     iso.fit(pred_prob_Y, np.array(Y))
     bc.fit(pred_prob_Y,  np.array(Y))
 
+    calibration_dict = {'use_beta_calibration': True,
+                        'params': bc.calibrator_.map_}
+    with open(os.path.join(trained_classifier_path, 'calibration.pkl'), 'wb') as f:  # open a text file
+        # serialize the list
+        pickle.dump(calibration_dict, f)
+
     linspace = np.linspace(0, 1, 100)
     pr = [lr.predict_proba(linspace.reshape(-1, 1))[:, 1],
           iso.predict(linspace), bc.predict(linspace)]
@@ -249,7 +256,7 @@ def calibrate(trained_classifier_path, nr_batches):
     # reliability 2
 
     try:
-        diagram_eq = ReliabilityDiagram(10, equal_intervals=False)
+        diagram_eq = ReliabilityDiagram(9, equal_intervals=False)
         fig_eq = diagram_eq.plot(
             np.array(pred_prob_Y), np.array(Y)).get_figure()
 
@@ -301,7 +308,7 @@ def calibrate(trained_classifier_path, nr_batches):
         try:
 
             diagram_eq = ReliabilityDiagram(
-                10, equal_intervals=False)
+                6, equal_intervals=False)
             fig_eq = diagram_eq.plot(
                 calibrated_pr[i], np.array(Y)).get_figure()
 
@@ -329,9 +336,9 @@ if __name__ == '__main__':
 
     # trained_classifier_path = os.path.join(os.getcwd(),'models','classifier',
     #                            'NRE_summary_statistics','best_model')
-    nr_batches = 5
+    nr_batches = 500
     trained_classifier_path = os.path.join(
-        os.getcwd(), 'models', 'classifier', 'NRE_summary_statistics', 'trial1')
+        os.getcwd(), 'models', 'classifier', 'TRE_summary_statistics', 'trial_set1', 'mu')
     # 'TRE_summary_statistics', 'trial_set1', 'scale')
 
     calibrate(trained_classifier_path, nr_batches)
