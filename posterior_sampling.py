@@ -178,15 +178,15 @@ adapt_kernel = blackjax.adaptation.window_adaptation(algorithm=barker_kernel,
 # reshaped_samples = np.array(samples).reshape(-1, samples.shape[-1])[::75]
 #
 # Create the corner plot
-# figure = corner.corner(
-#    reshaped_samples,
-#    labels=[r"$\theta_1$", r"$\theta_2$",
-#            r"$\theta_3$", r"$\theta_4$", r"$\theta_5$"],
-#    quantiles=[0.05, 0.5, 0.95],
-#    show_titles=True,
-#    truths=true_theta,  # Add the true values
-#    title_kwargs={"fontsize": 12},
-# )
+figure = corner.corner(
+    reshaped_samples,
+    labels=[r"$\theta_1$", r"$\theta_2$",
+            r"$\theta_3$", r"$\theta_4$", r"$\theta_5$"],
+    quantiles=[0.05, 0.5, 0.95],
+    show_titles=True,
+    truths=true_theta,  # Add the true values
+    title_kwargs={"fontsize": 12},
+)
 
 
 ##################### COMPARE WITH OTHER THINGS ##############################

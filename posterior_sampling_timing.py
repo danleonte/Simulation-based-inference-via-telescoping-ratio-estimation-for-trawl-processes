@@ -37,7 +37,7 @@ if True:
     import matplotlib.pyplot as plt
 
 ######### Inputs ##########
-
+# "/home/leonted/SBI/SBI_for_trawl_processes_and_ambit_fields/models/classifier/TRE_summary_statistics/trial_set1/acf/"
 folder_path = r'D:\sbi_ambit\SBI_for_trawl_processes_and_ambit_fields\models\classifier\TRE_summary_statistics\trial_set1'
 trawl_process_type = 'sup_ig_nig_5p'
 use_tre = True
@@ -141,9 +141,9 @@ def model2():
                                                                         params))  # Include log-likelihood in inference
 
 
-num_samples = 100000
-num_warmup = 3000
-num_chains = 20  # Vectorized MCMC
+num_samples = 10000
+num_warmup = 2000
+num_chains = 2  # Vectorized MCMC
 
 rng_key = jax.random.PRNGKey(42)
 chain_keys = jax.random.split(rng_key, num_chains)
