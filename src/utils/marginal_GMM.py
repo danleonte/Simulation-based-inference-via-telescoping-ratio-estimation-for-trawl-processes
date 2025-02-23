@@ -124,7 +124,7 @@ def moment_conditions_jax(theta_jax, observed_moments, trawl):
         return jnp.inf * jnp.ones((len(trawl), 4))  # Match shape to 4 moments
 
 
-def estimate_jax_parameters(trawl):
+def estimate_jax_parameters(trawl, initial_guess=None):
     """
     Estimate parameters using GMM with theta_jax (3 parameters).
     """
@@ -159,13 +159,14 @@ def estimate_jax_parameters(trawl):
                        instrument=instruments)
 
     try:
-        result = gmm_model.fit(start_params=initial_guess, maxiter=10000)
-        jax_mu, jax_scale, jax_beta = result.params
-        return {
-            "jax_mu": jax_mu,
-            "jax_scale": jax_scale,
-            "jax_beta": jax_beta
-        }
+        result = gmm_model.fit(start_params=initial_guess, maxiter=1000)
+        return result
+        # jax_mu, jax_scale, jax_beta = result.params
+        # return {
+        #    "jax_mu": jax_mu,
+        #    "jax_scale": jax_scale,
+        #    "jax_beta": jax_beta
+        # }
     except Exception as e:
         raise ValueError(f"Optimization failed: {e}")
 
@@ -173,7 +174,7 @@ def estimate_jax_parameters(trawl):
 # Example usage
 if __name__ == "__main__":
     # Enable float64 precision in JAX
-    jax.config.update("jax_enable_x64", True)
+    # jax.config.update("jax_enable_x64", True)
 
     # Set random seed
     np.random.seed(42)

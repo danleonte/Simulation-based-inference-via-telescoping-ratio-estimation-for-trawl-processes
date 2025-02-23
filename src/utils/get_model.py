@@ -18,10 +18,9 @@ if True:
 
 from src.model.LSTM_based_nn import LSTMModel
 from src.model.Dense_model import DenseModel
-from src.model.Conv_based_nn import AcfCNN
+from src.model.Conv_based_nn import CNN
 from src.model.Extended_model_nn import ExtendedModel
 from src.model.Transformer_based_nn import TimeSeriesTransformerBase
-from src.utils.reconstruct_beta_calibration import beta_calibrate_log_r
 from statsmodels.tsa.stattools import acf as compute_empirical_acf
 
 
@@ -30,8 +29,8 @@ def get_model(config_file, initialize=True):
 
     if model_name == 'LSTMModel':
         return get_model_LSTM(config_file, initialize)
-    elif model_name == 'AcfCNN':
-        return get_model_Acf_CNN(config_file, initialize)
+    elif model_name == 'CNN':
+        return get_model_CNN(config_file, initialize)
     elif model_name == 'TimeSeriesTransformerBase':
         return get_model_transformer(config_file, initialize)
     elif model_name == 'DenseModel':
@@ -97,13 +96,13 @@ def get_model_LSTM(config_file, initialize=True):
     return model, params, key
 
 
-def get_model_Acf_CNN(config_file, initialize=True):
+def get_model_CNN(config_file, initialize=True):
 
     # Sanity checks
     trawl_config = config_file['trawl_config']
     model_config = config_file['model_config']
 
-    assert model_config['model_name'] == 'AcfCNN'
+    assert model_config['model_name'] == 'CNN'
     assert not model_config['with_theta']
     ###########################################################################
 
@@ -122,7 +121,7 @@ def get_model_Acf_CNN(config_file, initialize=True):
     final_output_size = model_config['final_output_size']
     dropout_rate = model_config['dropout_rate']
 
-    model = AcfCNN(
+    model = CNN(
         max_lag=max_lag,
         conv_channels=conv_channels,
         fc_sizes=fc_sizes,

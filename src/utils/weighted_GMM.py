@@ -137,7 +137,7 @@ def moment_conditions_jax(theta_jax, trawl, num_lags, acf_func):
         return jnp.inf * jnp.ones((len(trawl) - num_lags, 4 + num_lags))
 
 
-def estimate_jax_parameters(trawl, num_lags=30, trawl_type='sup_IG'):
+def estimate_jax_parameters(trawl, num_lags=35, trawl_type='sup_IG'):
     """
     Estimate parameters using GMM with theta_jax, including ACF comparisons.
 

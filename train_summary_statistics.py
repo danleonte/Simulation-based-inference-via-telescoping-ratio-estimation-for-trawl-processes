@@ -32,17 +32,12 @@ from src.utils.trawl_training_utils import loss_functions_wrapper
 # config_file_path = 'config_files/summary_statistics/LSTM/marginal\\config3.yaml'
 
 
-def train_and_evaluate(config_file_path):
+def train_and_evaluate(config):
 
     try:
 
-        # Load config file
-        with open(config_file_path, 'r') as f:
-            config = yaml.safe_load(f)
-
         ###########################################################################
-        # Get general params and hyperparams, check if we learn the acf or marginal
-        # distribution parameters
+        # Check if we learn the acf or marginal and initialize wandb accordingly
         learn_config = config['learn_config']
         learn_acf = learn_config['learn_acf']
         learn_marginal = learn_config['learn_marginal']
@@ -51,79 +46,83 @@ def train_and_evaluate(config_file_path):
         assert learn_acf + learn_marginal == 1 and learn_both == False
 
         # Initialize wandb
-        timestamp = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
-        config_name = os.path.basename(config_file_path).replace('.yaml', '')
-        run_name = f"{timestamp}_{config_name}"
-        run_name = 'acf' if learn_acf else 'marginal'
+        timestamp = datetime.datetime.now().strftime("%m_%d_%H_%M_%S") + \
+            str(np.random.randint(1, 100))  # to make sure  names are different
+        run_name = f"{timestamp}"
 
-        group_name = (
-            "acf" if learn_acf else
-            "marginal" if learn_marginal else
-            "both")
-        wandb.init(project="SBI_trawls", group=group_name,
-                   name=run_name, config=config)
+        project_name = 'summary_'
+        project_name += ('acf_p_' + str(config['loss_config']
+                         ['p'])) if learn_acf else 'marginal'
+
+        wandb.init(project=project_name, name=run_name, config=config,
+                   tags=config['model_config']['model_name'])
+
+        #######################################################################
+        # Create folders for the experiment validation dataset and checkpoints
+        base_checkpoint_dir = os.path.join("models", 'summary_statistics')
+        experiment_dir = os.path.join(base_checkpoint_dir,
+                                      "learn_acf" if learn_acf else "learn_marginal", wandb.run.name)
+        os.makedirs(experiment_dir, exist_ok=True)
+
+        trawls_path = os.path.join(base_checkpoint_dir, 'trawls.npy')
+        thetas_acf_path = os.path.join(base_checkpoint_dir, 'thetas_acf.npy')
+        thetas_marginal_path = os.path.join(
+            base_checkpoint_dir, 'thetas_marginal.npy')
 
         ###########################################################################
         # Get params and hyperparams for the data generating process
         trawl_config = config['trawl_config']
         batch_size = trawl_config['batch_size']
+        val_batches = config["val_config"]["val_n_batches"]
+        val_freq = config["val_config"]["val_freq"]
 
         # Get data generators
         theta_acf_simulator, theta_marginal_simulator, trawl_simulator = get_theta_and_trawl_generator(
             config)
 
-        # Generate validation data
-        val_batches = config["val_config"]["val_n_batches"]
-        val_freq = config["val_config"]["val_freq"]
-        val_data = []
+        if not (os.path.isfile(trawls_path) and os.path.isfile(thetas_acf_path) and os.path.isfile(thetas_marginal_path)):
 
-        # Generate fixed validation set
-        # Different seed for validation
-        val_key = jax.random.split(
-            PRNGKey(config['prng_key'] + 10), batch_size)
-        for _ in range(val_batches):
-            theta_acf_val, val_key = theta_acf_simulator(val_key)
-            theta_marginal_jax_val, theta_marginal_tf_val, val_key = theta_marginal_simulator(
-                val_key)
-            trawl_val, val_key = trawl_simulator(
-                theta_acf_val, theta_marginal_tf_val, val_key)
+            val_data = []
 
-            if learn_acf:
-                val_data.append((trawl_val, theta_acf_val))
-            elif learn_marginal:
-                val_data.append((trawl_val, theta_marginal_jax_val))
+            # Generate fixed validation set
+            # Different seed for validation
+            val_key = jax.random.split(
+                PRNGKey(config['prng_key'] + 10), batch_size)
+            for _ in range(val_batches):
+                theta_acf_val, val_key = theta_acf_simulator(val_key)
+                theta_marginal_jax_val, theta_marginal_tf_val, val_key = theta_marginal_simulator(
+                    val_key)
+                trawl_val, val_key = trawl_simulator(
+                    theta_acf_val, theta_marginal_tf_val, val_key)
 
-        # Convert validation data to JAX arrays
-        # Saves it in the format [#batches, batch_size, vector_dimension]
-        # It's a bit weird, might change it in the future
-        # then need to also change the validaton loss function
-        val_trawls = jnp.stack([x[0] for x in val_data])
-        val_thetas = jnp.stack([x[1] for x in val_data])
+                val_data.append(
+                    (trawl_val, theta_acf_val, theta_marginal_jax_val))
 
-        print(f'{val_batches} batches simulated for the validation dataset.')
+            # Convert validation data to JAX arrays
+            # Saves it in the format [#batches, batch_size, vector_dimension]
+            # It's a bit weird, might change it in the future
+            # then need to also change the validaton loss function
+            val_trawls = jnp.stack([x[0] for x in val_data])
+            val_thetas_acf = jnp.stack([x[1] for x in val_data])
+            val_thetas_marginal = jnp.stack([x[2] for x in val_data])
 
-        ###########################################################################
-        # Create directory for validation data and model checkpoints
-        base_checkpoint_dir = os.path.join("models", 'summary_statistics')
-        checkpoint_subdir = "learn_acf" if learn_acf else "learn_marginal"
-        experiment_dir = os.path.join(
-            base_checkpoint_dir, checkpoint_subdir, wandb.run.name)
-        os.makedirs(experiment_dir, exist_ok=True)
+            # Save validation dataset
+            np.save(trawls_path, np.array(val_trawls))
+            np.save(thetas_acf_path, np.array(val_thetas_acf))
+            np.save(thetas_marginal_path, np.array(val_thetas_marginal))
 
-        # Save validation dataset
-        val_data_dir = os.path.join(experiment_dir, "validation_data")
-        os.makedirs(val_data_dir, exist_ok=True)
+            print(f'{val_batches} batches simulated for the validation dataset.')
 
-        # Convert to numpy and save
-        np.save(os.path.join(val_data_dir, "val_trawls.npy"),
-                np.array(val_trawls))
-        np.save(os.path.join(val_data_dir, "val_thetas.npy"),
-                np.array(val_thetas))
+        val_trawls = jnp.load(trawls_path)
+
+        if learn_acf:
+            val_thetas = jnp.load(thetas_acf_path)
+        else:
+            val_thetas = jnp.load(thetas_marginal_path)
 
         ###########################################################################
-        # Create model and initialize parameters
+        # Create model and initialize parameters for simulating data during training
         model, params, key = get_model(config)
-        # for simulating data during training
         key = jax.random.split(PRNGKey(config['prng_key']+2351), batch_size)
         dropout_key = jax.random.PRNGKey(
             config['prng_key'] + 29354)  # for dropout
@@ -131,17 +130,16 @@ def train_and_evaluate(config_file_path):
         # Initialize optimizer
         lr = config["optimizer"]["lr"]
         total_steps = config["train_config"]["n_iterations"]
-        warmup_steps = 500
+        warmup_steps = 1000
         decay_steps = total_steps - warmup_steps
 
+        # Constant learning rate for warmup_steps; Cosine decay afterwards.
         schedule_fn = optax.join_schedules([
-            # Constant learning rate for warmup_steps
             optax.constant_schedule(lr),
-            # Cosine decay for the remaining steps
             optax.cosine_decay_schedule(
                 init_value=lr,
                 decay_steps=decay_steps,
-                alpha=0.05
+                alpha=0.01
             )
         ], boundaries=[warmup_steps])
 
@@ -175,6 +173,7 @@ def train_and_evaluate(config_file_path):
         best_val_loss = float('inf')
         best_iteration = -1
         best_model_path = os.path.join(experiment_dir, "best_model")
+        os.makedirs(best_model_path, exist_ok=True)
         ###########################################################################
 
         # Training loop
@@ -196,16 +195,16 @@ def train_and_evaluate(config_file_path):
                 loss, grads = compute_loss_and_grad(
                     params, trawl, theta_marginal_jax, dropout_subkey_to_use, True, num_KL_samples)
 
-                if iteration == 1000:
+                if iteration == 2000:
+                    num_KL_samples *= 3
+
+                elif iteration == 4000:
+                    num_KL_samples *= 3
+
+                elif iteration == 15000:
                     num_KL_samples *= 2
 
-                if iteration == 3000:
-                    num_KL_samples *= 2
-
-                if iteration == 5500:
-                    num_KL_samples *= 2
-
-                if iteration == 9000:
+                elif iteration == 21000:
                     num_KL_samples *= 2
 
             # Update model parameters
@@ -220,14 +219,7 @@ def train_and_evaluate(config_file_path):
             }
 
             # Compute validation loss periodically
-            if iteration % val_freq == 0:
-
-                # if learn_acf:
-                #
-                #    val_loss, val_loss_std = compute_validation_stats(
-                #        params, val_trawls, val_thetas, num_KL_samples)
-                #
-                # elif learn_marginal:
+            if iteration % val_freq == 0 and iteration > 5000:
 
                 val_loss, val_loss_std, dropout_key = compute_validation_stats(
                     params, val_trawls, val_thetas, dropout_key, num_KL_samples)
@@ -255,28 +247,29 @@ def train_and_evaluate(config_file_path):
 
                 if learn_acf:
 
-                    for i in range(5):
+                    for i in range(3):
                         fig_ = plot_acfs(
                             trawl[i], theta_acf[i], pred_theta[i], config)
                         wandb.log({f"Acf plot {i}": wandb.Image(fig_)})
 
                 elif learn_marginal:
 
-                    for i in range(5):
+                    for i in range(3):
                         fig_ = plot_marginals(
-                            theta_marginal_jax[i], pred_theta[i], config)
-                        wandb.log({f"Acf plot {i}": wandb.Image(fig_)})
+                            trawl[i], theta_marginal_jax[i], pred_theta[i], config)
+                        wandb.log({f"Marginal plot {i}": wandb.Image(fig_)})
 
             wandb.log(metrics)
 
         # Save best model info
         best_model_info_path = os.path.join(
-            val_data_dir, "best_model_info.txt")
+            best_model_path, "best_model_info.txt")
+
         with open(best_model_info_path, 'w') as f:
             f.write(f"Best model iteration: {best_iteration}\n")
             f.write(f"Best validation loss: {best_val_loss:.6f}\n")
 
-        config_save_path = os.path.join(val_data_dir, "config.yaml")
+        config_save_path = os.path.join(best_model_path, "config.yaml")
         with open(config_save_path, 'w') as f:
             yaml.dump(config, f)
 
@@ -286,7 +279,50 @@ def train_and_evaluate(config_file_path):
 
 
 if __name__ == "__main__":
-    import glob
+    # import glob
     # Loop over configs
-    for config_file_path in glob.glob("config_files/summary_statistics/LSTM/marginal/*.yaml"):
-        train_and_evaluate(config_file_path)
+    # Load config file
+    from copy import deepcopy
+
+    base_config_file_path = "config_files/summary_statistics/LSTM/acf/base_config.yaml"
+
+    with open(base_config_file_path, 'r') as f:
+        base_config = yaml.safe_load(f)
+
+    model_name = base_config['model_config']['model_name']
+
+    if 'LSTM' in base_config_file_path:
+        assert model_name == 'LSTMModel'
+        config_to_use = deepcopy(base_config)
+
+        for lstm_hidden_size in (32, 128, 64, 16):
+            for num_lstm_layers in (3, 2, 1):
+                for linear_layer_sizes in ([16, 8, 6], [32, 16, 8], [64, 32, 16, 8], [48, 24, 12, 4],
+                                           [128, 64, 32, 16, 8], [72, 24, 12, 6]):
+
+                    for mean_aggregation in (False,):
+                        for dropout_rate in (0.025, 0.1, 0.2):
+                            for lr in (0.005, 0.0005):
+
+                                if (num_lstm_layers <= 2 or lstm_hidden_size < 64) and (linear_layer_sizes[0] <= 2 * lstm_hidden_size) and (dropout_rate < 0.1 or lstm_hidden_size >= 64):
+
+                                    config_to_use['model_config'] = {'model_name': model_name,
+                                                                     'lstm_hidden_size': lstm_hidden_size,
+                                                                     'num_lstm_layers': num_lstm_layers,
+                                                                     'linear_layer_sizes': linear_layer_sizes,
+                                                                     'mean_aggregation': mean_aggregation,
+                                                                     'final_output_size': base_config['model_config']['final_output_size'],
+                                                                     'dropout_rate': dropout_rate,
+                                                                     'with_theta': False
+                                                                     }
+                                    config_to_use['optimizer']['lr'] = lr
+                                    config_to_use['prng_key'] = np.random.randint(
+                                        1, 10**5)
+
+                                    train_and_evaluate(config_to_use)
+
+    elif 'CNN' in base_config_file_path:
+        pass
+
+    elif 'Transformer' in base_config_file_path:
+        pass

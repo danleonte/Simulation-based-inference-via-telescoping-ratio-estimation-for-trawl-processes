@@ -106,7 +106,7 @@ def estimate_acf_parameters(trawl, config, initial_guess=None):
         # get final acf errors
         # acf_moment_conditions(params, trawl, num_lags, acf_func)
 
-        return result.params
+        return result, np.std(gmm_model.momcond(result.params), axis=0)
         # return {
         #    "acf_gamma": acf_gamma,
         #    "acf_eta": acf_eta

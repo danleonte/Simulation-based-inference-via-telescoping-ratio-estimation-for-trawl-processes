@@ -10,7 +10,7 @@ import jax.numpy as jnp
 import flax.linen as nn
 
 
-class AcfCNN(nn.Module):
+class CNN(nn.Module):
     max_lag: int
     conv_channels: Sequence[int]
     fc_sizes: Sequence[int]
@@ -86,7 +86,7 @@ if __name__ == "__main__":
     import optax  # Add this import for the training example
 
     # Initialize model
-    model = AcfCNN(
+    model = CNN(
         max_lag=30,
         conv_channels=[32, 64, 32],
         fc_sizes=[64, 32],
