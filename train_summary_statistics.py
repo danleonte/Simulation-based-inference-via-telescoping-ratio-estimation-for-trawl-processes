@@ -326,27 +326,28 @@ if __name__ == "__main__":
         config_to_use = deepcopy(base_config)
 
         for max_lag in (30, 35, 40):
-            for conv_channels in ([16, 32, 16], [64, 32, 16, 8], [64, 128, 64, 32, 8]):
+            for conv_channels in ([16, 32, 16], [64, 32, 16, 8]):
                 for conv_kernels in ([15, 5], [25, 15], [35, 10]):
-                    for dropout_rate in (0.025, 0.1, 0.2):
-                        for lr in (0.005, 0.0005):
+                    for dropout_rate in (0.025, 0.15):
+                        for fc_sizes in ([32, 16, 8], [64, 32, 16], [48, 24, 12, 6]):
+                            for lr in (0.0025, 0.0005):
 
-                            config_to_use = deepcopy(base_config)
+                                config_to_use = deepcopy(base_config)
 
-                            config_to_use['model_config'] = {'model_name': model_name,
-                                                             'max_lag': max_lag,
-                                                             'conv_channels': conv_channels,
-                                                             'fc_sizes': fc_sizes,
-                                                             'final_output_size': base_config['model_config']['final_output_size'],
-                                                             'conv_kernels': conv_kernels,
-                                                             'dropout_rate': dropout_rate,
-                                                             'with_theta': False
-                                                             }
-                            config_to_use['optimizer']['lr'] = lr
-                            config_to_use['prng_key'] = np.random.randint(
-                                1, 10**5)
+                                config_to_use['model_config'] = {'model_name': model_name,
+                                                                 'max_lag': max_lag,
+                                                                 'conv_channels': conv_channels,
+                                                                 'fc_sizes': fc_sizes,
+                                                                 'final_output_size': base_config['model_config']['final_output_size'],
+                                                                 'conv_kernels': conv_kernels,
+                                                                 'dropout_rate': dropout_rate,
+                                                                 'with_theta': False
+                                                                 }
+                                config_to_use['optimizer']['lr'] = lr
+                                config_to_use['prng_key'] = np.random.randint(
+                                    1, 10**5)
 
-                            train_and_evaluate(config_to_use)
+                                train_and_evaluate(config_to_use)
 
     elif 'Transformer' in base_config_file_path:
         pass
