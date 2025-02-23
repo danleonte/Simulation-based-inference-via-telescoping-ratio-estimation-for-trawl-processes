@@ -201,10 +201,10 @@ def train_and_evaluate(config):
                 elif iteration == 4000:
                     num_KL_samples *= 3
 
-                elif iteration == 15000:
+                elif iteration == 12000:
                     num_KL_samples *= 2
 
-                elif iteration == 21000:
+                elif iteration == 14000:
                     num_KL_samples *= 2
 
             # Update model parameters
@@ -284,7 +284,7 @@ if __name__ == "__main__":
     # Load config file
     from copy import deepcopy
 
-    base_config_file_path = "config_files/summary_statistics/LSTM/acf/base_config.yaml"
+    base_config_file_path = "config_files/summary_statistics/CNN/acf/base_config.yaml"
 
     with open(base_config_file_path, 'r') as f:
         base_config = yaml.safe_load(f)
@@ -293,7 +293,6 @@ if __name__ == "__main__":
 
     if 'LSTM' in base_config_file_path:
         assert model_name == 'LSTMModel'
-        config_to_use = deepcopy(base_config)
 
         for lstm_hidden_size in (32, 128, 64, 16):
             for num_lstm_layers in (3, 2, 1):
@@ -306,6 +305,7 @@ if __name__ == "__main__":
 
                                 if (num_lstm_layers <= 2 or lstm_hidden_size < 64) and (linear_layer_sizes[0] <= 2 * lstm_hidden_size) and (dropout_rate < 0.1 or lstm_hidden_size >= 64):
 
+                                    config_to_use = deepcopy(base_config)
                                     config_to_use['model_config'] = {'model_name': model_name,
                                                                      'lstm_hidden_size': lstm_hidden_size,
                                                                      'num_lstm_layers': num_lstm_layers,
@@ -322,7 +322,31 @@ if __name__ == "__main__":
                                     train_and_evaluate(config_to_use)
 
     elif 'CNN' in base_config_file_path:
-        pass
+        assert model_name == 'CNN'
+        config_to_use = deepcopy(base_config)
+
+        for max_lag in (30, 35, 40):
+            for conv_channels in ([16, 32, 16], [64, 32, 16, 8], [64, 128, 64, 32, 8]):
+                for conv_kernels in ([15, 5], [25, 15], [35, 10]):
+                    for dropout_rate in (0.025, 0.1, 0.2):
+                        for lr in (0.005, 0.0005):
+
+                            config_to_use = deepcopy(base_config)
+
+                            config_to_use['model_config'] = {'model_name': model_name,
+                                                             'max_lag': max_lag,
+                                                             'conv_channels': conv_channels,
+                                                             'fc_sizes': fc_sizes,
+                                                             'final_output_size': base_config['model_config']['final_output_size'],
+                                                             'conv_kernels': conv_kernels,
+                                                             'dropout_rate': dropout_rate,
+                                                             'with_theta': False
+                                                             }
+                            config_to_use['optimizer']['lr'] = lr
+                            config_to_use['prng_key'] = np.random.randint(
+                                1, 10**5)
+
+                            train_and_evaluate(config_to_use)
 
     elif 'Transformer' in base_config_file_path:
         pass
