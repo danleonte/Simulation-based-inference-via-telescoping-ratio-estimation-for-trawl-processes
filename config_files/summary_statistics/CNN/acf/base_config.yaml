@@ -16,7 +16,7 @@ trawl_config:
   batch_size: 64
   marginal_distr: NIG
   acf: sup_IG
-  trawl_type: sup_ig_nig_5p
+  trawl_process_type: sup_ig_nig_5p
   acf_prior_hyperparams:
     distr_name: uniform
     gamma_prior_hyperparams: [10.,20.]
