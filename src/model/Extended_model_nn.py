@@ -9,6 +9,11 @@ import jax
 import jax.numpy as jnp
 from flax import linen as nn
 from typing import Optional
+from src.utils.acf_functions import get_acf
+
+
+acf_func = jax.jit(
+    jax.vmap(get_acf('sup_IG'), in_axes=(None, 0)))
 
 
 def modify_x(x, theta, tre_indicator, trawl_process_type):
@@ -69,10 +74,12 @@ class ExtendedModel(nn.Module):
 
     def __call__(self, x, theta, train: bool = False):
 
+        H = jnp.arange(1, 35)
+
         if not self.use_summary_statistics:
             x = modify_x(x, theta, self.tre_type, self.trawl_process_type)
 
         # only after modifying x
         theta = chop_theta(theta, self.tre_type, self.trawl_process_type)
 
-        return self.base_model(x, theta, train)
+        return self.base_model(x=(acf_func(H, x[:, :2]) - acf_func(H, theta)), train=train)

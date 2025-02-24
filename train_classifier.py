@@ -61,7 +61,7 @@ if True:
 
 # classifier_config_file_path = 'config_files/classifier\\TRE_summary_statistics/beta/classifier_config1.yaml'
 
-def train_classifier(classifier_config_file_path):
+def train_classifier(classifier_config):
 
     try:
 
@@ -78,7 +78,7 @@ def train_classifier(classifier_config_file_path):
 
         #################          Initialize wandb           #################
         timestamp = datetime.datetime.now().strftime("%m_%d_%H_%M_%S")
-        project_name = "SBI_trawls_classifier_" + \
+        project_name = "old_SBI_trawls_classifier_" + \
             ('tre_' + tre_type if use_tre else 'nre') + \
             (
                 '_with_summary_statistics' if use_summary_statistics else
@@ -96,7 +96,7 @@ def train_classifier(classifier_config_file_path):
 
         # Create directory for validation data and model checkpoints
 
-        base_checkpoint_dir = os.path.join("models", 'classifier')
+        base_checkpoint_dir = os.path.join("models", 'old_classifier')
         checkpoint_subdir = 'summary_statistics' if use_summary_statistics else 'full_trawl'
 
         if use_tre:
@@ -131,13 +131,13 @@ def train_classifier(classifier_config_file_path):
         # Generate validation data
         val_batches = classifier_config["val_config"]["val_n_batches"]
         val_freq = classifier_config["val_config"]["val_freq"]
+        val_key = jax.random.split(
+            PRNGKey(classifier_config['prng_key'] + 10), batch_size)
 
         if not (os.path.isfile(val_trawls_path) and os.path.isfile(val_thetas_path)):
 
             # Generate fixed validation set
             val_data = []
-            val_key = jax.random.split(
-                PRNGKey(classifier_config['prng_key'] + 10), batch_size)
 
             for _ in range(val_batches):
                 theta_acf_val, val_key = theta_acf_simulator(val_key)
@@ -188,7 +188,7 @@ def train_classifier(classifier_config_file_path):
         #                        Get model                                    #
         #######################################################################
         # Create model and initialize parameters
-        model, params, key = get_model(classifier_config)
+        model = get_model(classifier_config, False)
         # for simulating data during training
         key = jax.random.split(
             PRNGKey(classifier_config['prng_key']+352), batch_size)
@@ -200,7 +200,7 @@ def train_classifier(classifier_config_file_path):
             # CAN T LEARN THE ACF WITHOUT THE SUMMARY STATISTICS
             # SO WE RE NOT  CONSIDERING THAT CASE HERE
             # DO NOT INITIALIZE MODEL
-            del params
+            # del params
             model = get_model(classifier_config, False)
             assert tre_type in ('beta', 'mu', 'sigma', 'acf')
             if tre_type == 'acf' and (not use_summary_statistics):
@@ -213,9 +213,9 @@ def train_classifier(classifier_config_file_path):
 
             # Initialize parameters
             # don't use val_key afterwards
-            params = model.init(val_key[0], trawl_val, theta_val)
+            params = model.init(val_key[0], val_trawls[0], val_thetas[0])
 
-            # Initialize optimizer
+        # Initialize optimizer
         lr = classifier_config["optimizer"]["lr"]
         if 'alpha' in classifier_config["optimizer"].keys():
             alpha = classifier_config["optimizer"]["alpha"]
@@ -506,11 +506,11 @@ def train_classifier(classifier_config_file_path):
 
 
 if __name__ == "__main__":
+    import glob
+    # Loop over configs
+    for config_file_path in glob.glob(r"config_files/classifier/TRE_summary_statistics/acf/*.yaml"):
 
-    # Load config file
-    classifier_config_file_path = 'config_files/classifier\\TRE_summary_statistics/beta/classifier_config1.yaml'
+        with open(config_file_path, 'r') as f:
+            classifier_config = yaml.safe_load(f)
 
-    with open(classifier_config_file_path, 'r') as f:
-        classifier_config = yaml.safe_load(f)
-
-    train_classifier(classifier_config)
+        train_classifier(classifier_config)
