@@ -81,5 +81,7 @@ class ExtendedModel(nn.Module):
 
         # only after modifying x
         theta = chop_theta(theta, self.tre_type, self.trawl_process_type)
+        r = acf_func(H, x[:, :2]) - acf_func(H, theta)
+        r = jnp.sqrt(jnp.sum(r**2, axis=1, keepdims=True))
 
-        return self.base_model(x=(acf_func(H, x[:, :2]) - acf_func(H, theta)), train=train)
+        return self.base_model(x=r, train=train)

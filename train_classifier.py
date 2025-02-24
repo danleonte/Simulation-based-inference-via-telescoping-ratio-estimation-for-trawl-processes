@@ -508,7 +508,7 @@ def train_classifier(classifier_config):
 if __name__ == "__main__":
     import glob
     # Loop over configs
-    for config_file_path in glob.glob(r"config_files/classifier/TRE_summary_statistics/acf/*.yaml"):
+    for config_file_path in glob.glob(r"config_files/classifier/TRE_summary_statistics/acf/d*.yaml"):
 
         with open(config_file_path, 'r') as f:
             classifier_config = yaml.safe_load(f)
