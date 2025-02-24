@@ -284,7 +284,7 @@ if __name__ == "__main__":
     # Load config file
     from copy import deepcopy
 
-    base_config_file_path = "config_files/summary_statistics/Transformer/marginal/base_config.yaml"
+    base_config_file_path = "config_files/summary_statistics/Transformer/acf/base_config.yaml"
 
     with open(base_config_file_path, 'r') as f:
         base_config = yaml.safe_load(f)
@@ -357,8 +357,8 @@ if __name__ == "__main__":
         for hidden_size in (32, 64, 16):
             for num_heads in (3, 2):
                 for num_layers in (3, 1):
-                    for mlp_dim in (16, 48, 16):
-                        for linear_layer_sizes in ([16, 8, 4], [64, 32, 16, 6],  [32, 16, 6]):
+                    for mlp_dim in (32, 48, 16):
+                        for linear_layer_sizes in ([32, 16, 6], [64, 32, 16, 6], [16, 8, 4]):
                             for dropout_rate in (0.05,):
                                 for lr in (0.00005, 0.000005):
                                     for freq_attention in (True, False):

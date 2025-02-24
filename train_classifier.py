@@ -65,12 +65,7 @@ def train_classifier(classifier_config_file_path):
 
     try:
 
-        # Load config file
-        with open(classifier_config_file_path, 'r') as f:
-            classifier_config = yaml.safe_load(f)
-
-        ###########################################################################
-        # Get params and hyperparams
+        # Check what we're doing: TRE or NRE, with full trawls or summary stats
         tre_config = classifier_config['tre_config']
         use_tre = tre_config['use_tre']
         tre_type = tre_config['tre_type']
@@ -99,57 +94,8 @@ def train_classifier(classifier_config_file_path):
         wandb.init(project=project_name,  # group=group_name,
                    name=run_name, config=classifier_config)
 
-        #######################################################################
-        #                      Generate validation data                       #
-        #######################################################################
-        # Get params and hyperparams for the data generating process
-        trawl_config = classifier_config['trawl_config']
-        batch_size = trawl_config['batch_size']
-
-        # Get data generators
-        theta_acf_simulator, theta_marginal_simulator, trawl_simulator = get_theta_and_trawl_generator(
-            classifier_config)
-
-        # Generate validation data
-        val_batches = classifier_config["val_config"]["val_n_batches"]
-        val_freq = classifier_config["val_config"]["val_freq"]
-        val_data = []
-
-        # Generate fixed validation set
-        # Different seed for validation
-        val_key = jax.random.split(
-            PRNGKey(classifier_config['prng_key'] + 10), batch_size)
-        for _ in range(val_batches):
-            theta_acf_val, val_key = theta_acf_simulator(val_key)
-            theta_marginal_jax_val, theta_marginal_tf_val, val_key = theta_marginal_simulator(
-                val_key)
-            trawl_val, val_key = trawl_simulator(
-                theta_acf_val, theta_marginal_tf_val, val_key)
-
-            ########################################
-            if use_summary_statistics:
-                trawl_val = project_trawl(trawl_val)
-
-            elif (not use_summary_statistics) and replace_acf and use_tre and tre_type == 'acf':
-
-                trawl_val = jnp.array([compute_empirical_acf(np.array(trawl_), nlags=nlags)[1:]
-                                       for trawl_ in trawl_val])
-
-                ########################################
-            theta_val = jnp.concatenate(
-                [theta_acf_val, theta_marginal_jax_val], axis=1)
-            val_data.append((trawl_val, theta_val))
-
-        # Convert validation data to JAX arrays
-        # Saves it in the format [#batches, batch_size, vector_dimension]
-        # It's a bit weird, might change it in the future
-        # then need to also change the validaton loss function
-        val_trawls = jnp.stack([x[0] for x in val_data])
-        val_thetas = jnp.stack([x[1] for x in val_data])
-
-        print(f'{val_batches} batches simulated for the validation dataset.')
-        #######################################################################
         # Create directory for validation data and model checkpoints
+
         base_checkpoint_dir = os.path.join("models", 'classifier')
         checkpoint_subdir = 'summary_statistics' if use_summary_statistics else 'full_trawl'
 
@@ -166,20 +112,78 @@ def train_classifier(classifier_config_file_path):
             base_checkpoint_dir, checkpoint_subdir, wandb.run.name)
         os.makedirs(experiment_dir, exist_ok=True)
 
-        # Save validation dataset
-        val_data_dir = os.path.join(experiment_dir, "validation_data")
-        os.makedirs(val_data_dir, exist_ok=True)
+        val_trawls_path = os.path.join(
+            base_checkpoint_dir, 'val_trawls_class.npy')
+        val_thetas_path = os.path.join(
+            base_checkpoint_dir, 'val_thetas_class.npy')
 
-        # Convert to numpy and save
-        np.save(os.path.join(val_data_dir, "val_trawls.npy"),
-                np.array(val_trawls))
-        np.save(os.path.join(val_data_dir, "val_thetas.npy"),
-                np.array(val_thetas))
+        #######################################################################
+        #                      Generate validation data                       #
+        #######################################################################
+        # Get params and hyperparams for the data generating process
+        trawl_config = classifier_config['trawl_config']
+        batch_size = trawl_config['batch_size']
 
-        # Path to save validation figures
-        val_figures_dir = os.path.join(val_data_dir, "figures")
-        os.makedirs(val_figures_dir, exist_ok=True)
+        # Get data generators
+        theta_acf_simulator, theta_marginal_simulator, trawl_simulator = get_theta_and_trawl_generator(
+            classifier_config)
 
+        # Generate validation data
+        val_batches = classifier_config["val_config"]["val_n_batches"]
+        val_freq = classifier_config["val_config"]["val_freq"]
+
+        if not (os.path.isfile(val_trawls_path) and os.path.isfile(val_thetas_path)):
+
+            # Generate fixed validation set
+            val_data = []
+            val_key = jax.random.split(
+                PRNGKey(classifier_config['prng_key'] + 10), batch_size)
+
+            for _ in range(val_batches):
+                theta_acf_val, val_key = theta_acf_simulator(val_key)
+                theta_marginal_jax_val, theta_marginal_tf_val, val_key = theta_marginal_simulator(
+                    val_key)
+                trawl_val, val_key = trawl_simulator(
+                    theta_acf_val, theta_marginal_tf_val, val_key)
+
+                theta_val = jnp.concatenate(
+                    [theta_acf_val, theta_marginal_jax_val], axis=1)
+                val_data.append((trawl_val, theta_val))
+
+            # Convert validation data to JAX arrays
+            # Saves it in the format [#batches, batch_size, vector_dimension]
+            # It's a bit weird, might change it in the future
+            # then need to also change the validaton loss function
+            val_trawls = jnp.stack([x[0] for x in val_data])
+            val_thetas = jnp.stack([x[1] for x in val_data])
+
+            print(f'{val_batches} batches simulated for the validation dataset.')
+
+            # Convert to numpy and save
+            np.save(val_trawls_path, np.array(val_trawls))
+            np.save(val_thetas_path, np.array(val_thetas))
+
+        #######################################################################
+        val_trawls = []
+        _val_trawls = jnp.load(val_trawls_path)
+        val_thetas = jnp.load(val_thetas_path)
+
+        for _ in range(val_batches):
+
+            trawl_val = _val_trawls[_]
+
+            if use_summary_statistics:
+                trawl_val = project_trawl(trawl_val)
+
+            elif (not use_summary_statistics) and replace_acf and use_tre and tre_type == 'acf':
+
+                trawl_val = jnp.array([compute_empirical_acf(np.array(trawl_), nlags=nlags)[1:]
+                                       for trawl_ in trawl_val])
+
+            val_trawls.append(trawl_val)
+
+        val_trawls = jnp.array(val_trawls)
+        del _val_trawls
         #######################################################################
         #                        Get model                                    #
         #######################################################################
@@ -191,8 +195,6 @@ def train_classifier(classifier_config_file_path):
         dropout_key = jax.random.PRNGKey(
             classifier_config['prng_key'] + 22454)  # for dropout
 
-        # load extended model
-        # if (not use_summary_statistics) and use_tre:
         if use_tre:
 
             # CAN T LEARN THE ACF WITHOUT THE SUMMARY STATISTICS
@@ -218,7 +220,7 @@ def train_classifier(classifier_config_file_path):
         if 'alpha' in classifier_config["optimizer"].keys():
             alpha = classifier_config["optimizer"]["alpha"]
         else:
-            alpha = 0.05
+            alpha = 0.025
 
         total_steps = classifier_config["train_config"]["n_iterations"]
         warmup_steps = 500
@@ -354,7 +356,7 @@ def train_classifier(classifier_config_file_path):
 
             return mean_loss, std_loss, mean_S, std_S, mean_B, std_B, mean_accuracy, std_accuracy, all_classifier_outputs
 
-            #######################################################################
+        #######################################################################
         #                         Training loop                               #
         #######################################################################
 
@@ -440,7 +442,7 @@ def train_classifier(classifier_config_file_path):
 
                 ################## diagnosing classifiers #################
 
-                if iteration > 2500 and (iteration % (2 * val_freq) == 0):
+                if iteration > 5000 and (iteration % (2 * val_freq) == 0):
                     print('plotting reliability diagrams')
 
                     Y_calibration = jnp.hstack(
@@ -489,12 +491,12 @@ def train_classifier(classifier_config_file_path):
 
         # Save best model info
         best_model_info_path = os.path.join(
-            val_data_dir, "best_model_info.txt")
+            best_model_path, "best_model_info.txt")
         with open(best_model_info_path, 'w') as f:
             f.write(f"Best model iteration: {best_iteration}\n")
             f.write(f"Best validation loss: {best_val_loss:.6f}\n")
 
-        config_save_path = os.path.join(val_data_dir, "config.yaml")
+        config_save_path = os.path.join(best_model_path, "config.yaml")
         with open(config_save_path, 'w') as f:
             yaml.dump(classifier_config, f)
 
@@ -504,7 +506,11 @@ def train_classifier(classifier_config_file_path):
 
 
 if __name__ == "__main__":
-    import glob
-    # Loop over configs
-    for config_file_path in glob.glob("config_files/classifier/TRE_summary_statistics/scale/e*.yaml"):
-        train_classifier(config_file_path)
+
+    # Load config file
+    classifier_config_file_path = 'config_files/classifier\\TRE_summary_statistics/beta/classifier_config1.yaml'
+
+    with open(classifier_config_file_path, 'r') as f:
+        classifier_config = yaml.safe_load(f)
+
+    train_classifier(classifier_config)
