@@ -1,4 +1,4 @@
-prng_key: 243
+prng_key: 6478
 loss_config:
   p : 2
   nr_acf_lags: 35
@@ -34,8 +34,8 @@ model_config:
     mlp_dim: 32
     linear_layer_sizes: [16, 8, 4]  
     dropout_rate: 0.05
-    final_output_size: 2  # For your two ACF parameters
-    freq_attention: True  # Set to false to use regular attention
+    final_output_size: 3  
+    freq_attention: True  
     with_theta: False
     experiment_dir: summary_statistics
 train_config:

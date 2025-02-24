@@ -354,11 +354,11 @@ if __name__ == "__main__":
     elif 'Transformer' in base_config_file_path:
         assert model_name == 'TimeSeriesTransformerBase'
 
-        for hidden_size in (16, 64, 32):
-            for num_heads in (2, 3):
-                for num_layers in (1, 3):
-                    for mlp_dim in (16, 32, 48):
-                        for linear_layer_sizes in ([16, 8, 4], [32, 16, 6], [64, 32, 16, 6]):
+        for hidden_size in (32, 64, 16):
+            for num_heads in (3, 2):
+                for num_layers in (3, 1):
+                    for mlp_dim in (16, 48, 16):
+                        for linear_layer_sizes in ([16, 8, 4], [64, 32, 16, 6],  [32, 16, 6]):
                             for dropout_rate in (0.05,):
                                 for lr in (0.00005, 0.000005):
                                     for freq_attention in (True, False):
