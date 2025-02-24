@@ -104,7 +104,7 @@ class TransformerBlock(nn.Module):
         positions = jnp.arange(seq_len)
         relative_positions = positions[None, :] - positions[:, None]
         relative_positions = jnp.clip(
-            relative_positions, -15, 15)  # Clip to reasonable range
+            relative_positions, -18, 18)  # Clip to reasonable range
         return nn.Dense(self.num_heads)(jnp.expand_dims(relative_positions, -1))
 
     @nn.compact

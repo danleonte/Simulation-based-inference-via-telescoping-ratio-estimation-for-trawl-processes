@@ -1,4 +1,4 @@
-prng_key: 3133
+prng_key: 243
 loss_config:
   p : 2
   nr_acf_lags: 35
@@ -13,7 +13,7 @@ trawl_config:
   tau: 1.0
   seq_len: 1500
   theta_size: 5
-  batch_size: 64
+  batch_size: 32
   marginal_distr: NIG
   acf: sup_IG
   trawl_process_type: sup_ig_nig_5p
@@ -27,19 +27,22 @@ trawl_config:
     scale_prior_hyperparams: [0.5,1.5]
     beta_prior_hyperparams: [-5.,5.] 
 model_config:
-    model_name: CNN
-    max_lag: 35
-    conv_channels: [16,32,16]
-    fc_sizes: [16,8,4]
-    final_output_size: 3
-    conv_kernels: [15,5]
-    dropout_rate: 0.1
+    model_name: TimeSeriesTransformerBase
+    hidden_size: 24
+    num_heads: 2
+    num_layers: 2
+    mlp_dim: 32
+    linear_layer_sizes: [16, 8, 4]  
+    dropout_rate: 0.05
+    final_output_size: 2  # For your two ACF parameters
+    freq_attention: True  # Set to false to use regular attention
     with_theta: False
+    experiment_dir: summary_statistics
 train_config:
-  n_iterations: 15001 
+  n_iterations: 25001 
 val_config:
   val_freq: 500
-  val_n_batches: 40
+  val_n_batches: 45
 optimizer:
   name: adam
   lr: 0.0003

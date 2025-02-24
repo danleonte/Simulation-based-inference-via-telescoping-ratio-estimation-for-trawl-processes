@@ -284,12 +284,13 @@ if __name__ == "__main__":
     # Load config file
     from copy import deepcopy
 
-    base_config_file_path = "config_files/summary_statistics/CNN/acf/base_config.yaml"
+    base_config_file_path = "config_files/summary_statistics/Transformer/marginal/base_config.yaml"
 
     with open(base_config_file_path, 'r') as f:
         base_config = yaml.safe_load(f)
 
     model_name = base_config['model_config']['model_name']
+    count = 0
 
     if 'LSTM' in base_config_file_path:
         assert model_name == 'LSTMModel'
@@ -299,9 +300,9 @@ if __name__ == "__main__":
                 for linear_layer_sizes in ([16, 8, 6], [32, 16, 8], [64, 32, 16, 8], [48, 24, 12, 4],
                                            [128, 64, 32, 16, 8], [72, 24, 12, 6]):
 
-                    for mean_aggregation in (False,):
+                    for mean_aggregation in (False, True):
                         for dropout_rate in (0.025, 0.1, 0.2):
-                            for lr in (0.005, 0.0005):
+                            for lr in (0.0005, 0.0025):
 
                                 if (num_lstm_layers <= 2 or lstm_hidden_size < 64) and (linear_layer_sizes[0] <= 2 * lstm_hidden_size) and (dropout_rate < 0.1 or lstm_hidden_size >= 64):
 
@@ -318,6 +319,7 @@ if __name__ == "__main__":
                                     config_to_use['optimizer']['lr'] = lr
                                     config_to_use['prng_key'] = np.random.randint(
                                         1, 10**5)
+                                    count += 1
 
                                     train_and_evaluate(config_to_use)
 
@@ -350,4 +352,31 @@ if __name__ == "__main__":
                                 train_and_evaluate(config_to_use)
 
     elif 'Transformer' in base_config_file_path:
-        pass
+        assert model_name == 'TimeSeriesTransformerBase'
+
+        for hidden_size in (16, 64, 32):
+            for num_heads in (2, 3):
+                for num_layers in (1, 3):
+                    for mlp_dim in (16, 32, 48):
+                        for linear_layer_sizes in ([16, 8, 4], [32, 16, 6], [64, 32, 16, 6]):
+                            for dropout_rate in (0.05,):
+                                for lr in (0.00005, 0.000005):
+                                    for freq_attention in (True, False):
+
+                                        config_to_use = deepcopy(base_config)
+                                        config_to_use['model_config'] = {'model_name': model_name,
+                                                                         'hidden_size': hidden_size,
+                                                                         'num_heads': num_heads,
+                                                                         'num_layers': num_layers,
+                                                                         'final_output_size': base_config['model_config']['final_output_size'],
+                                                                         'mlp_dim': mlp_dim,
+                                                                         'linear_layer_sizes': linear_layer_sizes,
+                                                                         'dropout_rate': dropout_rate,
+                                                                         'with_theta': False,
+                                                                         'freq_attention': freq_attention
+                                                                         }
+                                        config_to_use['optimizer']['lr'] = lr
+                                        config_to_use['prng_key'] = np.random.randint(
+                                            1, 10**5)
+
+                                        train_and_evaluate(config_to_use)
