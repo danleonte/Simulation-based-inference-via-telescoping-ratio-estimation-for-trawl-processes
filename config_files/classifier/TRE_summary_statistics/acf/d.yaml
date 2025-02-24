@@ -28,14 +28,14 @@ model_config:
     linear_layer_sizes: [4,2]
     final_output_size: 1
     dropout_rate: 0.001
-    with_theta: False
+    with_theta: True
 train_config:
   n_iterations: 20001 
 val_config:
-  val_freq: 300
+  val_freq: 500
   val_n_batches: 40
 optimizer:
   name: adam
-  lr: 0.001
+  lr: 0.0005
   weight_decay: 0.0001
   alpha: 0.0075
