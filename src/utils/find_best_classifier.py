@@ -1,14 +1,14 @@
 import os
 
 
-def find_min_loss_model(root_folder):
+def find_min_loss_classifier(root_folder):
     min_loss = float('inf')
     params_path = None
     config_path = None
 
     for subfolder in os.scandir(root_folder):
         if subfolder.is_dir():
-            validation_folder = os.path.join(subfolder.path, "validation_data")
+            validation_folder = os.path.join(subfolder.path, "best_model")
             best_model_file = os.path.join(
                 validation_folder, "best_model_info.txt")
 
@@ -61,7 +61,7 @@ if __name__ == '__main__':
 
     results = []
     for root_path in paths_to_check:
-        results.append(find_min_loss_model(root_path))
+        results.append(find_min_loss_classifier(root_path))
 
     for i in range(len(results)):
 
