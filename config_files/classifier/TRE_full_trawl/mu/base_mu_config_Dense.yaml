@@ -1,19 +1,16 @@
-prng_key: 3133
-loss_config:
-  p : 2
-  nr_acf_lags: 35
-  use_acf_directly: True
-  num_KL_samples: 5000
-  use_kl_div: True
-learn_config:
-  learn_acf: True
-  learn_marginal: False
-  learn_both: False
+prng_key: 2135161
+tre_config:
+  use_tre: True
+  tre_type: mu 
+  use_summary_statistics: False
+  replace_full_trawl_with_acf: True
+  nlags: 35
 trawl_config:
   tau: 1.0
   seq_len: 1500
+  input_size: 5
   theta_size: 5
-  batch_size: 64
+  batch_size: 128
   marginal_distr: NIG
   acf: sup_IG
   trawl_process_type: sup_ig_nig_5p
@@ -27,21 +24,17 @@ trawl_config:
     scale_prior_hyperparams: [0.5,1.5]
     beta_prior_hyperparams: [-5.,5.] 
 model_config:
-    model_name: LSTMModel
-    lstm_hidden_size: 16
-    num_lstm_layers: 1
+    model_name: DenseModel
     linear_layer_sizes: [32,16,8,4]
-    mean_aggregation: False
-    final_output_size: 2
-    with_theta: False
-    dropout_rate: 0.15 
-    experiment_dir: summary_statistics
+    final_output_size: 1
+    dropout_rate: 0.1
+    with_theta: True
 train_config:
-  n_iterations: 6001 
+  n_iterations: 25001 
 val_config:
-  val_freq: 300
+  val_freq: 500
   val_n_batches: 40
 optimizer:
   name: adam
-  lr: 0.001
-  weight_decay: 0.0001
+  lr: 0.0015
+  alpha: 0.01

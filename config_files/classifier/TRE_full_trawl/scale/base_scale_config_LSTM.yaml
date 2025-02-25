@@ -1,10 +1,9 @@
 prng_key: 2135161
 tre_config:
   use_tre: True
-  tre_type: acf 
-  use_summary_statistics: True
-  replace_summary_stats_with_acf: True
-  replace_full_trawl_with_acf: False
+  tre_type: scale 
+  use_summary_statistics: False
+  replace_full_trawl_with_acf: True
   nlags: 35
 trawl_config:
   tau: 1.0
@@ -25,16 +24,19 @@ trawl_config:
     scale_prior_hyperparams: [0.5,1.5]
     beta_prior_hyperparams: [-5.,5.] 
 model_config:
-    model_name: DenseModel
-    linear_layer_sizes: [48,32,24,16,8, 4]
-    final_output_size: 1
-    dropout_rate: 0.24
-    with_theta: True
+  model_name: LSTMModel
+  lstm_hidden_size: 32
+  num_lstm_layers: 1
+  linear_layer_sizes: [16,8,4]
+  mean_aggregation: False
+  final_output_size: 1
+  dropout_rate: 0.105
+  with_theta: True
 train_config:
-  n_iterations: 50001 
+  n_iterations: 25001 
 val_config:
   val_freq: 500
-  val_n_batches: 45
+  val_n_batches: 40
 optimizer:
   name: adam
   lr: 0.0015

@@ -61,7 +61,7 @@ if True:
 
 # classifier_config_file_path = 'config_files/classifier\\TRE_summary_statistics/beta/classifier_config1.yaml'
 
-def train_classifier(classifier_config_file_path):
+def train_classifier(classifier_config):
 
     try:
 
@@ -78,7 +78,7 @@ def train_classifier(classifier_config_file_path):
 
         #################          Initialize wandb           #################
         timestamp = datetime.datetime.now().strftime("%m_%d_%H_%M_%S")
-        project_name = "SBI_trawls_classifier_" + \
+        project_name = "classifier_" + \
             ('tre_' + tre_type if use_tre else 'nre') + \
             (
                 '_with_summary_statistics' if use_summary_statistics else
@@ -506,11 +506,70 @@ def train_classifier(classifier_config_file_path):
 
 
 if __name__ == "__main__":
+    from copy import deepcopy
 
     # Load config file
-    classifier_config_file_path = 'config_files/classifier\\TRE_summary_statistics/beta/classifier_config1.yaml'
+    classifier_config_file_path = 'config_files/classifier\\TRE_full_trawl/acf/base_acf_config.yaml'
 
     with open(classifier_config_file_path, 'r') as f:
-        classifier_config = yaml.safe_load(f)
+        base_config = yaml.safe_load(f)
+        model_name = base_config['model_config']['model_name']
 
-    train_classifier(classifier_config)
+    if model_name == 'LSTMModel':
+        assert model_name == 'LSTMModel'
+
+        for lstm_hidden_size in (32, 128, 64, 16):
+            for num_lstm_layers in (3, 2, 1):
+                for linear_layer_sizes in ([16, 8, 6], [32, 16, 8], [64, 32, 16, 8], [48, 24, 12, 4],
+                                           [128, 64, 32, 16, 8], [72, 24, 12, 6]):
+
+                    for mean_aggregation in (False, True):
+                        for dropout_rate in (0.025, 0.15):
+                            for lr in (0.0005, 0.0025):
+
+                                if (num_lstm_layers <= 2 or lstm_hidden_size < 64) and (linear_layer_sizes[0] <= 2 * lstm_hidden_size) and (dropout_rate < 0.1 or lstm_hidden_size >= 64):
+
+                                    config_to_use = deepcopy(base_config)
+                                    config_to_use['model_config'] = {'model_name': model_name,
+                                                                     'lstm_hidden_size': lstm_hidden_size,
+                                                                     'num_lstm_layers': num_lstm_layers,
+                                                                     'linear_layer_sizes': linear_layer_sizes,
+                                                                     'mean_aggregation': mean_aggregation,
+                                                                     'final_output_size': base_config['model_config']['final_output_size'],
+                                                                     'dropout_rate': dropout_rate,
+                                                                     'with_theta': True
+                                                                     }
+                                    config_to_use['optimizer']['lr'] = lr
+                                    config_to_use['prng_key'] = np.random.randint(
+                                        1, 10**5)
+
+                                    train_classifier(config_to_use)
+
+    elif model_name == 'DenseModel':
+
+        for linear_layer_sizes in ([64, 32, 16, 8], [48, 24, 12, 6], [128, 64, 32, 16, 4],
+                                   [24, 12, 8, 6], [32, 24, 16, 8, 4], [
+                                       16, 8, 4], [12, 8, 4, 2],
+                                   [64, 24, 12, 6, 2], [48, 24, 12, 6, 2]):
+
+            for dropout_rate in (0.025,  0.15):
+
+                for lr in (0.001,  0.00005):
+
+                    for alpha in (0.05, 0.005):
+
+                        config_to_use = deepcopy(base_config)
+
+                        config_to_use['optimizer']['lr'] = lr
+                        config_to_use['optimizer']['alpha'] = alpha
+                        config_to_use['prng_key'] = np.random.randint(
+                            1, 10**5)
+
+                        config_to_use['model_config'] = {'model_name': model_name,
+                                                         'linear_layer_sizes': linear_layer_sizes,
+                                                         'final_output_size': 1,
+                                                         'dropout_rate': dropout_rate,
+                                                         'with_theta': True
+                                                         }
+
+                        train_classifier(config_to_use)

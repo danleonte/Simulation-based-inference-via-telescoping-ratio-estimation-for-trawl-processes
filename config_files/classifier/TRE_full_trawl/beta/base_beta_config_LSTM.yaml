@@ -1,15 +1,16 @@
-prng_key: 1333
+prng_key: 2135161
 tre_config:
   use_tre: True
   tre_type: beta 
-  use_summary_statistics: True
+  use_summary_statistics: False
   replace_full_trawl_with_acf: True
   nlags: 35
 trawl_config:
   tau: 1.0
   seq_len: 1500
+  input_size: 5
   theta_size: 5
-  batch_size: 64
+  batch_size: 128
   marginal_distr: NIG
   acf: sup_IG
   trawl_process_type: sup_ig_nig_5p
@@ -23,20 +24,20 @@ trawl_config:
     scale_prior_hyperparams: [0.5,1.5]
     beta_prior_hyperparams: [-5.,5.] 
 model_config:
-    model_name: LSTMModel
-    lstm_hidden_size: 32
-    num_lstm_layers: 2
-    linear_layer_sizes: [16,8,4]
-    mean_aggregation: False
-    final_output_size: 1
-    dropout_rate: 0.05 
-    with_theta: True
+  model_name: LSTMModel
+  lstm_hidden_size: 32
+  num_lstm_layers: 1
+  linear_layer_sizes: [16,8,4]
+  mean_aggregation: False
+  final_output_size: 1
+  dropout_rate: 0.105
+  with_theta: True
 train_config:
-  n_iterations: 9001
+  n_iterations: 25001 
 val_config:
-  val_freq: 300
+  val_freq: 500
   val_n_batches: 40
 optimizer:
   name: adam
-  lr: 0.001
-  weight_decay: 0.001
+  lr: 0.0015
+  alpha: 0.01
