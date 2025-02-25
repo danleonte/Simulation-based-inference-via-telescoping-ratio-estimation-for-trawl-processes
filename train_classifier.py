@@ -220,7 +220,7 @@ def train_classifier(classifier_config):
         if 'alpha' in classifier_config["optimizer"].keys():
             alpha = classifier_config["optimizer"]["alpha"]
         else:
-            alpha = 0.025
+            alpha = 0.01
 
         total_steps = classifier_config["train_config"]["n_iterations"]
         warmup_steps = 500
