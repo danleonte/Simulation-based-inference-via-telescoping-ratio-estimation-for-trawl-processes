@@ -349,7 +349,16 @@ if __name__ == "__main__":
                                 config_to_use['prng_key'] = np.random.randint(
                                     1, 10**5)
 
-                                train_and_evaluate(config_to_use)
+                                try:
+                                    train_and_evaluate(config_to_use)
+                                except Exception as e:
+                                    print(f"Run failed with error: {e}")
+                                    # Make sure wandb is properly finished
+                                    try:
+                                        wandb.finish()
+                                    except:
+                                        pass
+                                    continue  # Move to the next configuration
 
     elif 'Transformer' in base_config_file_path:
         assert model_name == 'TimeSeriesTransformerBase'
@@ -379,4 +388,14 @@ if __name__ == "__main__":
                                         config_to_use['prng_key'] = np.random.randint(
                                             1, 10**5)
 
-                                        train_and_evaluate(config_to_use)
+                                        try:
+                                            train_and_evaluate(config_to_use)
+                                        except Exception as e:
+                                            print(
+                                                f"Run failed with error: {e}")
+                                            # Make sure wandb is properly finished
+                                            try:
+                                                wandb.finish()
+                                            except:
+                                                pass
+                                            continue  # Move to the next configuration

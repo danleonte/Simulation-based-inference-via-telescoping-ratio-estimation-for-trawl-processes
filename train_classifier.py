@@ -15,6 +15,7 @@ Created on Thu Dec 26 20:41:54 2024
 # Set the backend before importing pyplot
 
 
+# matplotlib.use('Agg')
 import jax.numpy as jnp
 from functools import partial
 from jax.random import PRNGKey
@@ -27,6 +28,7 @@ from src.model.Extended_model_nn import ExtendedModel
 from netcal.presentation import ReliabilityDiagram
 import numpy as np
 import datetime
+import time
 import pickle
 import optax
 import wandb
@@ -35,7 +37,6 @@ import jax
 import os
 import netcal
 import matplotlib
-matplotlib.use('Agg')
 if True:
     from path_setup import setup_sys_path
     setup_sys_path()
@@ -60,6 +61,27 @@ if True:
 
 
 # classifier_config_file_path = 'config_files/classifier\\TRE_summary_statistics/beta/classifier_config1.yaml'
+
+def check_if_run_stopped():
+    """Check if the current wandb run was manually stopped from the UI."""
+    try:
+        api = wandb.Api()
+        run = api.run(f"{wandb.run.entity}/{wandb.run.project}/{wandb.run.id}")
+        return run.state in ["finished", "failed", "crashed", "killed"]
+    except Exception as e:
+        print(f"Warning: Failed to check run status. Error: {e}")
+        return False  # Assume it's running if there's an issue
+
+
+def try_to_close_wandb():
+    if wandb.run is not None:
+        try:
+            wandb.finish()
+        except:
+            pass
+        # Small delay to ensure wandb is fully cleaned up
+        time.sleep(5)
+
 
 def train_classifier(classifier_config):
 
@@ -131,13 +153,13 @@ def train_classifier(classifier_config):
         # Generate validation data
         val_batches = classifier_config["val_config"]["val_n_batches"]
         val_freq = classifier_config["val_config"]["val_freq"]
+        val_key = jax.random.split(
+            PRNGKey(classifier_config['prng_key'] + 10), batch_size)
 
         if not (os.path.isfile(val_trawls_path) and os.path.isfile(val_thetas_path)):
 
             # Generate fixed validation set
             val_data = []
-            val_key = jax.random.split(
-                PRNGKey(classifier_config['prng_key'] + 10), batch_size)
 
             for _ in range(val_batches):
                 theta_acf_val, val_key = theta_acf_simulator(val_key)
@@ -203,8 +225,8 @@ def train_classifier(classifier_config):
             del params
             model = get_model(classifier_config, False)
             assert tre_type in ('beta', 'mu', 'sigma', 'acf')
-            if tre_type == 'acf' and (not use_summary_statistics):
-                assert replace_acf
+            # if tre_type == 'acf' and (not use_summary_statistics):
+            #    assert replace_acf
 
             ######  EXTENDED MODEL HERE ########
             # CHECK KEYS ARE UPDATED
@@ -213,7 +235,7 @@ def train_classifier(classifier_config):
 
             # Initialize parameters
             # don't use val_key afterwards
-            params = model.init(val_key[0], trawl_val, theta_val)
+            params = model.init(val_key[0], val_trawls[0], val_thetas[0])
 
             # Initialize optimizer
         lr = classifier_config["optimizer"]["lr"]
@@ -257,6 +279,7 @@ def train_classifier(classifier_config):
         best_val_loss = float('inf')
         best_iteration = -1
         best_model_path = os.path.join(experiment_dir, "best_model")
+        os.makedirs(best_model_path, exist_ok=True)
 
         #######################################################################
         #                      Loss functions                                 #
@@ -331,21 +354,16 @@ def train_classifier(classifier_config):
                 theta_val = val_thetas[i]
                 trawl_val = val_trawls[i]
 
-                # **Call JIT-compiled function**
                 sample_stats, classifier_output = process_sample(
                     params, trawl_val, theta_val)
 
                 # Accumulate statistics
                 total += sample_stats
-
-                # Store classifier outputs dynamically
                 all_classifier_outputs.append(classifier_output)
 
-            # Convert classifier outputs to JAX array
             all_classifier_outputs = jnp.concatenate(
                 all_classifier_outputs, axis=0)
 
-            # Compute means & standard deviations efficiently
             means = total[::2] / num_samples
             variances = (total[1::2] / num_samples) - (means**2)
             stds = jnp.sqrt(jnp.maximum(variances, 0.0))
@@ -361,6 +379,17 @@ def train_classifier(classifier_config):
         #######################################################################
 
         for iteration in range(classifier_config["train_config"]["n_iterations"]):
+
+            # Check if this run has been terminated from the wandb UI
+            # if wandb.run.terminated:
+            #    print(f"Run {wandb.run.name} was terminated from the wandb UI")
+            #    break
+            if check_if_run_stopped():
+                print(
+                    f"Run {wandb.run.name} was stopped from the wandb UI. Moving to next config.")
+                # Force clean exit
+                wandb.finish()  # Ensure wandb is closed properly
+                return None  # Signal to main loop to continue to next config
 
             # Generate data and shuffle
             # data A
@@ -391,17 +420,44 @@ def train_classifier(classifier_config):
 
             trawl, theta, Y = tre_shuffle(
                 trawl_a, theta_a, theta_b, classifier_config)
+
             # theta = jnp.vstack([theta_a, theta_b])
             # trawl = jnp.vstack([trawl_a, trawl_a])
             # Y = jnp.concatenate([jnp.ones(batch_size), jnp.zeros(batch_size)])
 
-            dropout_key, dropout_subkey_to_use = jax.random.split(dropout_key)
-            (bce_loss, (S, B, accuracy, _)), grads = compute_loss_and_grad(
-                state.params, trawl, theta, Y, dropout_subkey_to_use, True)
+            ############ annoying code to deal with W&B run stops ##############
+            if check_if_run_stopped():
+                print(
+                    f"Run {wandb.run.name} was stopped. Skipping gradient computation.")
+                wandb.finish()
+                return None  # Signal to main loop to continue to next config
 
-            # Update model parameters
-            state = state.apply_gradients(grads=grads)
-            params = state.params
+            ###################################################################
+
+            try:
+                dropout_key, dropout_subkey_to_use = jax.random.split(
+                    dropout_key)
+                (bce_loss, (S, B, accuracy, _)), grads = compute_loss_and_grad(
+                    state.params, trawl, theta, Y, dropout_subkey_to_use, True)
+
+                # Update model parameters
+                state = state.apply_gradients(grads=grads)
+                params = state.params
+
+            except KeyboardInterrupt:
+                # Handle keyboard interrupt during JAX computation
+                print("Keyboard interrupt during computation. Exiting gracefully...")
+                wandb.finish()
+                return None
+            except Exception as e:
+                # For other exceptions, check if it's because the run was stopped
+                if check_if_run_stopped():
+                    print(f"Run was stopped during computation. Error: {e}")
+                    wandb.finish()
+                    return None
+                else:
+                    # If it's a legitimate error, re-raise it
+                    raise
 
             metrics = {
                 'acc': accuracy.item(),
@@ -411,7 +467,13 @@ def train_classifier(classifier_config):
             #               Validation  inside the training loop              #
             ###################################################################
             # Compute validation loss periodically
-            if iteration % val_freq == 0:
+            if iteration > 5000 and iteration % val_freq == 0:
+                # Check if run stopped before starting validation
+                if check_if_run_stopped():
+                    print(
+                        f"Run {wandb.run.name} was stopped before validation. Exiting.")
+                    wandb.finish()
+                    return None
 
                 val_bce, val_std_bce, val_S, val_std_S, val_B, val_std_B, val_acc, val_std_acc, all_classifier_outputs = compute_validation_loss(
                     params, val_trawls, val_thetas)
@@ -443,6 +505,12 @@ def train_classifier(classifier_config):
                 ################## diagnosing classifiers #################
 
                 if iteration > 5000 and (iteration % (2 * val_freq) == 0):
+                    # Check if run stopped before plotting
+                    if check_if_run_stopped():
+                        print(
+                            f"Run {wandb.run.name} was stopped before plotting. Exiting.")
+                        wandb.finish()
+                        return None
                     print('plotting reliability diagrams')
 
                     Y_calibration = jnp.hstack(
@@ -487,7 +555,16 @@ def train_classifier(classifier_config):
                     #          step=iteration)  # Add step
                     # plt.close(hist_beta)
 
-            wandb.log(metrics)
+                    # Log metrics to W&B
+            try:
+                wandb.log(metrics)
+            except Exception as e:
+                print(f"Warning: Failed to log metrics to wandb: {e}")
+                # Check if run was stopped
+                if check_if_run_stopped():
+                    print(f"Run {wandb.run.name} was stopped. Exiting.")
+                    wandb.finish()
+                    return None
 
         # Save best model info
         best_model_info_path = os.path.join(
@@ -500,25 +577,36 @@ def train_classifier(classifier_config):
         with open(config_save_path, 'w') as f:
             yaml.dump(classifier_config, f)
 
+        return True
+
+    except Exception as e:
+        print(f"Run failed with error: {e}")
+        return False
     finally:
-        # At the very end of the function
-        wandb.finish()
+        # Ensure wandb is properly finished
+        try:
+            if wandb.run is not None:
+                wandb.finish()
+        except Exception as e:
+            print(f"Warning: Failed to finish wandb run. Error: {e}")
 
 
 if __name__ == "__main__":
     from copy import deepcopy
 
     # Load config file
-    classifier_config_file_path = 'config_files/classifier\\TRE_full_trawl/acf/base_acf_config.yaml'
+    classifier_config_file_path = r'config_files/classifier/TRE_full_trawl/acf/base_acf_config_LSTM.yaml'
 
     with open(classifier_config_file_path, 'r') as f:
         base_config = yaml.safe_load(f)
         model_name = base_config['model_config']['model_name']
 
+    configurations = []
+
     if model_name == 'LSTMModel':
         assert model_name == 'LSTMModel'
 
-        for lstm_hidden_size in (32, 128, 64, 16):
+        for lstm_hidden_size in (16, 96, 48, 128):
             for num_lstm_layers in (3, 2, 1):
                 for linear_layer_sizes in ([16, 8, 6], [32, 16, 8], [64, 32, 16, 8], [48, 24, 12, 4],
                                            [128, 64, 32, 16, 8], [72, 24, 12, 6]):
@@ -535,7 +623,7 @@ if __name__ == "__main__":
                                                                      'num_lstm_layers': num_lstm_layers,
                                                                      'linear_layer_sizes': linear_layer_sizes,
                                                                      'mean_aggregation': mean_aggregation,
-                                                                     'final_output_size': base_config['model_config']['final_output_size'],
+                                                                     'final_output_size': 1,
                                                                      'dropout_rate': dropout_rate,
                                                                      'with_theta': True
                                                                      }
@@ -543,7 +631,7 @@ if __name__ == "__main__":
                                     config_to_use['prng_key'] = np.random.randint(
                                         1, 10**5)
 
-                                    train_classifier(config_to_use)
+                                    configurations.append(config_to_use)
 
     elif model_name == 'DenseModel':
 
@@ -571,5 +659,44 @@ if __name__ == "__main__":
                                                          'dropout_rate': dropout_rate,
                                                          'with_theta': True
                                                          }
+                        configurations.append(config_to_use)
 
-                        train_classifier(config_to_use)
+
+############# RUN THROUGH TEH CONFIGURATIONS WHILE DEALING WITH STOPPED RUNS ############
+    # Run through all configurations with improved handling
+    for config_idx, config in enumerate(configurations):
+        print(f"Starting configuration {config_idx+1}/{len(configurations)}")
+
+        # Make sure wandb is clean before starting
+        try_to_close_wandb()
+
+        try:
+            success = train_classifier(config)
+
+            # Check if training was stopped early (None return value)
+            if success is None:
+                print(
+                    f"Configuration {config_idx+1} was manually stopped. Moving to next configuration.")
+                # Extra delay after a manual stop to ensure clean startup for next run
+                time.sleep(5)
+                continue
+
+        except KeyboardInterrupt:
+            print("\nKeyboard interrupt detected in main loop.")
+            # Try to clean up wandb
+            try:
+                try_to_close_wandb()
+
+                continue
+
+            except:
+                pass
+
+        except Exception as e:
+            print(f"Error with configuration {config_idx+1}: {e}")
+            print("Continuing to next configuration")
+
+        # Short delay before next configuration
+        time.sleep(3)
+
+    print("All configurations completed or program interrupted")

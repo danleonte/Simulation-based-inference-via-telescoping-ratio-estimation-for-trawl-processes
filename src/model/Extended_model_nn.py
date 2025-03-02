@@ -15,15 +15,17 @@ def modify_x(x, theta, tre_indicator, trawl_process_type):
 
     # trawl_process_type = classifier_config['trawl_config']['trawl_process_type']
 
+    # does not work when passing an empirical acf
+
     if trawl_process_type == 'sup_ig_nig_5p':
 
         gamma_acf, eta_acf, mu, scale, beta = jnp.transpose(theta)
 
         if tre_indicator == "beta":
-            modified_x = (x - mu)/scale
+            modified_x = (x - mu[:, jnp.newaxis])/scale[:, jnp.newaxis]
 
         elif tre_indicator == "sigma":
-            modified_x = (x-mu)
+            modified_x = (x-mu[:, jnp.newaxis])
 
         elif tre_indicator in ("mu", "acf", "nre"):
             modified_x = x
