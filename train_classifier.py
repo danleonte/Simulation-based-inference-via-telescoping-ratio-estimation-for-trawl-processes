@@ -596,7 +596,7 @@ if __name__ == "__main__":
     from copy import deepcopy
 
     # Load config file
-    classifier_config_file_path = r'config_files/classifier/TRE_full_trawl/scale/base_scale_config_LSTM.yaml'
+    classifier_config_file_path = r'config_files/classifier/TRE_full_trawl/acf/base_acf_config_LSTM.yaml'
 
     with open(classifier_config_file_path, 'r') as f:
         base_config = yaml.safe_load(f)
@@ -607,14 +607,14 @@ if __name__ == "__main__":
     if model_name == 'LSTMModel':
         assert model_name == 'LSTMModel'
 
-        for lstm_hidden_size in (48,32):
-            for num_lstm_layers in (1, 2,3):
-                for linear_layer_sizes in ([32,16,8,4],[64, 32, 16, 8, 4], [24 ,8, 4 ]):
-                    for mean_aggregation in (True,):#, True):
-                        for dropout_rate in (0.1,):# 0.2):
-                            for lr in (0.00075,):# 0.0005):
+        for lstm_hidden_size in (128):
+            for num_lstm_layers in (3,2):
+                for linear_layer_sizes in ([32,16,8,4],[64, 32, 16, 8, 4], [128, 48, 32, 15 ,8, 4,2 ]):
+                    for mean_aggregation in (False, True):
+                        for dropout_rate in (0.15,):# 0.2):
+                            for lr in (0.0075,):# 0.0005):
 
-                                if (num_lstm_layers <= 2 or lstm_hidden_size < 64) and (linear_layer_sizes[0] <= 2 * lstm_hidden_size) and (dropout_rate < 0.15 or lstm_hidden_size >= 64):
+                                if (num_lstm_layers <= 2 or lstm_hidden_size < 64) and (linear_layer_sizes[0] <= 2 * lstm_hidden_size) and (dropout_rate <= 0.15 or lstm_hidden_size >= 64):
 
                                     config_to_use = deepcopy(base_config)
                                     config_to_use['model_config'] = {'model_name': model_name,

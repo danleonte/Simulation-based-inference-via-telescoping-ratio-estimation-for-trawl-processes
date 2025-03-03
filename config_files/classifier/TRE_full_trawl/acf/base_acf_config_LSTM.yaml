@@ -10,7 +10,7 @@ trawl_config:
   seq_len: 1500
   input_size: 5
   theta_size: 5
-  batch_size: 128
+  batch_size: 64
   marginal_distr: NIG
   acf: sup_IG
   trawl_process_type: sup_ig_nig_5p
