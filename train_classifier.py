@@ -384,12 +384,13 @@ def train_classifier(classifier_config):
             # if wandb.run.terminated:
             #    print(f"Run {wandb.run.name} was terminated from the wandb UI")
             #    break
-            if check_if_run_stopped():
-                print(
-                    f"Run {wandb.run.name} was stopped from the wandb UI. Moving to next config.")
-                # Force clean exit
-                wandb.finish()  # Ensure wandb is closed properly
-                return None  # Signal to main loop to continue to next config
+            
+            #if check_if_run_stopped():
+            #    print(
+            #        f"Run {wandb.run.name} was stopped from the wandb UI. Moving to next config.")
+            #    # Force clean exit
+            #    wandb.finish()  # Ensure wandb is closed properly
+            #    return None  # Signal to main loop to continue to next config
 
             # Generate data and shuffle
             # data A
@@ -426,11 +427,11 @@ def train_classifier(classifier_config):
             # Y = jnp.concatenate([jnp.ones(batch_size), jnp.zeros(batch_size)])
 
             ############ annoying code to deal with W&B run stops ##############
-            if check_if_run_stopped():
-                print(
-                    f"Run {wandb.run.name} was stopped. Skipping gradient computation.")
-                wandb.finish()
-                return None  # Signal to main loop to continue to next config
+            #if check_if_run_stopped():
+            #    print(
+            #        f"Run {wandb.run.name} was stopped. Skipping gradient computation.")
+            #    wandb.finish()
+            #    return None  # Signal to main loop to continue to next config
 
             ###################################################################
 
@@ -469,11 +470,11 @@ def train_classifier(classifier_config):
             # Compute validation loss periodically
             if iteration > 5000 and iteration % val_freq == 0:
                 # Check if run stopped before starting validation
-                if check_if_run_stopped():
-                    print(
-                        f"Run {wandb.run.name} was stopped before validation. Exiting.")
-                    wandb.finish()
-                    return None
+                #if check_if_run_stopped():
+                #    print(
+                #        f"Run {wandb.run.name} was stopped before validation. Exiting.")
+                #    wandb.finish()
+                #    return None
 
                 val_bce, val_std_bce, val_S, val_std_S, val_B, val_std_B, val_acc, val_std_acc, all_classifier_outputs = compute_validation_loss(
                     params, val_trawls, val_thetas)
@@ -506,11 +507,11 @@ def train_classifier(classifier_config):
 
                 if iteration > 5000 and (iteration % (2 * val_freq) == 0):
                     # Check if run stopped before plotting
-                    if check_if_run_stopped():
-                        print(
-                            f"Run {wandb.run.name} was stopped before plotting. Exiting.")
-                        wandb.finish()
-                        return None
+                    #if check_if_run_stopped():
+                    #    print(
+                    #        f"Run {wandb.run.name} was stopped before plotting. Exiting.")
+                    #    wandb.finish()
+                    #    return None
                     print('plotting reliability diagrams')
 
                     Y_calibration = jnp.hstack(
@@ -595,7 +596,7 @@ if __name__ == "__main__":
     from copy import deepcopy
 
     # Load config file
-    classifier_config_file_path = r'config_files/classifier/TRE_full_trawl/acf/base_acf_config_LSTM.yaml'
+    classifier_config_file_path = r'config_files/classifier/TRE_full_trawl/scale/base_scale_config_LSTM.yaml'
 
     with open(classifier_config_file_path, 'r') as f:
         base_config = yaml.safe_load(f)
@@ -606,16 +607,14 @@ if __name__ == "__main__":
     if model_name == 'LSTMModel':
         assert model_name == 'LSTMModel'
 
-        for lstm_hidden_size in (16, 96, 48, 128):
-            for num_lstm_layers in (3, 2, 1):
-                for linear_layer_sizes in ([16, 8, 6], [32, 16, 8], [64, 32, 16, 8], [48, 24, 12, 4],
-                                           [128, 64, 32, 16, 8], [72, 24, 12, 6]):
+        for lstm_hidden_size in (48,32):
+            for num_lstm_layers in (1, 2,3):
+                for linear_layer_sizes in ([32,16,8,4],[64, 32, 16, 8, 4], [24 ,8, 4 ]):
+                    for mean_aggregation in (True,):#, True):
+                        for dropout_rate in (0.1,):# 0.2):
+                            for lr in (0.00075,):# 0.0005):
 
-                    for mean_aggregation in (False, True):
-                        for dropout_rate in (0.025, 0.15):
-                            for lr in (0.0005, 0.0025):
-
-                                if (num_lstm_layers <= 2 or lstm_hidden_size < 64) and (linear_layer_sizes[0] <= 2 * lstm_hidden_size) and (dropout_rate < 0.1 or lstm_hidden_size >= 64):
+                                if (num_lstm_layers <= 2 or lstm_hidden_size < 64) and (linear_layer_sizes[0] <= 2 * lstm_hidden_size) and (dropout_rate < 0.15 or lstm_hidden_size >= 64):
 
                                     config_to_use = deepcopy(base_config)
                                     config_to_use['model_config'] = {'model_name': model_name,

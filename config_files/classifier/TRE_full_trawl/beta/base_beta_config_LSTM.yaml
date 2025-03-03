@@ -10,7 +10,7 @@ trawl_config:
   seq_len: 1500
   input_size: 5
   theta_size: 5
-  batch_size: 128
+  batch_size: 64
   marginal_distr: NIG
   acf: sup_IG
   trawl_process_type: sup_ig_nig_5p
@@ -33,11 +33,11 @@ model_config:
   dropout_rate: 0.105
   with_theta: True
 train_config:
-  n_iterations: 50001 
+  n_iterations: 40001 
 val_config:
-  val_freq: 500
+  val_freq: 750
   val_n_batches: 40
 optimizer:
   name: adam
   lr: 0.0015
-  alpha: 0.01
+  alpha: 0.005

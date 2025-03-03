@@ -33,11 +33,11 @@ model_config:
   dropout_rate: 0.105
   with_theta: True
 train_config:
-  n_iterations: 50001 
+  n_iterations: 40001 
 val_config:
   val_freq: 500
   val_n_batches: 40
 optimizer:
   name: adam
   lr: 0.0015
-  alpha: 0.01
+  alpha: 0.005

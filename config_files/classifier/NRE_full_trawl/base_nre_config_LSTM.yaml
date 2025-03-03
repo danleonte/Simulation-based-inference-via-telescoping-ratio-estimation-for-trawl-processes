@@ -1,9 +1,9 @@
 prng_key: 2135161
 tre_config:
-  use_tre: True
-  tre_type: mu 
+  use_tre: False
+  tre_type: acf 
   use_summary_statistics: False
-  replace_full_trawl_with_acf: True
+  replace_full_trawl_with_acf: False
   nlags: 35
 trawl_config:
   tau: 1.0
@@ -40,4 +40,4 @@ val_config:
 optimizer:
   name: adam
   lr: 0.0015
-  alpha: 0.005
+  alpha: 0.0025
