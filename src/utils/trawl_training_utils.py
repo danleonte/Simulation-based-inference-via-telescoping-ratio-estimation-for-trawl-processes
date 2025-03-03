@@ -216,10 +216,10 @@ def loss_functions_wrapper(state, config):
             if kl_type == 'kl':
                 kl_loss = kl_objective(pred_theta)
 
-            elif kl_type == 'rev_kl':
+            elif kl_type == 'rev':
                 kl_loss = rev_kl(pred_theta)
 
-            elif kl_type == 'sym_kl':
+            elif kl_type == 'sym':
 
                 kl_loss = (kl_objective(pred_theta) + rev_kl(pred_theta))/2
 

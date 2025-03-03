@@ -33,7 +33,7 @@ model_config:
     num_lstm_layers: 1
     linear_layer_sizes: [16,8,4]
     mean_aggregation: False
-    final_output_size: 2
+    final_output_size: 3
     dropout_rate: 0.105
     with_theta: False
     experiment_dir: summary_statistics
@@ -45,4 +45,3 @@ val_config:
 optimizer:
   name: adam
   lr: 0.0003
-  weight_decay: 0.00001

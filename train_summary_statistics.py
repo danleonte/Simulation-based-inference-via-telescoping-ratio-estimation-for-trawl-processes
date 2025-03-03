@@ -28,6 +28,7 @@ from src.utils.acf_functions import get_acf
 from src.utils.summary_statistics_plotting import plot_acfs, plot_marginals
 from src.utils.get_data_generator import get_theta_and_trawl_generator
 from src.utils.trawl_training_utils import loss_functions_wrapper
+import matplotlib.pyplot as plt
 
 
 def check_if_run_stopped():
@@ -292,6 +293,37 @@ def train_and_evaluate(config):
                             trawl[i], theta_marginal_jax[i], pred_theta[i], config)
                         wandb.log({f"Marginal plot {i}": wandb.Image(fig_)})
 
+                        ############### EXTRA PLOTS ###################
+                        tbeta = val_thetas[:, :, -1].flatten()
+                        pbeta = jnp.array([predict_theta(
+                            params, trawl, dropout_key, False)[:, -1] for trawl in val_trawls])
+                        pbeta = pbeta.flatten()
+
+                    try:  # PLOT TRUE VS INFERED BETAS
+                        f_hist, ax = plt.subplots()
+                        ax.hist(np.array(pbeta), label='pred b',
+                                bins=25, alpha=0.5)
+                        ax.hist(np.array(tbeta), label='true b',
+                                bins=25, alpha=0.5)
+                        ax.set_xticks([-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5])
+                        ax.set_yticks([-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5])
+                        plt.legend()
+
+                        wandb.log({"beta_hist": wandb.Image(f_hist)})
+
+                    except:
+                        pass
+
+                    try:
+                        f_beta, ax = plt.subplots()
+                        ax.scatter(tbeta, pbeta)
+                        ax.set_xticks([-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5])
+                        ax.set_yticks([-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5])
+                        wandb.log({"beta_beta_plots": wandb.Image(f_beta)})
+
+                    except:
+                        pass
+
             wandb.log(metrics)
 
         # Save best model info
@@ -317,7 +349,7 @@ if __name__ == "__main__":
     # Load config file
     from copy import deepcopy
 
-    base_config_file_path = "config_files/summary_statistics/LSTM/acf/base_config.yaml"
+    base_config_file_path = "config_files/summary_statistics/LSTM/marginal/base_config_rev.yaml"
 
     with open(base_config_file_path, 'r') as f:
         base_config = yaml.safe_load(f)
