@@ -43,6 +43,8 @@ def loss_functions_wrapper(state, config):
 
     # marginal hyperparams
     use_kl_div = loss_config['use_kl_div']
+    if learn_marginal:
+        kl_type = loss_config['kl_type']
     marginal_distr = trawl_config['marginal_distr']
     trawl_process_type = trawl_config['trawl_process_type']
     assert isinstance(use_kl_div, bool)
@@ -183,12 +185,26 @@ def loss_functions_wrapper(state, config):
 
             # Step 2: KL divergence objective function
             if marginal_distr == 'NIG' and trawl_process_type == 'sup_ig_nig_5p':
+
+                split_dropout_rng = jax.random.split(dropout_rng, batch_size)
+
                 def kl_objective(theta_pred):
                     # Compute KL divergence samples
                     kl_samples, _ = vec_monte_carlo_kl_3_param_nig(
                         theta_marginal,
                         theta_pred,
-                        jax.random.split(dropout_rng, batch_size),
+                        split_dropout_rng,
+                        num_KL_samples
+                    )
+                    # Return mean KL divergence
+                    return jnp.mean(kl_samples)
+
+                def rev_kl(theta_pred):
+                    # Compute KL divergence samples
+                    kl_samples, _ = vec_monte_carlo_kl_3_param_nig(
+                        theta_pred,
+                        theta_marginal,
+                        jax.random.split(split_dropout_rng[-1], batch_size),
                         num_KL_samples
                     )
                     # Return mean KL divergence
@@ -197,7 +213,18 @@ def loss_functions_wrapper(state, config):
                 raise ValueError
 
             # Compute KL divergence loss
-            kl_loss = kl_objective(pred_theta)
+            if kl_type == 'kl':
+                kl_loss = kl_objective(pred_theta)
+
+            elif kl_type == 'rev_kl':
+                kl_loss = rev_kl(pred_theta)
+
+            elif kl_type == 'sym_kl':
+
+                kl_loss = (kl_objective(pred_theta) + rev_kl(pred_theta))/2
+
+            else:
+                raise ValueError
 
             # If no gradients are needed, return only the KL divergence loss
             if not compute_grads:

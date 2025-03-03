@@ -17,6 +17,7 @@ import wandb
 import optax
 import pickle
 import datetime
+import time
 import numpy as np
 import jax.numpy as jnp
 from functools import partial
@@ -28,6 +29,26 @@ from src.utils.summary_statistics_plotting import plot_acfs, plot_marginals
 from src.utils.get_data_generator import get_theta_and_trawl_generator
 from src.utils.trawl_training_utils import loss_functions_wrapper
 
+
+def check_if_run_stopped():
+    """Check if the current wandb run was manually stopped from the UI."""
+    try:
+        api = wandb.Api()
+        run = api.run(f"{wandb.run.entity}/{wandb.run.project}/{wandb.run.id}")
+        return run.state in ["finished", "failed", "crashed", "killed"]
+    except Exception as e:
+        print(f"Warning: Failed to check run status. Error: {e}")
+        return False  # Assume it's running if there's an issue
+
+
+def try_to_close_wandb():
+    if wandb.run is not None:
+        try:
+            wandb.finish()
+        except:
+            pass
+        # Small delay to ensure wandb is fully cleaned up
+        time.sleep(5)
 
 # config_file_path = 'config_files/summary_statistics/LSTM/marginal\\config3.yaml'
 
@@ -54,14 +75,26 @@ def train_and_evaluate(config):
         project_name += ('acf_p_' + str(config['loss_config']
                          ['p'])) if learn_acf else 'marginal'
 
+        if learn_marginal:
+            kl_type = config['loss_config']['kl_type']
+            project_name = kl_type + '_' + project_name
+
         wandb.init(project=project_name, name=run_name, config=config,
                    tags=config['model_config']['model_name'])
 
         #######################################################################
         # Create folders for the experiment validation dataset and checkpoints
         base_checkpoint_dir = os.path.join("models", 'summary_statistics')
-        experiment_dir = os.path.join(base_checkpoint_dir,
-                                      "learn_acf" if learn_acf else "learn_marginal", wandb.run.name)
+        # experiment_dir = os.path.join(base_checkpoint_dir,
+        #                              "learn_acf" if learn_acf else "learn_marginal", wandb.run.name)
+        if learn_acf:
+            experiment_dir = os.path.join(
+                base_checkpoint_dir, "learn_acf", wandb.run.name)
+
+        elif learn_marginal:
+            experiment_dir = os.path.join(
+                base_checkpoint_dir, "learn_marginal", kl_type,  wandb.run.name)
+
         os.makedirs(experiment_dir, exist_ok=True)
 
         trawls_path = os.path.join(base_checkpoint_dir, 'trawls.npy')
@@ -212,7 +245,7 @@ def train_and_evaluate(config):
             params = state.params
 
             # Logging and then validation
-            loss_name = 'acf_loss' if learn_acf else 'marginal_loss'
+            loss_name = 'acf_loss' if learn_acf else kl_type + '_marginal_loss'
             train_loss, val_loss = 'train_' + loss_name, 'val_' + loss_name
             metrics = {
                 train_loss: loss.item()
@@ -284,20 +317,20 @@ if __name__ == "__main__":
     # Load config file
     from copy import deepcopy
 
-    base_config_file_path = "config_files/summary_statistics/Transformer/acf/base_config.yaml"
+    base_config_file_path = "config_files/summary_statistics/LSTM/acf/base_config.yaml"
 
     with open(base_config_file_path, 'r') as f:
         base_config = yaml.safe_load(f)
 
     model_name = base_config['model_config']['model_name']
-    count = 0
+    configurations = []
 
     if 'LSTM' in base_config_file_path:
         assert model_name == 'LSTMModel'
 
-        for lstm_hidden_size in (32, 128, 64, 16):
-            for num_lstm_layers in (3, 2, 1):
-                for linear_layer_sizes in ([16, 8, 6], [32, 16, 8], [64, 32, 16, 8], [48, 24, 12, 4],
+        for lstm_hidden_size in (5, 128, 64, 16):
+            for num_lstm_layers in (2, 3, 1):
+                for linear_layer_sizes in ([4, 2], [32, 16, 8], [64, 32, 16, 8], [48, 24, 12, 4],
                                            [128, 64, 32, 16, 8], [72, 24, 12, 6]):
 
                     for mean_aggregation in (False, True):
@@ -319,9 +352,8 @@ if __name__ == "__main__":
                                     config_to_use['optimizer']['lr'] = lr
                                     config_to_use['prng_key'] = np.random.randint(
                                         1, 10**5)
-                                    count += 1
 
-                                    train_and_evaluate(config_to_use)
+                                    configurations.append(config_to_use)
 
     elif 'CNN' in base_config_file_path:
         assert model_name == 'CNN'
@@ -349,16 +381,7 @@ if __name__ == "__main__":
                                 config_to_use['prng_key'] = np.random.randint(
                                     1, 10**5)
 
-                                try:
-                                    train_and_evaluate(config_to_use)
-                                except Exception as e:
-                                    print(f"Run failed with error: {e}")
-                                    # Make sure wandb is properly finished
-                                    try:
-                                        wandb.finish()
-                                    except:
-                                        pass
-                                    continue  # Move to the next configuration
+                                configurations.append(config_to_use)
 
     elif 'Transformer' in base_config_file_path:
         assert model_name == 'TimeSeriesTransformerBase'
@@ -388,14 +411,44 @@ if __name__ == "__main__":
                                         config_to_use['prng_key'] = np.random.randint(
                                             1, 10**5)
 
-                                        try:
-                                            train_and_evaluate(config_to_use)
-                                        except Exception as e:
-                                            print(
-                                                f"Run failed with error: {e}")
-                                            # Make sure wandb is properly finished
-                                            try:
-                                                wandb.finish()
-                                            except:
-                                                pass
-                                            continue  # Move to the next configuration
+                                        configurations.append(config_to_use)
+
+
+############# RUN THROUGH TEH CONFIGURATIONS WHILE DEALING WITH STOPPED RUNS ############
+# Run through all configurations with improved handling
+for config_idx, config in enumerate(configurations):
+    print(f"Starting configuration {config_idx+1}/{len(configurations)}")
+
+    # Make sure wandb is clean before starting
+    try_to_close_wandb()
+
+    try:
+        success = train_and_evaluate(config)
+
+        # Check if training was stopped early (None return value)
+        if success is None:
+            print(
+                f"Configuration {config_idx+1} was manually stopped. Moving to next configuration.")
+            # Extra delay after a manual stop to ensure clean startup for next run
+            time.sleep(5)
+            continue
+
+    except KeyboardInterrupt:
+        print("\nKeyboard interrupt detected in main loop.")
+        # Try to clean up wandb
+        try:
+            try_to_close_wandb()
+
+            continue
+
+        except:
+            pass
+
+    except Exception as e:
+        print(f"Error with configuration {config_idx+1}: {e}")
+        print("Continuing to next configuration")
+
+    # Short delay before next configuration
+    time.sleep(3)
+
+print("All configurations completed or program interrupted")
