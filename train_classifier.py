@@ -607,7 +607,7 @@ if __name__ == "__main__":
     if model_name == 'LSTMModel':
         assert model_name == 'LSTMModel'
 
-        for lstm_hidden_size in (128):
+        for lstm_hidden_size in (128,):
             for num_lstm_layers in (3,2):
                 for linear_layer_sizes in ([32,16,8,4],[64, 32, 16, 8, 4], [128, 48, 32, 15 ,8, 4,2 ]):
                     for mean_aggregation in (False, True):
