@@ -179,7 +179,7 @@ def train_and_evaluate(config):
             optax.cosine_decay_schedule(
                 init_value=lr,
                 decay_steps=decay_steps,
-                alpha=0.005
+                alpha=0.0075
             )
         ], boundaries=[warmup_steps])
 
