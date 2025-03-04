@@ -64,6 +64,8 @@ def train_and_evaluate(config):
         learn_acf = learn_config['learn_acf']
         learn_marginal = learn_config['learn_marginal']
         learn_both = learn_config['learn_both']
+        use_kl_div = config['loss_config']['use_kl_div']
+        kl_type = config['loss_config']['kl_type']
 
         assert learn_acf + learn_marginal == 1 and learn_both == False
 
@@ -77,8 +79,12 @@ def train_and_evaluate(config):
                          ['p'])) if learn_acf else 'marginal'
 
         if learn_marginal:
-            kl_type = config['loss_config']['kl_type']
-            project_name = kl_type + '_' + project_name
+
+            if use_kl_div:
+                project_name = str(kl_type) + '_' + project_name
+
+            else:
+                project_name = 'direct_' + project_name
 
         wandb.init(project=project_name, name=run_name, config=config,
                    tags=config['model_config']['model_name'])
@@ -230,15 +236,15 @@ def train_and_evaluate(config):
                     params, trawl, theta_marginal_jax, dropout_subkey_to_use, True, num_KL_samples)
 
                 if iteration == 2000:
-                    num_KL_samples *= 3
-
-                elif iteration == 4000:
-                    num_KL_samples *= 3
-
-                elif iteration == 12000:
                     num_KL_samples *= 2
 
-                elif iteration == 14000:
+                elif iteration == 4000:
+                    num_KL_samples *= 2
+
+                elif iteration == 18000:
+                    num_KL_samples *= 2
+
+                elif iteration == 22000:
                     num_KL_samples *= 2
 
             # Update model parameters
@@ -246,7 +252,8 @@ def train_and_evaluate(config):
             params = state.params
 
             # Logging and then validation
-            loss_name = 'acf_loss' if learn_acf else kl_type + '_marginal_loss'
+            loss_name = 'acf_loss' if learn_acf else (
+                kl_type + '_marginal_loss' if use_kl_div else 'direct' + '_marginal_loss')
             train_loss, val_loss = 'train_' + loss_name, 'val_' + loss_name
             metrics = {
                 train_loss: loss.item()
@@ -349,7 +356,7 @@ if __name__ == "__main__":
     # Load config file
     from copy import deepcopy
 
-    base_config_file_path = "config_files/summary_statistics/LSTM/marginal/base_config_sym.yaml"
+    base_config_file_path = "config_files/summary_statistics/LSTM/marginal/base_config_rev.yaml"
 
     with open(base_config_file_path, 'r') as f:
         base_config = yaml.safe_load(f)
@@ -362,10 +369,10 @@ if __name__ == "__main__":
 
         for lstm_hidden_size in (16, 32, 48):
             for num_lstm_layers in (2, 3, 1):
-                for linear_layer_sizes in ([32, 16, 8], [25, 16, 8, 4], [48, 24, 12, 4],[16,8,4,2]):
+                for linear_layer_sizes in ([32, 16, 8], [25, 16, 8, 4], [48, 24, 12, 4], [16, 8, 4, 2]):
 
-                    for mean_aggregation in (False,):# True):
-                        for dropout_rate in (0.075,):#, 0.1, 0.2):
+                    for mean_aggregation in (False,):  # True):
+                        for dropout_rate in (0.075,):  # , 0.1, 0.2):
                             for lr in (0.005, 0.0005):
 
                                 if (num_lstm_layers <= 2 or lstm_hidden_size < 64) and (linear_layer_sizes[0] <= 2 * lstm_hidden_size) and (dropout_rate < 0.1 or lstm_hidden_size >= 64):

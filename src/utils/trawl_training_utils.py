@@ -150,7 +150,7 @@ def loss_functions_wrapper(state, config):
 
             pred_theta = predict_theta(params, trawl, dropout_rng, train)
 
-            if use_acf_directly:
+            if learn_acf and use_acf_directly:
 
                 return _acf_loss(theta_acf, pred_theta)
 
@@ -216,12 +216,21 @@ def loss_functions_wrapper(state, config):
             if kl_type == 'kl':
                 kl_loss = kl_objective(pred_theta)
 
+                if compute_grads:
+                    kl_fwd_jac = jax.jacfwd(kl_objective)(pred_theta)
+
             elif kl_type == 'rev':
                 kl_loss = rev_kl(pred_theta)
 
-            elif kl_type == 'sym':
+                if compute_grads:
+                    kl_fwd_jac = jax.jacfwd(rev_kl)(pred_theta)
 
+            elif kl_type == 'sym':
                 kl_loss = (kl_objective(pred_theta) + rev_kl(pred_theta))/2
+
+                if compute_grads:
+                    kl_fwd_jac = (jax.jacfwd(kl_objective)(
+                        pred_theta) + jax.jacfwd(rev_kl)(pred_theta)) / 2
 
             else:
                 raise ValueError
@@ -232,7 +241,6 @@ def loss_functions_wrapper(state, config):
 
             # Step 3: Compute full Jacobian using jax.jacfwd
             # This computes the gradient of the KL objective with respect to pred_theta
-            kl_fwd_jac = jax.jacfwd(kl_objective)(pred_theta)
 
             # Step 4: Backpropagate Jacobian through vjp_fn
             combined_grad = vjp_fn(kl_fwd_jac)[0]
