@@ -241,8 +241,6 @@ def calibrate(trained_classifier_path, nr_batches):
         pred_prob_Y = np.load(pred_prob_Y_path)
         Y = jnp.load(Y_path)
 
-    return
-
     # perform isotonic regression, Beta and Plat scaling
     lr = LogisticRegression(C=99999999999)
     iso = IsotonicRegression(y_min=0.001, y_max=0.999)
@@ -374,14 +372,25 @@ def calibrate(trained_classifier_path, nr_batches):
 if __name__ == '__main__':
     nr_batches = 500
 
-    acf_names = ['02_26_18_30_52', '02_28_16_37_11',
-                 '03_01_09_30_39', '03_01_21_17_21', '03_02_21_06_17']
+    folder_names = {'NRE_full_trawl': ['03_03_10_00_51', '03_03_13_37_12', '03_03_19_26_42', '03_04_02_34_16', '03_04_08_50_44', '03_04_13_48_26'],
+                    # 'acf':['02_26_18_30_52', '02_28_16_37_11', '03_01_09_30_39', '03_01_21_17_21', '03_02_21_06_17','03_02_06_41_57'],
+                    # 'beta':['02_26_15_56_48', '02_26_16_02_10', '02_26_19_29_54', '02_26_19_37_09', '02_26_23_14_03', '02_27_02_50_03'],
+                    # 'mu':['03_03_16_41_47', '03_03_16_45_26', '03_03_18_35_58', '03_03_21_29_04', '03_04_01_33_54', '03_04_01_46_31'],
+                    # 'sigma':['03_03_16_56_52', '03_03_23_18_48', '03_04_02_42_13', '03_04_07_34_58', '03_04_12_28_46', '03_04_21_43_47']
+                    }
 
-    for folder_name in acf_names:
-        trained_classifier_path = os.path.join(
-            os.getcwd(), 'models', 'classifier', 'TRE_full_trawl', 'acf', '02_26_18_30_52', 'best_model')
+    for key in folder_names:
+        for value in folder_names[key]:
 
-        calibrate(trained_classifier_path, nr_batches)
+            if key == 'NRE_full_trawl':
+
+                trained_classifier_path = os.path.join(
+                    os.getcwd(), 'models', 'classifier', 'NRE_full_trawl', value, 'best_model')
+            else:
+                trained_classifier_path = os.path.join(
+                    os.getcwd(), 'models', 'classifier', 'TRE_full_trawl', key, value, 'best_model')  # 'NRE_full_trawl '
+
+            calibrate(trained_classifier_path, nr_batches)
     # TRE options: acf, beta, mu, sigma
 
     # calibrate

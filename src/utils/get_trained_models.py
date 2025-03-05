@@ -83,7 +83,7 @@ def load_trained_models_for_posterior_inference(folder_path, dummy_x, trawl_proc
         assert len(params_path) == 1
 
         # Then load params, config and model
-        with open(os.path.join(folder, params_path), 'rb') as file:
+        with open(os.path.join(folder, params_path[0]), 'rb') as file:
             params_list.append(pickle.load(file))
 
         with open(os.path.join(folder, 'calibration.pkl'), 'rb') as file:
@@ -113,7 +113,7 @@ def load_trained_models_for_posterior_inference(folder_path, dummy_x, trawl_proc
             assert acf_tre_config['tre_type'] == 'acf'
             n_lags = acf_tre_config['nlags']
 
-            if use_tre and (not use_summary_statistics) and acf_tre_config['replace_full_trawl_with_acf']:
+            if use_tre and (not use_summary_statistics) and acf_tre_config['replace_full_trawl_with_acf'] and (acf_tre_config['tre_type'] == 'acf'):
 
                 use_empirical_acf = True
 
