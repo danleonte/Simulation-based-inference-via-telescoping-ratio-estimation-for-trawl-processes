@@ -110,7 +110,8 @@ def calibrate(trained_classifier_path, nr_batches):
     with open(os.path.join(trained_classifier_path, "config.yaml"), 'r') as f:
         classifier_config = yaml.safe_load(f)
 
-    dataset_path = os.path.join(trained_classifier_path, 'cal_dataset')
+    dataset_path = os.path.join(os.path.dirname(
+        os.path.dirname(trained_classifier_path)),  'cal_dataset')
     # load calidation dataset
     cal_trawls_path = os.path.join(dataset_path, 'cal_trawls.npy')
     cal_x_path = os.path.join(dataset_path, 'cal_x.npy')
@@ -150,8 +151,8 @@ def calibrate(trained_classifier_path, nr_batches):
 
     if use_tre:
         assert tre_type in ('beta', 'mu', 'sigma', 'scale', 'acf')
-        if tre_type == 'acf' and (not use_summary_statistics):
-            assert replace_acf
+        # if tre_type == 'acf' and (not use_summary_statistics):
+        #    assert replace_acf
 
         ######  EXTENDED MODEL HERE ########
         # CHECK KEYS ARE UPDATED
@@ -161,13 +162,25 @@ def calibrate(trained_classifier_path, nr_batches):
         model.init(PRNGKey(0), cal_x[0], cal_thetas[0])
 
     # First check there's only one pickled file for the params, then load params
-    list_params_names = [filename for filename in os.listdir(
-        trained_classifier_path) if (filename.endswith(".pkl") and filename.startswith('param'))]
-    assert len(list_params_names) == 1
+    # list_params_names = [filename for filename in os.listdir(
+    #    trained_classifier_path) if (filename.endswith(".pkl") and filename.startswith('param'))]
+    # assert len(list_params_names) == 1
 
-    with open(os.path.join(trained_classifier_path, list_params_names[0]), 'rb') as file:
-        params = pickle.load(file)
+    # with open(os.path.join(trained_classifier_path, list_params_names[0]), 'rb') as file:
+    #    params = pickle.load(file)
         # params = {'params': params['params']['base_model']}
+
+    with open(os.path.join(trained_classifier_path, "best_model_info.txt"), "r") as file:
+        lines = file.readlines()
+
+    # Extract the number from the first line
+    first_line = lines[0]
+    best_model_number = int(first_line.split(":")[-1].strip())
+    best_model_path = os.path.join(os.path.dirname(
+        trained_classifier_path), 'params_iter_' + str(best_model_number) + '.pkl')
+
+    with open(best_model_path, 'rb') as file:
+        params = pickle.load(file)
 
     ###########################################################################
     @jax.jit
@@ -228,6 +241,9 @@ def calibrate(trained_classifier_path, nr_batches):
     methods_text = ['logistic', 'isotonic', 'beta']
     # indeces_to_plot = np.random.randint(low=0, high = Y.shape[0], size = 1000)
 
+    # calibration_results_path = os.path.join(trained_classifier_path,'calibration_results')
+    # os.makedirs(calibration_results_path, exist_ok=True)
+
     ############ UNCALIBRATED plots ############
 
     # General classifier histogram
@@ -239,7 +255,7 @@ def calibrate(trained_classifier_path, nr_batches):
     ax.hist(
         pred_prob_Y[Y == 0].squeeze(), label='Y=0', alpha=0.5, density=True)
     ax.set_title(
-        r'Histogram of $c(\mathbf{x},\mathbf{\theta})$ classifier')
+        'Histogram of c(x,theta) classifier')
     ax.legend(loc='upper center')
     hist_beta.savefig(os.path.join(
         trained_classifier_path, 'Uncalibrated_hist.pdf'))
@@ -287,7 +303,7 @@ def calibrate(trained_classifier_path, nr_batches):
             ax.hist(
                 calibrated_pr[i][Y == 0].squeeze(), label='Y=0', alpha=0.5, density=True, bins=15)
             ax.set_title(
-                r'Histogram of $c(\mathbf{x},\mathbf{\theta})$ classifier')
+                r'Histogram of c(x,theta) classifier')
             ax.legend(loc='upper center')
             hist_beta.savefig(os.path.join(
                 trained_classifier_path, f'Calibrated_hist_{methods_text[i]}.pdf'))
@@ -308,7 +324,7 @@ def calibrate(trained_classifier_path, nr_batches):
         try:
 
             diagram_eq = ReliabilityDiagram(
-                6, equal_intervals=False)
+                8, equal_intervals=False)
             fig_eq = diagram_eq.plot(
                 calibrated_pr[i], np.array(Y)).get_figure()
 
@@ -333,15 +349,16 @@ def calibrate(trained_classifier_path, nr_batches):
 
 
 if __name__ == '__main__':
-
-    # trained_classifier_path = os.path.join(os.getcwd(),'models','classifier',
-    #                            'NRE_summary_statistics','best_model')
     nr_batches = 500
-    trained_classifier_path = os.path.join(
-        os.getcwd(), 'models', 'classifier', 'TRE_summary_statistics', 'trial_set1', 'mu')
-    # 'TRE_summary_statistics', 'trial_set1', 'scale')
 
-    calibrate(trained_classifier_path, nr_batches)
+    acf_names = ['02_26_18_30_52', '02_28_16_37_11',
+                 '03_01_09_30_39', '03_01_21_17_21', '03_02_21_06_17']
+
+    for folder_name in acf_names:
+        trained_classifier_path = os.path.join(
+            os.getcwd(), 'models', 'classifier', 'TRE_full_trawl', 'acf', '02_26_18_30_52', 'best_model')
+
+        calibrate(trained_classifier_path, nr_batches)
     # TRE options: acf, beta, mu, sigma
 
     # calibrate

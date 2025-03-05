@@ -78,8 +78,12 @@ def load_trained_models_for_posterior_inference(folder_path, dummy_x, trawl_proc
     for i in range(len(folders)):
         folder = folders[i]
 
+        params_path = [f for f in os.listdir(
+            folder) if f.startswith("params") and f.endswith(".pkl")]
+        assert len(params_path) == 1
+
         # Then load params, config and model
-        with open(os.path.join(folder, 'params.pkl'), 'rb') as file:
+        with open(os.path.join(folder, params_path), 'rb') as file:
             params_list.append(pickle.load(file))
 
         with open(os.path.join(folder, 'calibration.pkl'), 'rb') as file:
