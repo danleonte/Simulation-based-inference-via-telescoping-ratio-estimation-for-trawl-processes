@@ -35,6 +35,7 @@ if True:
     setup_sys_path()
 
 from src.utils.plot_calibration_map import plot_calibration_map
+plt.rcParams["text.usetex"] = False
 
 
 # generate calibration dataset
@@ -303,7 +304,7 @@ def calibrate(trained_classifier_path, nr_batches):
             ax.hist(
                 calibrated_pr[i][Y == 0].squeeze(), label='Y=0', alpha=0.5, density=True, bins=15)
             ax.set_title(
-                r'Histogram of c(x,theta) classifier')
+                'Histogram of c(x,theta) classifier')
             ax.legend(loc='upper center')
             hist_beta.savefig(os.path.join(
                 trained_classifier_path, f'Calibrated_hist_{methods_text[i]}.pdf'))
