@@ -5,6 +5,7 @@ Created on Tue Feb 11 22:45:52 2025
 @author: dleon
 """
 
+from src.utils.plot_calibration_map import plot_calibration_map
 from sklearn.isotonic import IsotonicRegression
 from sklearn.linear_model import LogisticRegression
 from betacal import BetaCalibration
@@ -28,13 +29,14 @@ import yaml
 import jax
 import os
 import netcal
-import matplotlib.pyplot as plt
-import numpy as np
+import matplotlib
+matplotlib.use('Agg')  # Non-interactive backend
 if True:
     from path_setup import setup_sys_path
     setup_sys_path()
+    import matplotlib.pyplot as plt
 
-from src.utils.plot_calibration_map import plot_calibration_map
+
 plt.rcParams["text.usetex"] = False
 
 
