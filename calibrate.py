@@ -207,24 +207,44 @@ def calibrate(trained_classifier_path, nr_batches):
 
     ######################## post training regression ########################
 
+    log_r_path = os.path.join(trained_classifier_path, 'final_log_r.npy')
+    pred_prob_Y_path = os.path.join(
+        trained_classifier_path, 'final_pred_prob_Y.npy')
+    Y_path = os.path.join(trained_classifier_path, 'final_Y.npy')
+
+    if not (os.path.isfile(log_r_path) and os.path.isfile(pred_prob_Y_path) and os.path.isfile(Y_path)):
+
+        log_r, pred_prob_Y, Y = [], [], []
+
+        for i in range(cal_x.shape[0]):
+
+            log_r_to_append, pred_prob_Y_to_append = compute_log_r_approx(
+                params, cal_x[i], cal_thetas[i])
+            log_r.append(log_r_to_append)
+            pred_prob_Y.append(pred_prob_Y_to_append)
+            Y.append(cal_Y)
+
+        log_r = jnp.concatenate(log_r, axis=0)           # num_samples, 1
+        pred_prob_Y = jnp.concatenate(
+            pred_prob_Y, axis=0)      # num_samples, 1
+        Y = jnp.concatenate(Y, axis=0)
+
+        np.save(file=log_r_path, arr=log_r)
+        np.save(file=pred_prob_Y_path, arr=pred_prob_Y)
+        np.save(file=Y_path, arr=Y)
+
+    else:
+
+        log_r = np.load(log_r_path)
+        pred_prob_Y = np.load(pred_prob_Y_path)
+        Y = jnp.load(Y_path)
+
+    return
+
     # perform isotonic regression, Beta and Plat scaling
     lr = LogisticRegression(C=99999999999)
     iso = IsotonicRegression(y_min=0.001, y_max=0.999)
     bc = BetaCalibration(parameters="abm")
-
-    log_r, pred_prob_Y, Y = [], [], []
-
-    for i in range(cal_x.shape[0]):
-
-        log_r_to_append, pred_prob_Y_to_append = compute_log_r_approx(
-            params, cal_x[i], cal_thetas[i])
-        log_r.append(log_r_to_append)
-        pred_prob_Y.append(pred_prob_Y_to_append)
-        Y.append(cal_Y)
-
-    log_r = jnp.concatenate(log_r, axis=0)           # num_samples, 1
-    pred_prob_Y = jnp.concatenate(pred_prob_Y, axis=0)      # num_samples, 1
-    Y = jnp.concatenate(Y, axis=0)
 
     lr.fit(pred_prob_Y, np.array(Y))
     iso.fit(pred_prob_Y, np.array(Y))
