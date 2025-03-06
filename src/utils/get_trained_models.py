@@ -63,7 +63,7 @@ def load_trained_models_for_posterior_inference(folder_path, dummy_x, trawl_proc
         folders = [f for f in os.listdir(folder_path) if os.path.isdir(
             os.path.join(folder_path, f))]
         assert len(folders) == 4 and set(folders) == set(
-            ['acf', 'beta', 'mu', 'scale']) and folders[0] == 'acf'
+            ['acf', 'beta', 'mu', 'sigma']) and folders[0] == 'acf'
 
         folders = [os.path.join(folder_path, f) for f in folders]
 
