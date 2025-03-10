@@ -159,7 +159,6 @@ def create_and_save_plots(results, save_dir):
     az_data = az.convert_to_dataset(posterior_samples)
 
     # Create pair plot
-    fig = plt.figure(figsize=(12, 12))
     grid = az.plot_pair(
         az_data,
         var_names=["eta", "gamma", "mu", "sigma", "beta"],
@@ -177,6 +176,8 @@ def create_and_save_plots(results, save_dir):
 
     # Manually add true values to marginals (diagonal plots)
 
+    # Get the figure from one of the axes
+    fig = plt.gcf()  # Get current figure
     plt.savefig(os.path.join(save_dir, "pair_plot.png"),
                 dpi=300, bbox_inches='tight')
     plt.close(fig)
@@ -187,6 +188,7 @@ def create_and_save_plots(results, save_dir):
     plt.savefig(os.path.join(save_dir, "trace_plot.png"),
                 dpi=300, bbox_inches='tight')
     plt.close(fig)
+    plt.close('all')
 
     # Create autocorrelation plot
     # fig = plt.figure(figsize=(12, 8))

@@ -64,9 +64,9 @@ def main(gpu_id, num_gpus, num_experiments_to_do):
     )
 
     # MCMC parameters
-    num_samples = 7500  # 7500
-    num_warmup = 2500  # 2500
-    num_burnin = 2500  # 2500
+    num_samples = 7500
+    num_warmup = 2500
+    num_burnin = 2500
     num_chains = 25
     seed = 1411  # this gets chaged inside the posterior_sampling_utils
 
