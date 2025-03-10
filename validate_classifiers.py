@@ -128,3 +128,22 @@ if __name__ == '__main__':
     for folder_path in folder_paths:
 
         validate_classifiers(folder_path)
+
+
+# base_path = '/home/leonted/SBI/SBI_for_trawl_processes_and_ambit_fields'
+# folder_paths = []
+
+# NRE paths
+# folder_paths.append(os.path.join(base_path, 'models', 'classifier', 'NRE_full_trawl', 'uncalibrated'))
+# folder_paths.append(os.path.join(base_path, 'models', 'classifier', 'NRE_full_trawl', 'beta_calibrated'))
+
+# TRE paths
+# subfolders = ['acf', 'beta', 'mu', 'sigma']
+# calibrations = ['uncalibrated', 'beta_calibrated']
+
+# for subfolder in subfolders:
+# for cal in calibrations:
+# ####       folder_paths.append(os.path.join(base_path, 'models', 'classifier', 'TRE_full_trawl', cal))#, subfolder))
+
+# for folder_path in folder_paths:
+# validate_classifiers(folder_path)
