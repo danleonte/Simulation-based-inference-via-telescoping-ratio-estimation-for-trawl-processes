@@ -45,7 +45,9 @@ def main(gpu_id, num_gpus, num_experiments_to_do):
             print(f"GPU {gpu_id}: Error checking JAX platform: {str(e)}")
 
         # Load configuration
-        folder_path = r'/home/leonted/SBI/SBI_for_trawl_processes_and_ambit_fields/models/classifier/NRE_full_trawl/beta_calibrated'
+        # folder_path = r'/home/leonted/SBI/SBI_for_trawl_processes_and_ambit_fields/models/classifier/NRE_full_trawl/beta_calibrated'
+        folder_path = r'D:\sbi_ambit\SBI_for_trawl_processes_and_ambit_fields\models\classifier\NRE_full_trawl\beta_calibrated'
+
         
         print(f"GPU {gpu_id}: Using folder path: {folder_path}")
         print(f"GPU {gpu_id}: Checking if folder exists: {os.path.exists(folder_path)}")

@@ -7,12 +7,7 @@ from posterior_sampling_utils import run_mcmc_for_trawl, save_results, create_an
 from src.utils.get_trained_models import load_trained_models_for_posterior_inference as load_trained_models
 
 
-def main(gpu_id, num_gpus, num_experiments_to_do):
-
-    assert num_experiments_to_do is not None
-
-    # Set GPU
-    #os.environ["CUDA_VISIBLE_DEVICES"] = str(os.environ.get("SLURM_LOCALID", gpu_id))
+def main(start_idx, end_idx):
 
     # Load configuration
     folder_path = r'/home/leonted/SBI/SBI_for_trawl_processes_and_ambit_fields/models/classifier/NRE_full_trawl/beta_calibrated'
@@ -52,11 +47,6 @@ def main(gpu_id, num_gpus, num_experiments_to_do):
     true_thetas = true_thetas[:, cal_Y == 1].reshape(-1, true_thetas.shape[-1])
     del cal_Y
 
-    # Limit dataset if requested
-    if num_experiments_to_do is not None:
-        true_trawls = true_trawls[:num_experiments_to_do]
-        true_thetas = true_thetas[:num_experiments_to_do]
-
     # Load approximate likelihood function
     approximate_log_likelihood_to_evidence, _, _ = load_trained_models(
         folder_path, true_trawls[[0], ::-1], trawl_process_type,
@@ -64,39 +54,20 @@ def main(gpu_id, num_gpus, num_experiments_to_do):
     )
 
     # MCMC parameters
-    num_samples = 750#7500
-    num_warmup = 500#2500
-    num_burnin = 500#2500
-    num_chains = 20#25
+    num_samples = 500  # 7500
+    num_warmup = 500  # 2500
+    num_burnin = 500  # 2500
+    num_chains = 20  # 25
     seed = 1411  # this gets chaged inside the posterior_sampling_utils
 
-    # Calculate this GPU's workload
-    total_trawls = true_trawls.shape[0]
-    trawls_per_gpu = (total_trawls + num_gpus -
-                      1) // num_gpus  # Ceiling division
-    start_idx = gpu_id * trawls_per_gpu
-    end_idx = min((gpu_id + 1) * trawls_per_gpu, total_trawls)
-    
-    # Add detailed logging
-    print(f"GPU {gpu_id}: Total trawls: {total_trawls}")
-    print(f"GPU {gpu_id}: Number of GPUs: {num_gpus}")
-    print(f"GPU {gpu_id}: Trawls per GPU: {trawls_per_gpu}")
-    print(f"GPU {gpu_id}: This GPU will process trawls from {start_idx} to {end_idx-1}")
-    print(f"GPU {gpu_id}: Assigned {end_idx - start_idx} trawls")
-    
-    # If end_idx <= start_idx, this GPU has no work to do
     if end_idx <= start_idx:
-        print(f"GPU {gpu_id}: No trawls assigned to this GPU. Exiting.")
+        print(f": No trawls assigned.")
         return
 
     # Create results directory
     results_dir = f"mcmc_results_{trawl_process_type}"
     results_dir = os.path.join(folder_path, results_dir)
     os.makedirs(results_dir, exist_ok=True)
-
-    # Process assigned trawls
-    print(
-        f"GPU {gpu_id}: Processing trawls {start_idx} to {end_idx-1} out of {total_trawls}")
 
     for idx in range(start_idx, end_idx):
         # Create directory for this trawl
@@ -105,10 +76,8 @@ def main(gpu_id, num_gpus, num_experiments_to_do):
 
         # Skip if already completed
         if os.path.exists(os.path.join(trawl_dir, "results.pkl")):
-            print(f"GPU {gpu_id}: Trawl {idx} already processed, skipping...")
+            print(f"Trawl {idx} already processed, skipping...")
             continue
-
-        print(f"GPU {gpu_id}: Processing trawl {idx}/{total_trawls-1}")
 
         try:
             # Run MCMC for this trawl
@@ -117,7 +86,7 @@ def main(gpu_id, num_gpus, num_experiments_to_do):
                 true_trawls=true_trawls,
                 true_thetas=true_thetas,
                 approximate_log_likelihood_to_evidence=approximate_log_likelihood_to_evidence,
-                seed=seed,
+                seed=seed + idx**2,
                 num_samples=num_samples,
                 num_warmup=num_warmup,
                 num_burnin=num_burnin,
@@ -138,36 +107,21 @@ def main(gpu_id, num_gpus, num_experiments_to_do):
                 )
             except Exception as e:
                 print(
-                    f"GPU {gpu_id}: Error creating plots for trawl {idx}: {str(e)}")
+                    f"Error creating plots for trawl {idx}: {str(e)}")
 
             # Save memory by clearing results
             del results
 
-            print(f"GPU {gpu_id}: Completed trawl {idx}")
+            print(f"Completed trawl {idx}")
 
         except Exception as e:
-            print(f"GPU {gpu_id}: Error processing trawl {idx}: {str(e)}")
+            print(f"Error processing trawl {idx}: {str(e)}")
             # Save the error to a file
             with open(os.path.join(trawl_dir, "error.txt"), 'w') as f:
                 f.write(f"Error processing trawl {idx}: {str(e)}")
 
-    print(f"GPU {gpu_id}: Completed all assigned trawls")
+    print(f"Completed all assigned trawls")
 
 
 if __name__ == '__main__':
-    if len(sys.argv) < 3:
-        print(
-            "Usage: python posterior_sampling.py <gpu_id> <num_gpus> [<num_experiments>]")
-        sys.exit(1)
-
-    # Required arguments
-    gpu_id = int(sys.argv[1])
-    num_gpus = int(sys.argv[2])
-
-    # Optional argument
-    num_experiments_to_do = 5000  # Default value
-    #if len(sys.argv) > 3:
-    #    num_experiments_to_do = int(sys.argv[3])
-
-    # Call main with parsed arguments
-    main(gpu_id, num_gpus, num_experiments_to_do)
+    main(10, 15)
