@@ -2,7 +2,7 @@ import sys
 import os
 import yaml
 import pickle
-import numpy as jnp
+import jax.numpy as jnp
 from posterior_sampling_utils import run_mcmc_for_trawl, save_results, create_and_save_plots
 from src.utils.get_trained_models import load_trained_models_for_posterior_inference as load_trained_models
 
@@ -12,7 +12,7 @@ def main(gpu_id, num_gpus, num_experiments_to_do):
     assert num_experiments_to_do is not None
 
     # Set GPU
-    os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
+    #os.environ["CUDA_VISIBLE_DEVICES"] = str(os.environ.get("SLURM_LOCALID", gpu_id))
 
     # Load configuration
     folder_path = r'/home/leonted/SBI/SBI_for_trawl_processes_and_ambit_fields/models/classifier/NRE_full_trawl/beta_calibrated'
@@ -64,10 +64,10 @@ def main(gpu_id, num_gpus, num_experiments_to_do):
     )
 
     # MCMC parameters
-    num_samples = 7500
-    num_warmup = 2500
-    num_burnin = 2500
-    num_chains = 25
+    num_samples = 750#7500
+    num_warmup = 500#2500
+    num_burnin = 500#2500
+    num_chains = 20#25
     seed = 1411  # this gets chaged inside the posterior_sampling_utils
 
     # Calculate this GPU's workload
@@ -76,6 +76,18 @@ def main(gpu_id, num_gpus, num_experiments_to_do):
                       1) // num_gpus  # Ceiling division
     start_idx = gpu_id * trawls_per_gpu
     end_idx = min((gpu_id + 1) * trawls_per_gpu, total_trawls)
+    
+    # Add detailed logging
+    print(f"GPU {gpu_id}: Total trawls: {total_trawls}")
+    print(f"GPU {gpu_id}: Number of GPUs: {num_gpus}")
+    print(f"GPU {gpu_id}: Trawls per GPU: {trawls_per_gpu}")
+    print(f"GPU {gpu_id}: This GPU will process trawls from {start_idx} to {end_idx-1}")
+    print(f"GPU {gpu_id}: Assigned {end_idx - start_idx} trawls")
+    
+    # If end_idx <= start_idx, this GPU has no work to do
+    if end_idx <= start_idx:
+        print(f"GPU {gpu_id}: No trawls assigned to this GPU. Exiting.")
+        return
 
     # Create results directory
     results_dir = f"mcmc_results_{trawl_process_type}"
@@ -153,9 +165,9 @@ if __name__ == '__main__':
     num_gpus = int(sys.argv[2])
 
     # Optional argument
-    num_experiments_to_do = 10000  # Default value
-    if len(sys.argv) > 3:
-        num_experiments = int(sys.argv[3])
+    num_experiments_to_do = 5000  # Default value
+    #if len(sys.argv) > 3:
+    #    num_experiments_to_do = int(sys.argv[3])
 
     # Call main with parsed arguments
     main(gpu_id, num_gpus, num_experiments_to_do)
