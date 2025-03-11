@@ -124,4 +124,10 @@ def main(start_idx, end_idx):
 
 
 if __name__ == '__main__':
-    main(10, 15)
+    if len(sys.argv) < 3:
+        print("Usage: python script_name.py <start_idx> <end_idx>")
+        sys.exit(1)
+
+    start_idx = int(sys.argv[1])
+    end_idx = int(sys.argv[2])
+    main(start_idx, end_idx)
