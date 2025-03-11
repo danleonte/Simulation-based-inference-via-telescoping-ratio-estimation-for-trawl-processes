@@ -71,15 +71,18 @@ def run_mcmc_for_trawl(trawl_idx, true_trawls, approximate_log_likelihood_to_evi
         sigma = numpyro.sample("sigma", dist.Uniform(0.5, 1.5))
         beta = numpyro.sample("beta", dist.Uniform(-5, 5))
 
-        params = jnp.array([eta, gamma, mu, sigma, beta])[jnp.newaxis, :]
-        batch_size = params.shape[0]
-        x_tiled = jnp.tile(test_trawl, (batch_size, 1))
+        params = jnp.array([eta, gamma, mu, sigma, beta])
+
+        # MAYBE ADD BACK
+        # params = jnp.array([eta, gamma, mu, sigma, beta])[jnp.newaxis, :]
+        # batch_size = params.shape[0]
+        # x_tiled = jnp.tile(test_trawl, (batch_size, 1))
 
         # numpyro.factor("likelihood", jnp.squeeze(
         #    approximate_log_likelihood_to_evidence(x_tiled, params)))
         # Calculate log likelihood and store it
         log_likelihood = jnp.squeeze(
-            approximate_log_likelihood_to_evidence(x_tiled, params))
+            approximate_log_likelihood_to_evidence(test_trawl[jnp.newaxis, :], params[jnp.newaxis, :])[0])
 
         # Store log likelihood as a deterministic site
         numpyro.deterministic("log_likelihood", log_likelihood)
