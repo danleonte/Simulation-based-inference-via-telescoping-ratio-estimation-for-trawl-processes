@@ -29,7 +29,7 @@ if True:
 
 
 import numpyro
-from numpyro.infer import MCMC, NUTS, HMC
+from numpyro.infer import MCMC, NUTS, HMC, BarkerMH
 import numpyro.distributions as dist
 from numpyro.diagnostics import effective_sample_size as ess
 import arviz as az
@@ -65,29 +65,26 @@ def run_mcmc_for_trawl(trawl_idx, true_trawls, approximate_log_likelihood_to_evi
 
     # Define model function for this trawl
     def model_vec():
+        # Parameter sampling
         eta = numpyro.sample("eta", dist.Uniform(10, 20))
         gamma = numpyro.sample("gamma", dist.Uniform(10, 20))
         mu = numpyro.sample("mu", dist.Uniform(-1, 1))
         sigma = numpyro.sample("sigma", dist.Uniform(0.5, 1.5))
         beta = numpyro.sample("beta", dist.Uniform(-5, 5))
+    
+        # Create parameter array with explicit broadcasting dimensions
+        params = jnp.reshape(jnp.stack([eta, gamma, mu, sigma, beta]), (1, 5))
 
-        params = jnp.array([eta, gamma, mu, sigma, beta])
-
-        # MAYBE ADD BACK
-        # params = jnp.array([eta, gamma, mu, sigma, beta])[jnp.newaxis, :]
-        # batch_size = params.shape[0]
-        # x_tiled = jnp.tile(test_trawl, (batch_size, 1))
-
-        # numpyro.factor("likelihood", jnp.squeeze(
-        #    approximate_log_likelihood_to_evidence(x_tiled, params)))
-        # Calculate log likelihood and store it
-        log_likelihood = jnp.squeeze(
-            approximate_log_likelihood_to_evidence(test_trawl[jnp.newaxis, :], params[jnp.newaxis, :])[0])
-
-        # Store log likelihood as a deterministic site
+        
+        # Calculate log likelihood with explicit shapes
+        log_likelihood = approximate_log_likelihood_to_evidence(
+            jnp.reshape(test_trawl, (1, -1)), params)[0,0]
+        
+        # Properly extract the scalar value
+        #log_likelihood = jnp.squeeze(log_likelihood)
+    
+        # Add sites
         numpyro.deterministic("log_likelihood", log_likelihood)
-
-        # Add log likelihood factor for inference
         numpyro.factor("likelihood_factor", log_likelihood)
 
     rng_key = jax.random.PRNGKey(trawl_idx + seed)
@@ -96,8 +93,8 @@ def run_mcmc_for_trawl(trawl_idx, true_trawls, approximate_log_likelihood_to_evi
     # We need to run for (num_samples + num_burnin) steps after warmup
     total_post_warmup = num_samples + num_burnin
 
-    hmc_kernel = HMC(model_vec, step_size=0.1,
-                     adapt_step_size=True, adapt_mass_matrix=True, dense_mass=True)
+    hmc_kernel = HMC(model_vec, step_size=0.075,
+                     adapt_step_size=True, adapt_mass_matrix=True, dense_mass=True)#, num_steps = 10)
     mcmc = MCMC(hmc_kernel, num_warmup=num_warmup, num_samples=total_post_warmup,
                 num_chains=num_chains, chain_method='vectorized', progress_bar=False)
 

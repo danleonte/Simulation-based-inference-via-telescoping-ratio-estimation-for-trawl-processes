@@ -54,7 +54,7 @@ def main(start_idx, end_idx):
     )
 
     # MCMC parameters
-    num_samples = 500  # 7500
+    num_samples = 250  # 7500
     num_warmup = 500  # 2500
     num_burnin = 500  # 2500
     num_chains = 20  # 25
