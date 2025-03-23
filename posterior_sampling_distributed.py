@@ -8,11 +8,11 @@ from posterior_sampling_utils import run_mcmc_for_trawl, save_results, create_an
 from src.utils.get_trained_models import load_trained_models_for_posterior_inference as load_trained_models
 
 
-def process_batch(batch_indices, folder_path, true_trawls, true_thetas, approximate_log_likelihood_to_evidence, 
+def process_batch(batch_indices, folder_path, true_trawls, true_thetas, approximate_log_likelihood_to_evidence,
                   trawl_process_type, num_samples, num_warmup, num_burnin, num_chains, seed):
     """
     Process a batch of trawl indices
-    
+
     Parameters:
     -----------
     batch_indices : list
@@ -24,17 +24,17 @@ def process_batch(batch_indices, folder_path, true_trawls, true_thetas, approxim
     results_dir = f"mcmc_results_{trawl_process_type}"
     results_dir = os.path.join(folder_path, results_dir)
     os.makedirs(results_dir, exist_ok=True)
-    
+
     for idx in batch_indices:
         # Create directory for this trawl
         trawl_dir = os.path.join(results_dir, f"trawl_{idx}")
         os.makedirs(trawl_dir, exist_ok=True)
-        
+
         # Skip if already completed
         if os.path.exists(os.path.join(trawl_dir, "results.pkl")):
             print(f"Trawl {idx} already processed, skipping...")
             continue
-            
+
         try:
             # Run MCMC for this trawl
             results = run_mcmc_for_trawl(
@@ -48,14 +48,14 @@ def process_batch(batch_indices, folder_path, true_trawls, true_thetas, approxim
                 num_burnin=num_burnin,
                 num_chains=num_chains
             )
-            
+
             # Add true theta to results
             results['true_theta'] = true_thetas[idx].tolist()
             results['true_trawl'] = true_trawls[idx].tolist()
-            
+
             # Save results
             save_results(results, os.path.join(trawl_dir, "results.pkl"))
-            
+
             try:
                 create_and_save_plots(
                     results=results,
@@ -63,91 +63,97 @@ def process_batch(batch_indices, folder_path, true_trawls, true_thetas, approxim
                 )
             except Exception as e:
                 print(f"Error creating plots for trawl {idx}: {str(e)}")
-                
+
             # Save memory by clearing results
             del results
-            
+
             print(f"Completed trawl {idx}")
-            
+
         except Exception as e:
             print(f"Error processing trawl {idx}: {str(e)}")
             # Save the error to a file
             with open(os.path.join(trawl_dir, "error.txt"), 'w') as f:
                 f.write(f"Error processing trawl {idx}: {str(e)}")
 
+
 def main():
     if len(sys.argv) < 4:
         print("Usage: python script_name.py <start_idx> <end_idx> <task_id>")
         sys.exit(1)
-        
+
     start_idx = int(sys.argv[1])
     end_idx = int(sys.argv[2])
     task_id = int(sys.argv[3])
-    total_tasks = 128  # Total number of cores/tasks
-    
-    print(f"DEBUG: Python received args: start_idx={start_idx}, end_idx={end_idx}, task_id={task_id}")
-    
+    total_tasks = 15  # Total number of cores/tasks
+
+    print(
+        f"DEBUG: Python received args: start_idx={start_idx}, end_idx={end_idx}, task_id={task_id}")
+
     # Calculate the trawl indices for this task
     total_trawls = end_idx - start_idx + 1
     all_ranges = np.array_split(range(start_idx, end_idx + 1), total_tasks)
-    print(f"DEBUG: Split ranges for all tasks: {[list(r) for r in all_ranges]}")
-    
+    print(
+        f"DEBUG: Split ranges for all tasks: {[list(r) for r in all_ranges]}")
+
     indices = all_ranges[task_id]
     print(f"DEBUG: Task {task_id} received indices: {list(indices)}")
-    
+
     if len(indices) == 0:
         print(f"Task {task_id}: No trawls assigned.")
         return
-        
+
     print(f"Task {task_id}: Processing trawls {indices[0]} to {indices[-1]}")
-    
+
     # Load configuration
     folder_path = r'/home/leonted/SBI/SBI_for_trawl_processes_and_ambit_fields/models/classifier/TRE_full_trawl/beta_calibrated'
-    
+
     # Set up model configuration
     use_tre = 'TRE' in folder_path
     if not (use_tre or 'NRE' in folder_path):
         raise ValueError("Path must contain 'TRE' or 'NRE'")
-        
+
     use_summary_statistics = 'summary_statistics' in folder_path
     if not (use_summary_statistics or 'full_trawl' in folder_path):
-        raise ValueError("Path must contain 'full_trawl' or 'summary_statistics'")
-        
+        raise ValueError(
+            "Path must contain 'full_trawl' or 'summary_statistics'")
+
     if use_tre:
-        classifier_config_file_path = os.path.join(folder_path, 'acf', 'config.yaml')
+        classifier_config_file_path = os.path.join(
+            folder_path, 'acf', 'config.yaml')
     else:
         classifier_config_file_path = os.path.join(folder_path, 'config.yaml')
-        
+
     with open(classifier_config_file_path, 'r') as f:
         a_classifier_config = yaml.safe_load(f)
         trawl_process_type = a_classifier_config['trawl_config']['trawl_process_type']
         seq_len = a_classifier_config['trawl_config']['seq_len']
-    
+
     # Load dataset
-    dataset_path = os.path.join(os.path.dirname(os.path.dirname(folder_path)), 'cal_dataset')
+    dataset_path = os.path.join(os.path.dirname(
+        os.path.dirname(folder_path)), 'cal_dataset')
     cal_x_path = os.path.join(dataset_path, 'cal_x.npy')
     cal_thetas_path = os.path.join(dataset_path, 'cal_thetas.npy')
     cal_Y_path = os.path.join(dataset_path, 'cal_Y.npy')
-    
+
     cal_Y = jnp.load(cal_Y_path)
     true_trawls = jnp.load(cal_x_path)[:, cal_Y == 1].reshape(-1, seq_len)
     true_thetas = jnp.load(cal_thetas_path)
     true_thetas = true_thetas[:, cal_Y == 1].reshape(-1, true_thetas.shape[-1])
     del cal_Y
-    
+
     # Load approximate likelihood function
     approximate_log_likelihood_to_evidence, _, _ = load_trained_models(
         folder_path, true_trawls[[0], ::-1], trawl_process_type,
         use_tre, use_summary_statistics
     )
-    
+
     # MCMC parameters
-    num_samples = 5000  # Adjust as needed
-    num_warmup = 2500
-    num_burnin = 2500
-    num_chains = 20
+    num_samples = 2500  # Adjust as needed
+    num_warmup = 1750
+    num_burnin = 1750
+    num_chains = 25
     seed = 1411
-    
+
     # Process assigned batch
     process_batch(
         batch_indices=indices,
@@ -160,10 +166,11 @@ def main():
         num_warmup=num_warmup,
         num_burnin=num_burnin,
         num_chains=num_chains,
-        seed=seed
+        seed=seed + task_id**2
     )
-    
+
     print(f"Task {task_id}: Completed all assigned trawls")
+
 
 if __name__ == '__main__':
     main()
