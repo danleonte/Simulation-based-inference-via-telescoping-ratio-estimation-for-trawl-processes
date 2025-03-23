@@ -62,7 +62,7 @@ def load_trained_models_for_posterior_inference(folder_path, dummy_x, trawl_proc
         # List all items in the directory and filter only folders
         folders = [f for f in os.listdir(folder_path) if os.path.isdir(
             os.path.join(folder_path, f))]
-        assert set(['acf', 'beta', 'mu', 'sigma']).issubset(folders) 
+        assert set(['acf', 'beta', 'mu', 'sigma']).issubset(folders)
         folders = ['acf', 'beta', 'mu', 'sigma']
 
         folders = [os.path.join(folder_path, f) for f in folders]
@@ -149,41 +149,49 @@ def load_trained_models_for_posterior_inference(folder_path, dummy_x, trawl_proc
 
     ###################### get functions ######################################
 
-    if use_empirical_acf:
+    # Create a "no-op" calibration parameter set for when no calibration is needed
+    no_op_cal_params = (1.0, 1.0, 0.5)
 
+    # Pre-process and convert all the model components to JAX-friendly structures
+    model_applies = [model.apply for model in model_list]
+    model_params = [params for params in params_list]
+
+    # Process calibration parameters
+    calibration_params = []
+    for c in calibration_list:
+        if c['use_beta_calibration']:
+            calibration_params.append(
+                (c['params'][0], c['params'][1], c['params'][2]))
+        else:
+            calibration_params.append(no_op_cal_params)
+
+    # Define the optimized likelihood function
+    if use_empirical_acf:
         @jax.jit
         def approximate_log_likelihood_to_evidence(x, empirical_acf_x, theta):
+            total_log_r = 0.0
 
-            log_r = 0
+            for i in range(len(model_applies)):
+                apply_fn = model_applies[i]
+                params = model_params[i]
 
-            for i in range(len(model_list)):
+                # Select appropriate input data based on model index
+                x_to_use = empirical_acf_x if (
+                    i == 0 and use_empirical_acf) else x
 
-                model = model_list[i]
-                params = params_list[i]
-                config = config_list[i]
-                calibration_dict = calibration_list[i]
+                # Apply model
+                log_r = apply_fn(variables=params, x=x_to_use,
+                                 theta=theta, train=False)
 
-                if i == 0 and use_empirical_acf:
-                    x_to_use = empirical_acf_x
+                # Always apply calibration - will be no-op for models that don't need it
+                log_r = beta_calibrate_log_r(log_r, calibration_params[i])
 
-                else:
-                    x_to_use = x
+                total_log_r += log_r
 
-                log_r_to_add = model.apply(variables=params, x=x_to_use,
-                                           theta=theta, train=False)
-
-                if calibration_dict['use_beta_calibration']:
-
-                    log_r_to_add = beta_calibrate_log_r(
-                        log_r_to_add, calibration_dict['params'])
-
-                log_r += log_r_to_add
-
-            return log_r
+            return total_log_r
 
         @jax.jit
         def approximate_log_posterior(x, empirical_acf_x, theta):
-
             log_likelihood = approximate_log_likelihood_to_evidence(
                 x, empirical_acf_x, theta)
             in_bounds = jnp.all((theta > lower_bounds) &
@@ -192,36 +200,30 @@ def load_trained_models_for_posterior_inference(folder_path, dummy_x, trawl_proc
             return log_likelihood + log_prior
 
     else:
-
         @jax.jit
         def approximate_log_likelihood_to_evidence(x, theta):
+            total_log_r = 0.0
 
-            log_r = 0
+            print('here')
 
-            for i in range(len(model_list)):
+            for i in range(len(model_applies)):
+                apply_fn = model_applies[i]
+                params = model_params[i]
 
-                model = model_list[i]
-                params = params_list[i]
-                config = config_list[i]
-                calibration_dict = calibration_list[i]
+                # Apply model
+                log_r = apply_fn(variables=params, x=x,
+                                 theta=theta, train=False)
 
-                log_r_to_add = model.apply(variables=params, x=x,
-                                           theta=theta, train=False)
+                # Always apply calibration - will be no-op for models that don't need it
+                log_r = beta_calibrate_log_r(log_r, calibration_params[i])
 
-                if calibration_dict['use_beta_calibration']:
+                total_log_r += log_r
 
-                    log_r_to_add = beta_calibrate_log_r(
-                        log_r_to_add, calibration_dict['params'])
-
-                log_r += log_r_to_add
-
-            return log_r
+            return total_log_r
 
         @jax.jit
         def approximate_log_posterior(x, theta):
-
-            log_likelihood = approximate_log_likelihood_to_evidence(
-                x, theta)
+            log_likelihood = approximate_log_likelihood_to_evidence(x, theta)
             in_bounds = jnp.all((theta > lower_bounds) &
                                 (theta < upper_bounds))
             log_prior = jnp.where(in_bounds, - jnp.log(total_mass), -jnp.inf)

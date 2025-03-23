@@ -11,7 +11,7 @@ def main(start_idx, end_idx):
 
     # Load configuration
     folder_path = r'/home/leonted/SBI/SBI_for_trawl_processes_and_ambit_fields/models/classifier/NRE_full_trawl/beta_calibrated'
-    # folder_path = r'D:\sbi_ambit\SBI_for_trawl_processes_and_ambit_fields\models\classifier\NRE_full_trawl\beta_calibrated'
+    # folder_path = r'D:\sbi_ambit\SBI_for_trawl_processes_and_ambit_fields\models\classifier\TRE_full_trawl\beta_calibrated'
 
     # Set up model configuration
     use_tre = 'TRE' in folder_path
@@ -54,10 +54,10 @@ def main(start_idx, end_idx):
     )
 
     # MCMC parameters
-    num_samples = 250  # 7500
-    num_warmup = 500  # 2500
-    num_burnin = 500  # 2500
-    num_chains = 20  # 25
+    num_samples = 2500  # 7500
+    num_warmup = 1750  # 2500
+    num_burnin = 1750  # 2500
+    num_chains = 25  # 25
     seed = 1411  # this gets chaged inside the posterior_sampling_utils
 
     if end_idx <= start_idx:

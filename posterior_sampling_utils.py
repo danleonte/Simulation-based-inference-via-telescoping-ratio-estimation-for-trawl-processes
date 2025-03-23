@@ -35,6 +35,7 @@ from numpyro.diagnostics import effective_sample_size as ess
 import arviz as az
 
 # mcmc_functions.py - Core functions
+# from jax import debug
 
 
 def run_mcmc_for_trawl(trawl_idx, true_trawls, approximate_log_likelihood_to_evidence,
@@ -63,27 +64,36 @@ def run_mcmc_for_trawl(trawl_idx, true_trawls, approximate_log_likelihood_to_evi
     test_trawl = true_trawls[trawl_idx, :]
     test_theta = true_thetas[trawl_idx, :]
 
-    # Define model function for this trawl
+    test_trawl_reshaped = jnp.reshape(test_trawl, (1, -1))
+
+    # Define a pure function for the log probability
+    @jax.jit
+    def log_prob_fn(theta_vector):
+        # counter = 0
+        # counter += 1
+        # debug.print("Function called {} times", counter)
+        # Reshape theta to expected shape
+        theta = theta_vector.reshape(1, -1)
+
+        # Get log likelihood
+        log_like = approximate_log_likelihood_to_evidence(
+            test_trawl_reshaped, theta)[0, 0]
+
+        return log_like
+
+    # Use this in your model function
     def model_vec():
-        # Parameter sampling
         eta = numpyro.sample("eta", dist.Uniform(10, 20))
         gamma = numpyro.sample("gamma", dist.Uniform(10, 20))
         mu = numpyro.sample("mu", dist.Uniform(-1, 1))
         sigma = numpyro.sample("sigma", dist.Uniform(0.5, 1.5))
         beta = numpyro.sample("beta", dist.Uniform(-5, 5))
-    
-        # Create parameter array with explicit broadcasting dimensions
-        params = jnp.reshape(jnp.stack([eta, gamma, mu, sigma, beta]), (1, 5))
 
-        
-        # Calculate log likelihood with explicit shapes
-        log_likelihood = approximate_log_likelihood_to_evidence(
-            jnp.reshape(test_trawl, (1, -1)), params)[0,0]
-        
-        # Properly extract the scalar value
-        #log_likelihood = jnp.squeeze(log_likelihood)
-    
-        # Add sites
+        theta_vec = jnp.array([eta, gamma, mu, sigma, beta])
+
+        # Use the pre-compiled function
+        log_likelihood = log_prob_fn(theta_vec)
+
         numpyro.deterministic("log_likelihood", log_likelihood)
         numpyro.factor("likelihood_factor", log_likelihood)
 
@@ -93,10 +103,15 @@ def run_mcmc_for_trawl(trawl_idx, true_trawls, approximate_log_likelihood_to_evi
     # We need to run for (num_samples + num_burnin) steps after warmup
     total_post_warmup = num_samples + num_burnin
 
-    hmc_kernel = HMC(model_vec, step_size=0.075,
-                     adapt_step_size=True, adapt_mass_matrix=True, dense_mass=True)#, num_steps = 10)
-    mcmc = MCMC(hmc_kernel, num_warmup=num_warmup, num_samples=total_post_warmup,
-                num_chains=num_chains, chain_method='vectorized', progress_bar=False)
+    # hmc_kernel = HMC(model_vec, step_size=0.075, find_heuristic_step_size=False,
+    #                 adapt_step_size=True, adapt_mass_matrix=True, dense_mass=True, num_steps=5)
+    nuts_kernel = NUTS(model_vec, step_size=0.075, adapt_step_size=True,
+                       adapt_mass_matrix=True, dense_mass=True,  # num_steps = 5)
+                       max_tree_depth=1)  # Adaptive HMC
+
+    mcmc = MCMC(nuts_kernel,  # hmc_kernel,
+                num_warmup=num_warmup, num_samples=total_post_warmup,
+                num_chains=num_chains, chain_method='vectorized', progress_bar=True)
 
     start_time = time.time()
     mcmc.run(chain_keys)
