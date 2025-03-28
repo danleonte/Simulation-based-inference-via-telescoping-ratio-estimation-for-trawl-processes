@@ -11,22 +11,13 @@ from src.utils.acf_functions import get_acf
 from src.utils.KL_divergence import vec_monte_carlo_kl_3_param_nig
 
 
-def compare_point_estimators(folder_path, num_lags=50):
-
-    results_path = os.path.join(folder_path, 'results')
-
-    # makes jax arrays into np arrays
-    df = pd.read_pickle(os.path.join(results_path, 'MLE_results.pkl'))
-
-    true_theta = np.array([np.array(i) for i in df.true_theta.values])
-    MLE_theta = np.array([np.array(i) for i in df.MLE.values])
+def compare_point_estimators(true_theta, infered_theta, mle_or_gmm, num_lags=50):
 
     # acf errors
-
     H = np.arange(1, num_lags + 1)
     # this should be num_trawls, num_lags shaped
     theoretical_acf = acf_func(H, true_theta[:, :2])
-    infered_acf = acf_func(H, MLE_theta[:, :2])
+    infered_acf = acf_func(H, infered_theta[:, :2])
     acf_differences = np.abs(theoretical_acf - infered_acf)
     # might want to convert these to integrals or to sums
     med_L1_acf = np.median(np.mean(acf_differences, axis=1))
@@ -36,17 +27,18 @@ def compare_point_estimators(folder_path, num_lags=50):
 
     # marginal errors
     marginal_medAEs = np.median(
-        np.abs((true_theta - MLE_theta)[:, 2:]), axis=0)
-    marginal_MAEs = np.mean(np.abs((true_theta - MLE_theta)[:, 2:]), axis=0)
+        np.abs((true_theta - infered_theta)[:, 2:]), axis=0)
+    marginal_MAEs = np.mean(
+        np.abs((true_theta - infered_theta)[:, 2:]), axis=0)
     marginal_MSEs = np.mean(
-        np.square((true_theta - MLE_theta)[:, 2:]), axis=0)**0.5
+        np.square((true_theta - infered_theta)[:, 2:]), axis=0)**0.5
 
     print('Starting KL divergence calculations')
 
     batched_true_thetas = [jnp.array(true_theta[i:i + 100, 2:])
                            for i in range(0, len(true_theta), 100)]
     batched_inferred_thetas = [
-        jnp.array(MLE_theta[i:i + 100, 2:]) for i in range(0, len(infered_acf), 100)]
+        jnp.array(infered_theta[i:i + 100, 2:]) for i in range(0, len(infered_acf), 100)]
 
     forward_kl = []
     rev_kl = []
@@ -78,9 +70,9 @@ def compare_point_estimators(folder_path, num_lags=50):
         'rev_kl': np.mean(rev_kl),
     }
 
-    np.save(os.path.join(results_path, 'acf_estimation_error.npy'),
+    np.save(os.path.join(results_path, mle_or_gmm + '_acf_estimation_error.npy'),
             acf_estimation_error)
-    np.save(os.path.join(results_path, 'marginal_estimation_error.npy'),
+    np.save(os.path.join(results_path, mle_or_gmm + '_marginal_estimation_error.npy'),
             marginal_estimation_error)
     # np.load(os.path.join(results_path,'acf_estimation_error.npy'),allow_pickle=True)
 
@@ -89,4 +81,24 @@ if __name__ == '__main__':
 
     # folder_path = r'/home/leonted/SBI/SBI_for_trawl_processes_and_ambit_fields/models/classifier/TRE_full_trawl/beta_calibrated/results'
     folder_path = r'D:\sbi_ambit\SBI_for_trawl_processes_and_ambit_fields\models\classifier\TRE_full_trawl\beta_calibrated'
+    results_path = os.path.join(folder_path, 'results')
     acf_func = jax.vmap(get_acf('sup_IG'), in_axes=(None, 0))
+
+    MLE = True
+    GMM = False
+    if MLE and not GMM:
+
+        df = pd.read_pickle(os.path.join(results_path, 'MLE_results.pkl'))
+        true_theta = np.array([np.array(i) for i in df.true_theta.values])
+        infered_theta = np.array([np.array(i) for i in df.MLE.values])
+        compare_point_estimators(true_theta, infered_theta, 'MLE')
+
+    elif GMM and not MLE:
+
+        df = pd.read_pickle(os.path.join(results_path, 'GMM_results.pkl'))
+        true_theta = np.array([np.array(i) for i in df.true_theta.values])
+        infered_theta = np.array([np.array(i) for i in df.GMM.values])
+        compare_point_estimators(true_theta, infered_theta, 'GMM')
+
+    else:
+        raise ValueError

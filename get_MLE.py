@@ -134,6 +134,7 @@ if __name__ == '__main__':
 
         count += 1
         if count % 25 == 0:
+            print(count)
             gc.collect()
 
         result_to_add = get_MLE(trawl_subfolder)
