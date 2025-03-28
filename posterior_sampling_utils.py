@@ -97,7 +97,7 @@ def run_mcmc_for_trawl(trawl_idx, true_trawls, approximate_log_likelihood_to_evi
         numpyro.deterministic("log_likelihood", log_likelihood)
         numpyro.factor("likelihood_factor", log_likelihood)
 
-    rng_key = jax.random.PRNGKey(trawl_idx + seed)
+    rng_key = jax.random.PRNGKey(trawl_idx)
     chain_keys = jax.random.split(rng_key, num_chains)
 
     # We need to run for (num_samples + num_burnin) steps after warmup
@@ -107,11 +107,11 @@ def run_mcmc_for_trawl(trawl_idx, true_trawls, approximate_log_likelihood_to_evi
     #                 adapt_step_size=True, adapt_mass_matrix=True, dense_mass=True, num_steps=5)
     nuts_kernel = NUTS(model_vec, step_size=0.075, adapt_step_size=True,
                        adapt_mass_matrix=True, dense_mass=True,  # num_steps = 5)
-                       max_tree_depth=1)  # Adaptive HMC
+                       max_tree_depth=3)  # Adaptive HMC
 
     mcmc = MCMC(nuts_kernel,  # hmc_kernel,
                 num_warmup=num_warmup, num_samples=total_post_warmup,
-                num_chains=num_chains, chain_method='vectorized', progress_bar=True)
+                num_chains=num_chains, chain_method='vectorized', progress_bar=False)
 
     start_time = time.time()
     mcmc.run(chain_keys)
@@ -138,11 +138,11 @@ def run_mcmc_for_trawl(trawl_idx, true_trawls, approximate_log_likelihood_to_evi
 
     # Gather results
     results = {
-        'posterior_samples': all_samples,
+        'posterior_samples': posterior_samples,
         'runtime': end_time - start_time,
-        'ess_bulk': az.ess(az.from_numpyro(mcmc), method="bulk"),
-        'ess_tail': az.ess(az.from_numpyro(mcmc), method="tail"),
-        'rhat': az.rhat(az.from_numpyro(mcmc)),
+        'ess_bulk': az.ess(posterior_samples,method="bulk"), #az.ess(az.from_numpyro(mcmc), method="bulk"),
+        'ess_tail': az.ess(posterior_samples,method="tail"),#az.ess(az.from_numpyro(mcmc), method="tail"),
+        'rhat': az.rhat(posterior_samples), #az.rhat(az.from_numpyro(mcmc)),
         'log_likelihood_samples': log_likelihood_at_samples,
         'true_log_like': log_liked_at_true_params,
         'coverage': np.sum(log_liked_at_true_params < log_likelihood_at_samples) / np.prod(log_likelihood_at_samples.shape)

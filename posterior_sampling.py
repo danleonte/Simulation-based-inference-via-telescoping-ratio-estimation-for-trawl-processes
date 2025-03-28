@@ -10,8 +10,8 @@ from src.utils.get_trained_models import load_trained_models_for_posterior_infer
 def main(start_idx, end_idx):
 
     # Load configuration
-    folder_path = r'/home/leonted/SBI/SBI_for_trawl_processes_and_ambit_fields/models/classifier/NRE_full_trawl/beta_calibrated'
-    # folder_path = r'D:\sbi_ambit\SBI_for_trawl_processes_and_ambit_fields\models\classifier\TRE_full_trawl\beta_calibrated'
+    folder_path = r'/home/leonted/SBI/SBI_for_trawl_processes_and_ambit_fields/models/classifier/TRE_full_trawl/beta_calibrated'
+    #folder_path = r'D:\sbi_ambit\SBI_for_trawl_processes_and_ambit_fields\models\classifier\TRE_full_trawl\beta_calibrated'
 
     # Set up model configuration
     use_tre = 'TRE' in folder_path
@@ -54,11 +54,11 @@ def main(start_idx, end_idx):
     )
 
     # MCMC parameters
-    num_samples = 2500  # 7500
-    num_warmup = 1750  # 2500
-    num_burnin = 1750  # 2500
-    num_chains = 25  # 25
-    seed = 1411  # this gets chaged inside the posterior_sampling_utils
+    num_samples = 6000  # 7500
+    num_warmup = 2000  # 2500
+    num_burnin = 2000  # 2500
+    num_chains = 75  # 25
+    seed = 25246  # this gets chaged inside the posterior_sampling_utils
 
     if end_idx <= start_idx:
         print(f": No trawls assigned.")

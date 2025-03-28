@@ -84,7 +84,7 @@ def main():
     start_idx = int(sys.argv[1])
     end_idx = int(sys.argv[2])
     task_id = int(sys.argv[3])
-    total_tasks = 15  # Total number of cores/tasks
+    total_tasks = 128  # Total number of cores/tasks
 
     print(
         f"DEBUG: Python received args: start_idx={start_idx}, end_idx={end_idx}, task_id={task_id}")
@@ -92,11 +92,14 @@ def main():
     # Calculate the trawl indices for this task
     total_trawls = end_idx - start_idx + 1
     all_ranges = np.array_split(range(start_idx, end_idx + 1), total_tasks)
+    print(f"DEBUG: Total trawls to process: {total_trawls}")
+    print(f"DEBUG: Number of tasks: {total_tasks}")
     print(
         f"DEBUG: Split ranges for all tasks: {[list(r) for r in all_ranges]}")
 
     indices = all_ranges[task_id]
     print(f"DEBUG: Task {task_id} received indices: {list(indices)}")
+    print(f"DEBUG: Length of all_ranges: {len(all_ranges)}")
 
     if len(indices) == 0:
         print(f"Task {task_id}: No trawls assigned.")
@@ -148,11 +151,11 @@ def main():
     )
 
     # MCMC parameters
-    num_samples = 2500  # Adjust as needed
+    num_samples = 5000  # Adjust as needed
     num_warmup = 1750
-    num_burnin = 1750
-    num_chains = 25
-    seed = 1411
+    num_burnin = 1250
+    num_chains = 30
+    seed = 13414
 
     # Process assigned batch
     process_batch(

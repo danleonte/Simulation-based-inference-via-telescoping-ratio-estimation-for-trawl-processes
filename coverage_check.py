@@ -34,7 +34,7 @@ for i, trawl_folder in enumerate(trawl_folders):
             ranks.append(coverage_value)
             
         # Force garbage collection every 100 iterations
-        if i % 100 == 0:
+        if i % 25 == 0:
             gc.collect()
     except Exception as e:
         print(f"Error with {trawl_folder}: {e}")
@@ -46,7 +46,7 @@ print(f"Successfully processed {len(ranks)} folders")
 if ranks:
     ranks = np.array(ranks)  # Convert to numpy array for vector operations
     
-    num_points = 11
+    num_points = 21
     theoretical_coverages = np.linspace(0, 1, num_points)
     empirical_coverages = []
     for alpha in theoretical_coverages:
