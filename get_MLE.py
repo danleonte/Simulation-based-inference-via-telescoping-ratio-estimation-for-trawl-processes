@@ -54,29 +54,34 @@ def get_MLE(trawl_subfolder):
     # SANITY CHECK
     assert 0.9999 * max_mcmc_value < approximate_log_likelihood_to_evidence(
         true_trawl[jnp.newaxis, :], mcmc_starting_point[jnp.newaxis, :]).item(), trawl_subfolder
-
     # BECAUSE WE HAD TO SWAP ETA AND GAMMA HERE
-    func_to_optimize = minus_like_with_grad_wrapper(true_trawl)
 
-    # Use method that accepts gradients
-    result_from_mcmc = minimize(func_to_optimize, np.array(mcmc_starting_point),
-                                method='L-BFGS-B', jac=True, bounds=((10, 20), (10, 20), (-1, 1), (0.5, 1.5), (-5, 5)))
+    do_bfgs = False
+    if do_bfgs:
+        func_to_optimize = minus_like_with_grad_wrapper(true_trawl)
 
-    result_from_true = minimize(func_to_optimize, np.array(true_theta),
-                                method='L-BFGS-B', jac=True, bounds=((10, 20), (10, 20), (-1, 1), (0.5, 1.5), (-5, 5)))
+        # Use method that accepts gradients
+        result_from_mcmc = minimize(func_to_optimize, np.array(mcmc_starting_point),
+                                    method='L-BFGS-B', jac=True, bounds=((10, 20), (10, 20), (-1, 1), (0.5, 1.5), (-5, 5)))
 
-    likelihoods = [max_mcmc_value, -
-                   result_from_mcmc.fun, - result_from_true.fun]
-    thetas = [mcmc_starting_point, result_from_mcmc.x, result_from_true.x]
+        result_from_true = minimize(func_to_optimize, np.array(true_theta),
+                                    method='L-BFGS-B', jac=True, bounds=((10, 20), (10, 20), (-1, 1), (0.5, 1.5), (-5, 5)))
 
-    best_index = np.argmax(likelihoods)
-    return trawl_idx, true_theta, thetas[best_index], likelihoods[best_index]
+        likelihoods = [max_mcmc_value, -
+                       result_from_mcmc.fun, - result_from_true.fun]
+        thetas = [mcmc_starting_point, result_from_mcmc.x, result_from_true.x]
+
+        best_index = np.argmax(likelihoods)
+        return trawl_idx, true_theta, thetas[best_index], likelihoods[best_index]
+
+    else:
+        return trawl_idx, true_theta, mcmc_starting_point, max_mcmc_value
 
 
 if __name__ == '__main__':
 
     folder_path = r'/home/leonted/SBI/SBI_for_trawl_processes_and_ambit_fields/models/classifier/TRE_full_trawl/beta_calibrated'
-    #folder_path = r'D:\sbi_ambit\SBI_for_trawl_processes_and_ambit_fields\models\classifier\TRE_full_trawl\beta_calibrated'
+    # folder_path = r'D:\sbi_ambit\SBI_for_trawl_processes_and_ambit_fields\models\classifier\TRE_full_trawl\beta_calibrated'
 
     # r'/home/leonted/SBI/SBI_for_trawl_processes_and_ambit_fields/models/classifier/TRE_full_trawl/beta_calibrated/'
     # Get all matching folders
@@ -136,7 +141,6 @@ if __name__ == '__main__':
         if count % 25 == 1:
             print(count)
             gc.collect()
-            
 
         result_to_add = get_MLE(trawl_subfolder)
 
