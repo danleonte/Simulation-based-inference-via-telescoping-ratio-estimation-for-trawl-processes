@@ -75,8 +75,8 @@ def get_MLE(trawl_subfolder):
 
 if __name__ == '__main__':
 
-    # folder_path = r'/home/leonted/SBI/SBI_for_trawl_processes_and_ambit_fields/models/classifier/TRE_full_trawl/beta_calibrated'
-    folder_path = r'D:\sbi_ambit\SBI_for_trawl_processes_and_ambit_fields\models\classifier\TRE_full_trawl\beta_calibrated'
+    folder_path = r'/home/leonted/SBI/SBI_for_trawl_processes_and_ambit_fields/models/classifier/TRE_full_trawl/beta_calibrated'
+    #folder_path = r'D:\sbi_ambit\SBI_for_trawl_processes_and_ambit_fields\models\classifier\TRE_full_trawl\beta_calibrated'
 
     # r'/home/leonted/SBI/SBI_for_trawl_processes_and_ambit_fields/models/classifier/TRE_full_trawl/beta_calibrated/'
     # Get all matching folders
@@ -133,9 +133,10 @@ if __name__ == '__main__':
     for trawl_subfolder in trawl_subfolders:
 
         count += 1
-        if count % 25 == 0:
+        if count % 25 == 1:
             print(count)
             gc.collect()
+            
 
         result_to_add = get_MLE(trawl_subfolder)
 
