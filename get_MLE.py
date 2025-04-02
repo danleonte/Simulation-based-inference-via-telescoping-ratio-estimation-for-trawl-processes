@@ -45,6 +45,10 @@ def get_MLE(trawl_subfolder):
 
     # THE NAMES OF GAMMA AND ETA ARE SWAPPED IN MODEL VEC
     # SWAP GAMMA AND ETA IN MCMC
+
+    diff = results['posterior_samples']['sigma'].shape[1] - \
+        results['log_likelihood_samples'].shape[1]
+    max_index = (max_index[0], max_index[1]+diff)
     mcmc_starting_point = jnp.array([results['posterior_samples'][key][max_index] for key in
                                      ['eta', 'gamma', 'mu', 'sigma', 'beta']])
 
@@ -80,8 +84,8 @@ def get_MLE(trawl_subfolder):
 
 if __name__ == '__main__':
 
-    folder_path = r'/home/leonted/SBI/SBI_for_trawl_processes_and_ambit_fields/models/classifier/TRE_full_trawl/beta_calibrated'
-    # folder_path = r'D:\sbi_ambit\SBI_for_trawl_processes_and_ambit_fields\models\classifier\TRE_full_trawl\beta_calibrated'
+    # folder_path = r'/home/leonted/SBI/SBI_for_trawl_processes_and_ambit_fields/models/classifier/NRE_full_trawl/uncalibrated'
+    folder_path = r'D:\sbi_ambit\SBI_for_trawl_processes_and_ambit_fields\models\classifier\NRE_full_trawl\uncalibrated'
 
     # r'/home/leonted/SBI/SBI_for_trawl_processes_and_ambit_fields/models/classifier/TRE_full_trawl/beta_calibrated/'
     # Get all matching folders

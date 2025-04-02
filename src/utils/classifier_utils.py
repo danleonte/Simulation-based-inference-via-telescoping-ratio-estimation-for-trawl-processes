@@ -27,11 +27,11 @@ from src.utils.trawl_training_utils import loss_functions_wrapper
 ###############################################################################
 
 
-def get_projection_function():
+def get_projection_function(path__="best_model"):
 
     summary_path = os.path.join("models", "summary_statistics")
     acf_path = os.path.join(summary_path, "learn_acf", "best_model")
-    marginal_path = os.path.join(summary_path, "learn_marginal", "best_model")
+    marginal_path = os.path.join(summary_path, "learn_marginal", path__)
 
     # Load configs
     with open(os.path.join(acf_path, "config.yaml"), 'r') as f:

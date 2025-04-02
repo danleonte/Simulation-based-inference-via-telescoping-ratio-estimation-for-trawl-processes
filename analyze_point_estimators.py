@@ -11,7 +11,7 @@ from src.utils.acf_functions import get_acf
 from src.utils.KL_divergence import vec_monte_carlo_kl_3_param_nig
 
 
-def compare_point_estimators(true_theta, infered_theta, mle_or_gmm, num_lags=50):
+def compare_point_estimators(true_theta, infered_theta, mle_or_gmm, num_lags=35):
 
     # acf errors
     H = np.arange(1, num_lags + 1)
@@ -80,7 +80,7 @@ def compare_point_estimators(true_theta, infered_theta, mle_or_gmm, num_lags=50)
 if __name__ == '__main__':
 
     # folder_path = r'/home/leonted/SBI/SBI_for_trawl_processes_and_ambit_fields/models/classifier/TRE_full_trawl/beta_calibrated/results'
-    folder_path = r'D:\sbi_ambit\SBI_for_trawl_processes_and_ambit_fields\models\classifier\TRE_full_trawl\beta_calibrated'
+    folder_path = r'D:\sbi_ambit\SBI_for_trawl_processes_and_ambit_fields\models\classifier\NRE_full_trawl\uncalibrated'
     results_path = os.path.join(folder_path, 'results')
     acf_func = jax.vmap(get_acf('sup_IG'), in_axes=(None, 0))
 
