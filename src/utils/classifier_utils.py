@@ -27,7 +27,7 @@ from src.utils.trawl_training_utils import loss_functions_wrapper
 ###############################################################################
 
 
-def get_projection_function(path__="best_model"):
+def get_projection_function(path__):
 
     summary_path = os.path.join("models", "summary_statistics")
     acf_path = os.path.join(summary_path, "learn_acf", "best_model")
