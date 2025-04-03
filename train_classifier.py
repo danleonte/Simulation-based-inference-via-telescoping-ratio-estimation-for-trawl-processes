@@ -509,7 +509,7 @@ def train_classifier(classifier_config):
 
                 ################## diagnosing classifiers #################
 
-                if iteration > 5000 and (iteration % (2 * val_freq) == 0):
+                if iteration > 2000 and (iteration % (2 * val_freq) == 0):
                     # Check if run stopped before plotting
                     # if check_if_run_stopped():
                     #    print(
@@ -600,7 +600,7 @@ if __name__ == "__main__":
     from copy import deepcopy
 
     # Load config file
-    classifier_config_file_path = r'config_files/classifier/TRE_summary_statistics/acf/base_acf_config_Dense.yaml'
+    classifier_config_file_path = r'config_files/classifier/TRE_summary_statistics/beta/base_beta_config_Dense.yaml'
 
     with open(classifier_config_file_path, 'r') as f:
         base_config = yaml.safe_load(f)
@@ -643,11 +643,11 @@ if __name__ == "__main__":
                                        16, 8, 4], [12, 8, 4, 2],
                                    [64, 24, 12, 6, 2], [48, 24, 12, 6, 2]):
 
-            for dropout_rate in (0.025,  0.15):
+            for dropout_rate in (0.05,  0.1):
 
-                for lr in (0.001,  0.00005):
+                for lr in (0.005,  0.000025):
 
-                    for alpha in (0.05, 0.005):
+                    for alpha in (0.005, 0.01):
 
                         config_to_use = deepcopy(base_config)
 

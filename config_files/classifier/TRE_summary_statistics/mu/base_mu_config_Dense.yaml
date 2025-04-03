@@ -30,7 +30,7 @@ model_config:
    dropout_rate: 0.1
    with_theta: True
 train_config:
-  n_iterations: 50001 
+  n_iterations: 40001 
 val_config:
   val_freq: 500
   val_n_batches: 40
