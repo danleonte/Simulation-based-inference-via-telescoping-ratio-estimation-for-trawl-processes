@@ -45,7 +45,7 @@ if __name__ == '__main__':
     paths_to_check = []
 
     root_folder = os.path.join(
-        os.path.dirname(os.path.dirname(os.getcwd())), 'models', 'summary_statistics', 'learn_marginal')
+        os.path.dirname(os.path.dirname(os.getcwd())), 'models', 'summary_statistics', 'learn_marginal','direct')
 
     result = find_min_loss_summary_stats(root_folder)
     output_file = os.path.join(root_folder,   os.path.join(
