@@ -600,7 +600,7 @@ if __name__ == "__main__":
     from copy import deepcopy
 
     # Load config file
-    classifier_config_file_path = r'config_files/classifier/TRE_summary_statistics/beta/base_beta_config_Dense.yaml'
+    classifier_config_file_path = r'config_files/classifier/TRE_summary_statistics/scale/base_scale_config_Dense.yaml'
 
     with open(classifier_config_file_path, 'r') as f:
         base_config = yaml.safe_load(f)
@@ -638,14 +638,13 @@ if __name__ == "__main__":
 
     elif model_name == 'DenseModel':
 
-        for linear_layer_sizes in ([64, 32, 16, 8], [48, 24, 12, 6], [128, 64, 32, 16, 4],
-                                   [24, 12, 8, 6], [32, 24, 16, 8, 4], [
-                                       16, 8, 4], [12, 8, 4, 2],
-                                   [64, 24, 12, 6, 2], [48, 24, 12, 6, 2]):
+        for linear_layer_sizes in ([8,4,3,2],[16, 8, 4, 2], [32, 24, 12, 6, 2], [128, 32, 12, 6, 2], 
+                                    [64, 32, 16, 8], [48, 24, 12, 6], [32, 16, 4],
+                                   [24, 12, 8, 6], [32, 24, 16, 8, 4], [16, 8, 4]):
 
             for dropout_rate in (0.05,  0.1):
 
-                for lr in (0.005,  0.000025):
+                for lr in (0.00025,):#  0.000025):
 
                     for alpha in (0.005, 0.01):
 
