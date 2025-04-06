@@ -103,7 +103,7 @@ def train_classifier(classifier_config):
 
         #################          Initialize wandb           #################
         timestamp = datetime.datetime.now().strftime("%m_%d_%H_%M_%S")
-        project_name = "classifier_" + \
+        project_name = "variable_classifier_" + \
             ('tre_' + tre_type if use_tre else 'nre') + \
             (
                 '_with_summary_statistics' + summary_stats_type if use_summary_statistics else
@@ -121,7 +121,7 @@ def train_classifier(classifier_config):
 
         # Create directory for validation data and model checkpoints
 
-        base_checkpoint_dir = os.path.join("models", 'classifier')
+        base_checkpoint_dir = os.path.join("models", 'variable_len_classifier')
         checkpoint_subdir = 'summary_statistics' + \
             summary_stats_type if use_summary_statistics else 'full_trawl'
 
@@ -160,6 +160,7 @@ def train_classifier(classifier_config):
         val_freq = classifier_config["val_config"]["val_freq"]
         val_key = jax.random.split(
             PRNGKey(classifier_config['prng_key'] + 10), batch_size)
+        val_lens = [1500, 2750, 4000, 5000]
 
         if not (os.path.isfile(val_trawls_path) and os.path.isfile(val_thetas_path)):
 
@@ -170,8 +171,8 @@ def train_classifier(classifier_config):
                 theta_acf_val, val_key = theta_acf_simulator(val_key)
                 theta_marginal_jax_val, theta_marginal_tf_val, val_key = theta_marginal_simulator(
                     val_key)
-                trawl_val, val_key = trawl_simulator(
-                    theta_acf_val, theta_marginal_tf_val, val_key)
+                trawl_val, val_key = trawl_simulator(val_lens[-1],
+                                                     theta_acf_val, theta_marginal_tf_val, val_key)
 
                 theta_val = jnp.concatenate(
                     [theta_acf_val, theta_marginal_jax_val], axis=1)
@@ -210,7 +211,14 @@ def train_classifier(classifier_config):
             val_trawls.append(trawl_val)
 
         val_trawls = jnp.array(val_trawls)
+
+        variable_len_val_trawls = dict()
+        for len_ in val_lens:
+            variable_len_val_trawls[len_] = val_trawls[:, :, :len_]
+
         del _val_trawls
+        del val_trawls
+
         #######################################################################
         #                        Get model                                    #
         #######################################################################
@@ -241,7 +249,8 @@ def train_classifier(classifier_config):
 
             # Initialize parameters
             # don't use val_key afterwards
-            params = model.init(val_key[0], val_trawls[0], val_thetas[0])
+            params = model.init(
+                val_key[0], variable_len_val_trawls[len_][0], val_thetas[0])
 
             # Initialize optimizer
         lr = classifier_config["optimizer"]["lr"]
@@ -294,7 +303,7 @@ def train_classifier(classifier_config):
         # @partial(jax.jit, static_argnames=('train'))
         def compute_loss(params, trawl, theta, Y, dropout_rng, train):
             """Base loss function without gradients."""
-            pred_Y = state.apply_fn(
+            pred_Y, x_cached_to_ignore = state.apply_fn(
                 params,
                 trawl,
                 theta,
@@ -318,8 +327,9 @@ def train_classifier(classifier_config):
 
             return bce_loss, (S, B, accuracy, classifier_output)
 
-        compute_loss_and_grad = jax.jit(jax.value_and_grad(
-            compute_loss, has_aux=True), static_argnames=('train',))
+        # compute_loss_and_grad = jax.jit(jax.value_and_grad(
+        #    compute_loss, has_aux=True), static_argnames=('train',))
+        compute_loss_and_grad = jax.value_and_grad(compute_loss, has_aux=True)
 
         ################### helper for validations ############################
 
@@ -473,7 +483,7 @@ def train_classifier(classifier_config):
             #               Validation  inside the training loop              #
             ###################################################################
             # Compute validation loss periodically
-            if iteration > 5000 and iteration % val_freq == 0:
+            if iteration > 1000 and iteration % val_freq == 0:
                 # Check if run stopped before starting validation
                 # if check_if_run_stopped():
                 #    print(
@@ -481,21 +491,26 @@ def train_classifier(classifier_config):
                 #    wandb.finish()
                 #    return None
 
-                val_bce, val_std_bce, val_S, val_std_S, val_B, val_std_B, val_acc, val_std_acc, all_classifier_outputs = compute_validation_loss(
-                    params, val_trawls, val_thetas)
+                all_classifier_outputs_dict = dict()
+                for len_ in val_lens:
 
-                # metrics.update({
-                #    "val_metrics/val_bce_loss": val_loss.item(),
-                #    "val_metrics/val_bce_upper": val_loss.item() + 1.96 * val_loss_std.item() / val_trawls.shape[0]**0.5,
-                #    "val_metrics/val_bce_lower": val_loss.item() - 1.96 * val_loss_std.item() / val_trawls.shape[0]**0.5,
-                # })
+                    val_bce, val_std_bce, val_S, val_std_S, val_B, val_std_B, val_acc, val_std_acc, all_classifier_outputs = compute_validation_loss(
+                        params, variable_len_val_trawls[len_], val_thetas)
 
-                metrics.update({
-                    "val_bce": val_bce.item(),
-                    "val_S": val_S.item(),
-                    "val_B": val_B.item(),
-                    "val_acc": val_acc.item()
-                })
+                    all_classifier_outputs_dict[len_] = all_classifier_outputs
+
+                    metrics.update({
+                        f"val_bce_{len_}": val_bce.item(),
+                        f"val_S_{len_}": val_S.item(),
+                        f"val_B_{len_}": val_B.item(),
+                        f"val_acc_{len_}": val_acc.item()
+                    })
+
+                    # metrics.update({
+                    #    "val_metrics/val_bce_loss": val_loss.item(),
+                    #    "val_metrics/val_bce_upper": val_loss.item() + 1.96 * val_loss_std.item() / val_trawls.shape[0]**0.5,
+                    #    "val_metrics/val_bce_lower": val_loss.item() - 1.96 * val_loss_std.item() / val_trawls.shape[0]**0.5,
+                    # })
 
                 # Save just the parameters instead of full state
                 params_filename = os.path.join(
@@ -518,50 +533,51 @@ def train_classifier(classifier_config):
                     #    wandb.finish()
                     #    return None
                     print('plotting reliability diagrams')
+                    for len_ in val_lens:
 
-                    Y_calibration = jnp.hstack(
-                        [jnp.ones([batch_size]), jnp.zeros([batch_size])])
-                    Y_calibration = np.concatenate(
-                        [Y_calibration]*len(val_trawls))
+                        Y_calibration = jnp.hstack(
+                            [jnp.ones([batch_size]), jnp.zeros([batch_size])])
+                        Y_calibration = np.concatenate(
+                            [Y_calibration]*len(variable_len_val_trawls[len_]))
 
-                    all_classifier_outputs = np.array(
-                        all_classifier_outputs)
+                        all_classifier_outputs = np.array(
+                            all_classifier_outputs_dict[len_])
 
-                    # Reliability diagram with equal intervals
-                    # diagram_eq = ReliabilityDiagram(
-                    #    15, equal_intervals=False)
-                    # fig_eq = diagram_eq.plot(
-                    #    all_classifier_outputs, Y_calibration).get_figure()
-                    # fig_eq.canvas.draw()  # Force render
-                    # wandb.log({"Diagram eq": wandb.Image(fig_eq)},
-                    #          step=iteration)  # Add step
-                    # plt.close(fig_eq)
+                        # Reliability diagram with equal intervals
+                        # diagram_eq = ReliabilityDiagram(
+                        #    15, equal_intervals=False)
+                        # fig_eq = diagram_eq.plot(
+                        #    all_classifier_outputs, Y_calibration).get_figure()
+                        # fig_eq.canvas.draw()  # Force render
+                        # wandb.log({"Diagram eq": wandb.Image(fig_eq)},
+                        #          step=iteration)  # Add step
+                        # plt.close(fig_eq)
 
-                    # Reliability diagram with unequal intervals
-                    diagram_un = ReliabilityDiagram(
-                        15, equal_intervals=True)
-                    fig_un = diagram_un.plot(
-                        all_classifier_outputs, Y_calibration).get_figure()
-                    fig_un.canvas.draw()  # Force render
-                    wandb.log({"Diagram uneq": wandb.Image(
-                        fig_un)}, step=iteration)  # Add step
-                    plt.close(fig_un)
+                        # Reliability diagram with unequal intervals
+                        diagram_un = ReliabilityDiagram(
+                            15, equal_intervals=True)
+                        fig_un = diagram_un.plot(
+                            all_classifier_outputs, Y_calibration).get_figure()
+                        fig_un.canvas.draw()  # Force render
+                        wandb.log({f"Diagram uneq_{len_}": wandb.Image(
+                            fig_un)}, step=iteration)  # Add step
+                        plt.close(fig_un)
 
-                    # Histogram
-                    # hist_beta, ax = plt.subplots()
-                    # ax.hist(
-                    #    all_classifier_outputs[Y_calibration == 1], label='Y=1', alpha=0.5, density=True)
-                    # ax.hist(
-                    #    all_classifier_outputs[Y_calibration == 0], label='Y=0', alpha=0.5, density=True)
-                    # ax.set_title(
-                    #    r'Histogram of $c(\mathbf{x},\mathbf{\theta})$ classifier')
-                    # ax.legend(loc='upper center')
-                    # hist_beta.canvas.draw()  # Force render
-                    # wandb.log({"Histogram": wandb.Image(hist_beta)},
-                    #          step=iteration)  # Add step
-                    # plt.close(hist_beta)
+                        # Histogram
+                        # hist_beta, ax = plt.subplots()
+                        # ax.hist(
+                        #    all_classifier_outputs[Y_calibration == 1], label='Y=1', alpha=0.5, density=True)
+                        # ax.hist(
+                        #    all_classifier_outputs[Y_calibration == 0], label='Y=0', alpha=0.5, density=True)
+                        # ax.set_title(
+                        #    r'Histogram of $c(\mathbf{x},\mathbf{\theta})$ classifier')
+                        # ax.legend(loc='upper center')
+                        # hist_beta.canvas.draw()  # Force render
+                        # wandb.log({"Histogram": wandb.Image(hist_beta)},
+                        #          step=iteration)  # Add step
+                        # plt.close(hist_beta)
 
-                    # Log metrics to W&B
+                        # Log metrics to W&B
             try:
                 wandb.log(metrics)
             except Exception as e:
@@ -611,10 +627,11 @@ if __name__ == "__main__":
 
     if model_name == 'VariableLSTMModel':
 
-        for lstm_hidden_size in (128, 32):
-            for num_lstm_layers in (3, 2):
-                for increased_size in (16, 32, 64, 128):
-                    for linear_layer_sizes in ([32, 16, 8, 4], [64, 32, 16, 8, 4], [128, 48, 32, 15, 8, 4, 2]):
+        for lstm_hidden_size in (64, 32, 16):
+            for num_lstm_layers in (3, 2, 4):
+                for increased_size in (8, 16, 32, 64):
+                    for linear_layer_sizes in ([32, 16, 8, 4], [64, 32, 16, 8, 4], [128, 48, 32, 15, 8, 4, 2],
+                                               [32, 16, 8, 4, 2], [64, 32, 16, 8, 4, 2]):
                         for mean_aggregation in (False,):  # True):
                             for dropout_rate in (0.05,):  # 0.2):
                                 for lr in (0.00025,):  # 0.0005):

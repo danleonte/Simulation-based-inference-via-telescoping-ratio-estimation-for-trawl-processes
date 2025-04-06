@@ -7,10 +7,10 @@ tre_config:
   nlags: 35
 trawl_config:
   tau: 1.0
-  seq_len: 1500
+  seq_len_bounds: [1500, 5000]
   input_size: 5
   theta_size: 5
-  batch_size: 64
+  batch_size: 6
   marginal_distr: NIG
   acf: sup_IG
   trawl_process_type: sup_ig_nig_5p
@@ -33,10 +33,10 @@ model_config:
   final_output_size: 1
   dropout_rate: 0.105
 train_config:
-  n_iterations: 30001 
+  n_iterations: 40001 
 val_config:
   val_freq: 500
-  val_n_batches: 40
+  val_n_batches: 6
 optimizer:
   name: adam
   lr: 0.0015
