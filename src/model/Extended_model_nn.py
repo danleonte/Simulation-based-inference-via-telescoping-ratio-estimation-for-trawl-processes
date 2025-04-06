@@ -78,3 +78,24 @@ class ExtendedModel(nn.Module):
         theta = chop_theta(theta, self.tre_type, self.trawl_process_type)
 
         return self.base_model(x, theta, train)
+
+
+class VariableExtendedModel(nn.Module):
+    base_model: nn.Module
+    # String parameter in constructor ;can be one of mu, sigma, beta, acf or nre
+    trawl_process_type: str
+    tre_type: str
+    use_summary_statistics: bool
+
+    def setup(self):
+        pass  # This is required in Flax when using only static fields
+
+    def __call__(self, x, theta, train: bool = False):
+
+        # if not self.use_summary_statistics:
+        #    x = variable_modify_x(x, theta, self.tre_type, self.trawl_process_type)
+
+        # only after modifying x
+        theta = chop_theta(theta, self.tre_type, self.trawl_process_type)
+
+        return self.base_model(x, theta, train)
