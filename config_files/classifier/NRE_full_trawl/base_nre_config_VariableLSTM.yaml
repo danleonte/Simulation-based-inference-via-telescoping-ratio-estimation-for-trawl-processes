@@ -7,10 +7,10 @@ tre_config:
   nlags: 35
 trawl_config:
   tau: 1.0
-  seq_len_bounds: [1500, 5000]
+  seq_len_bounds: [1500, 3500]
   input_size: 5
   theta_size: 5
-  batch_size: 64
+  batch_size: 32
   marginal_distr: NIG
   acf: sup_IG
   trawl_process_type: sup_ig_nig_5p

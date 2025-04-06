@@ -160,7 +160,7 @@ def train_classifier(classifier_config):
         val_freq = classifier_config["val_config"]["val_freq"]
         val_key = jax.random.split(
             PRNGKey(classifier_config['prng_key'] + 10), batch_size)
-        val_lens = [1500, 2750, 4000, 5000]
+        val_lens = [1500, 2500, 3500]
 
         if not (os.path.isfile(val_trawls_path) and os.path.isfile(val_thetas_path)):
 
