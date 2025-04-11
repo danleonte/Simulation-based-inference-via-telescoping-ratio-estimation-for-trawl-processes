@@ -134,8 +134,9 @@ def get_variable_size_theta_and_trawl_generator(config):
         # partially_applied_slice_sample = partial(
         #    slice_sample_sup_ig_nig_trawl, tau=tau)
 
-        trawl_simulator = jax.vmap(slice_sample_sup_ig_nig_trawl,
-                                   in_axes=(None, None, 0, 0, 0))
+        trawl_simulator = jax.jit(jax.vmap(slice_sample_sup_ig_nig_trawl,
+                                           in_axes=(None, None, 0, 0, 0)),
+                                  static_argnames=('nr_trawls', 'tau'))
 
         # acf hyperparams
         acf_hyperparams = trawl_config['acf_prior_hyperparams']
@@ -167,10 +168,10 @@ def get_variable_size_theta_and_trawl_generator(config):
                                                                                       test_key_marginal)
 
         trawl_test, _ = trawl_simulator(
-            1000, tau, theta_acf_test, theta_marginal_tf_test, test_key_trawl)
+            1500, tau, theta_acf_test, theta_marginal_tf_test, test_key_trawl)
 
-        def partial_trawl_simulator(nr_trawls,  theta_acf_test, theta_marginak_test, test_key_trawl): return trawl_simulator(
-            nr_trawls, 1.0, theta_acf_test, theta_marginal_tf_test, test_key_trawl)
+        # def partial_trawl_simulator(nr_trawls,  theta_acf_test, theta_marginak_test, test_key_trawl): return trawl_simulator(
+        #    nr_trawls, 1.0, theta_acf_test, theta_marginal_tf_test, test_key_trawl)
 
         # once the simulatior functions have been compiled, we can apply the
         # partial function; not sure jax.jit(jax.vmap()) and partial are commutative operations
@@ -196,7 +197,8 @@ def get_variable_size_theta_and_trawl_generator(config):
         # trawl_simulator = partial(
         #    trawl_simulator,  tau=tau)
 
-        return theta_acf_simulator, theta_marginal_simulator, partial_trawl_simulator
+        # partial_trawl_simulator
+        return theta_acf_simulator, theta_marginal_simulator, trawl_simulator
 
     else:
         raise ValueError('not yet implemented')

@@ -47,8 +47,16 @@ class VariableLSTMModel(nn.Module):
         self.output_layer = nn.Dense(features=self.final_output_size)
 
     def __call__(self, x, theta, x_cache=None, train: bool = False):
-        # Expand 2D input to 3D if necessary
-        if x_cache is None:
+
+        if x is None:
+            if x_cache is None:
+                # will only be triggered during compilation
+                raise ValueError("Either x or x_cache must be provided")
+
+                return jnp.nan
+
+        else:
+            # Expand 2D input to 3D if necessary
             if x.ndim == 2:
                 x = jnp.expand_dims(x, axis=-1)
 
@@ -114,18 +122,25 @@ if __name__ == "__main__":
     # Generate dummy data
     key = jax.random.PRNGKey(0)
     # batch_size, seq_len, fake dimension
-    dummy_input = jax.random.normal(key, (32, 10, 1))
+    dummy_input = jax.random.normal(key, (32, 1000, 1))
     dummy_theta = jax.random.normal(key, (32, 5))  # batch_size, theta_size
 
     # Initialize parameters
     params = model.init(key, dummy_input, dummy_theta)
 
-    output, stored_x = model.apply(params, dummy_input, dummy_theta)
+    output, x_cache = model.apply(params, dummy_input, dummy_theta)
 
-    # Define JIT-ed apply functions
+    # Define JIT-ed apply functions that can handle both cases
+
     @jax.jit
-    def apply_model(params, theta, stored_x):
-        return model.apply(params, dummy_input, theta, stored_x)
+    def apply_model_with_x(params, x, theta):
+        """Apply model with a new x input, returning output and x_cache."""
+        return model.apply(params, x, theta)
 
-    outputs_with_theta = apply_model(
-        params, dummy_theta, stored_x)
+    @jax.jit
+    def apply_model_with_x_cache(params, theta, x_cache):
+        """Apply model with cached x representation, returning output and updated x_cache."""
+        return model.apply(params, None, theta, x_cache=x_cache)
+
+    output, _ = apply_model_with_x_cache(
+        params, dummy_theta, x_cache)

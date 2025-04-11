@@ -95,6 +95,10 @@ def train_classifier(classifier_config):
         replace_acf = tre_config['replace_full_trawl_with_acf']
         nlags = tre_config['nlags'],
         summary_stats_type = ''
+        trawl_config = classifier_config['trawl_config']
+        variable_seq_len = trawl_config['variable_seq_len']
+
+        prefix = 'variable_len_classifier' if variable_seq_len else 'new_classifier'
 
         if use_summary_statistics:
             project_trawl = get_projection_function(
@@ -103,8 +107,8 @@ def train_classifier(classifier_config):
 
         #################          Initialize wandb           #################
         timestamp = datetime.datetime.now().strftime("%m_%d_%H_%M_%S")
-        project_name = "variable_classifier_" + \
-            ('tre_' + tre_type if use_tre else 'nre') + \
+        project_name = prefix + \
+            ('_tre_' + tre_type if use_tre else '_nre') + \
             (
                 '_with_summary_statistics' + summary_stats_type if use_summary_statistics else
                 '_with_full_trawl'
@@ -121,7 +125,7 @@ def train_classifier(classifier_config):
 
         # Create directory for validation data and model checkpoints
 
-        base_checkpoint_dir = os.path.join("models", 'variable_len_classifier')
+        base_checkpoint_dir = os.path.join("models", prefix)
         checkpoint_subdir = 'summary_statistics' + \
             summary_stats_type if use_summary_statistics else 'full_trawl'
 
@@ -147,9 +151,9 @@ def train_classifier(classifier_config):
         #                      Generate validation data                       #
         #######################################################################
         # Get params and hyperparams for the data generating process
-        trawl_config = classifier_config['trawl_config']
         batch_size = trawl_config['batch_size']
         seq_len_bounds = trawl_config['seq_len_bounds']
+        num_seq_lens = trawl_config['num_seq_lens']
 
         # Get data generators
         theta_acf_simulator, theta_marginal_simulator, trawl_simulator = get_variable_size_theta_and_trawl_generator(
@@ -160,7 +164,15 @@ def train_classifier(classifier_config):
         val_freq = classifier_config["val_config"]["val_freq"]
         val_key = jax.random.split(
             PRNGKey(classifier_config['prng_key'] + 10), batch_size)
-        val_lens = [1500, 2500, 3500]
+
+        if variable_seq_len:
+            val_lens = [seq_len_bounds[0], sum(
+                seq_len_bounds) // 2, seq_len_bounds[1]]
+        else:
+            val_lens = [seq_len_bounds[0]]
+
+        training_lens = jax.random.randint(
+            shape=(20,), minval=val_lens[0], maxval=val_lens[-1], key=val_key[-2])
 
         if not (os.path.isfile(val_trawls_path) and os.path.isfile(val_thetas_path)):
 
@@ -171,7 +183,7 @@ def train_classifier(classifier_config):
                 theta_acf_val, val_key = theta_acf_simulator(val_key)
                 theta_marginal_jax_val, theta_marginal_tf_val, val_key = theta_marginal_simulator(
                     val_key)
-                trawl_val, val_key = trawl_simulator(val_lens[-1],
+                trawl_val, val_key = trawl_simulator(val_lens[-1], trawl_config['tau'],
                                                      theta_acf_val, theta_marginal_tf_val, val_key)
 
                 theta_val = jnp.concatenate(
@@ -300,7 +312,7 @@ def train_classifier(classifier_config):
         #                      Loss functions                                 #
         #######################################################################
 
-        # @partial(jax.jit, static_argnames=('train'))
+        @partial(jax.jit, static_argnames=('train'))
         def compute_loss(params, trawl, theta, Y, dropout_rng, train):
             """Base loss function without gradients."""
             pred_Y, x_cached_to_ignore = state.apply_fn(
@@ -409,8 +421,12 @@ def train_classifier(classifier_config):
             #    return None  # Signal to main loop to continue to next config
 
             seq_len_key, seq_len_subkey = jax.random.split(seq_len_key)
-            seq_len = jax.random.randint(shape=(
-            ), minval=seq_len_bounds[0], maxval=seq_len_bounds[1], key=seq_len_subkey).item()
+            if variable_seq_len:
+                seq_len_index = jax.random.randint(shape=(
+                ), minval=0, maxval=num_seq_lens, key=seq_len_subkey).item()
+                seq_len = training_lens[seq_len_index].item()
+            else:
+                seq_len = seq_len_bounds[0]
 
             # Generate data and shuffle
             # data A
@@ -421,7 +437,7 @@ def train_classifier(classifier_config):
                 [theta_acf_a, theta_marginal_jax_a], axis=1)
 
             trawl_a, key = trawl_simulator(
-                seq_len,  theta_acf_a, theta_marginal_tf_a, key)
+                seq_len, trawl_config['tau'], theta_acf_a, theta_marginal_tf_a, key)
 
             # data B
             theta_acf_b, key = theta_acf_simulator(key)
