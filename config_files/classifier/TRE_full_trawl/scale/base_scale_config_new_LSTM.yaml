@@ -1,13 +1,16 @@
 prng_key: 2135161
 tre_config:
   use_tre: True
-  tre_type: mu 
+  tre_type: sigma 
   use_summary_statistics: False
   replace_full_trawl_with_acf: True
   nlags: 35
 trawl_config:
   tau: 1.0
   seq_len: 1500
+  seq_len_bounds: [1500, 3500]
+  variable_seq_len: False
+  num_seq_lens: 20
   input_size: 5
   theta_size: 5
   batch_size: 64
@@ -35,7 +38,7 @@ model_config:
 train_config:
   n_iterations: 40001 
 val_config:
-  val_freq: 500
+  val_freq: 750
   val_n_batches: 40
 optimizer:
   name: adam

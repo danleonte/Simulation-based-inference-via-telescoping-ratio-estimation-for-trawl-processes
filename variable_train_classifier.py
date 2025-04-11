@@ -499,7 +499,7 @@ def train_classifier(classifier_config):
             #               Validation  inside the training loop              #
             ###################################################################
             # Compute validation loss periodically
-            if iteration > 1000 and iteration % val_freq == 0:
+            if iteration > 5000 and iteration % val_freq == 0:
                 # Check if run stopped before starting validation
                 # if check_if_run_stopped():
                 #    print(
@@ -633,7 +633,7 @@ if __name__ == "__main__":
     from copy import deepcopy
 
     # Load config file
-    classifier_config_file_path = r'config_files/classifier/NRE_full_trawl/base_nre_config_VariableLSTM.yaml'
+    classifier_config_file_path = r'config_files/classifier/NRE_full_trawl/base_nre_config_new_LSTM.yaml'
 
     with open(classifier_config_file_path, 'r') as f:
         base_config = yaml.safe_load(f)
