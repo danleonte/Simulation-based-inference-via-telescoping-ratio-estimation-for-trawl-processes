@@ -631,9 +631,16 @@ def train_classifier(classifier_config):
 
 if __name__ == "__main__":
     from copy import deepcopy
+    import sys
+
+    # Load config file - use command line arg if provided, otherwise use default
+    classifier_config_file_path = sys.argv[1] if len(sys.argv) > 1 else None#r'config_files/classifier/NRE_full_trawl/base_nre_config_new_LSTM.yaml'
+    assert classifier_config_file_path is not None
+    
+    print(f"Using configuration file: {classifier_config_file_path}")
 
     # Load config file
-    classifier_config_file_path = r'config_files/classifier/NRE_full_trawl/base_nre_config_new_LSTM.yaml'
+    #classifier_config_file_path = r'config_files/classifier/TRE_full_trawl/mu/base_mu_config_new_LSTM.yaml'
 
     with open(classifier_config_file_path, 'r') as f:
         base_config = yaml.safe_load(f)
@@ -643,16 +650,16 @@ if __name__ == "__main__":
 
     if model_name == 'VariableLSTMModel':
 
-        for lstm_hidden_size in (64, 32, 16):
-            for num_lstm_layers in (3, 2, 4):
-                for increased_size in (8, 16, 32, 64):
-                    for linear_layer_sizes in ([32, 16, 8, 4], [64, 32, 16, 8, 4], [128, 48, 32, 15, 8, 4, 2],
+        for lstm_hidden_size in (16, 48, 32,64,128):
+            for num_lstm_layers in (4,3,2):
+                for increased_size in (16, 48, 32, 8):
+                    for linear_layer_sizes in ([32, 16, 8, 4], [48, 32, 15, 8, 4, 2],
                                                [32, 16, 8, 4, 2], [64, 32, 16, 8, 4, 2]):
-                        for mean_aggregation in (False,):  # True):
-                            for dropout_rate in (0.05,):  # 0.2):
-                                for lr in (0.00025,):  # 0.0005):
+                        for mean_aggregation in (False,):  # False):
+                            for dropout_rate in (0.25,):  # 0.2):
+                                for lr in (0.0001,):  # 0.0005):
 
-                                    if (num_lstm_layers <= 2 or lstm_hidden_size < 64) and (linear_layer_sizes[0] <= 2 * lstm_hidden_size) and (dropout_rate <= 0.15 or lstm_hidden_size >= 64):
+                                    if (num_lstm_layers <= 2 or lstm_hidden_size <= 64) and (linear_layer_sizes[0] <= 2 * lstm_hidden_size) and (dropout_rate <= 0.15 or lstm_hidden_size >= 64):
 
                                         config_to_use = deepcopy(base_config)
                                         config_to_use['model_config'] = {'model_name': model_name,
