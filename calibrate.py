@@ -21,7 +21,7 @@ from src.utils.get_model import get_model
 from src.utils.get_data_generator import get_theta_and_trawl_generator
 from src.utils.classifier_utils import get_projection_function, tre_shuffle
 from netcal.presentation import ReliabilityDiagram
-from src.model.Extended_model_nn import ExtendedModel,VariableExtendedModel
+from src.model.Extended_model_nn import ExtendedModel, VariableExtendedModel
 import numpy as np
 import datetime
 import pickle
@@ -107,14 +107,14 @@ def generate_dataset(classifier_config, nr_batches):
     return cal_trawls, cal_x, cal_thetas, Y
 
 
-def calibrate(trained_classifier_path, nr_batches):
+def calibrate(trained_classifier_path, nr_batches, seq_len):
 
     # Load config
     with open(os.path.join(trained_classifier_path, "config.yaml"), 'r') as f:
         classifier_config = yaml.safe_load(f)
 
     dataset_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
-        os.path.dirname(trained_classifier_path)))),  'cal_dataset')
+        os.path.dirname(trained_classifier_path)))),  f'cal_dataset_{seq_len}')
     # load calidation dataset
     cal_trawls_path = os.path.join(dataset_path, 'cal_trawls.npy')
     cal_x_path = os.path.join(dataset_path, 'cal_x.npy')
@@ -131,10 +131,12 @@ def calibrate(trained_classifier_path, nr_batches):
         cal_Y = np.load(cal_Y_path)
 
     else:
-
+        from copy import deepcopy
         print('Generating dataset')
+        classifier_config_ = deepcopy(classifier_config)
+        classifier_config_['trawl_config']['seq_len'] = seq_len
         cal_trawls_, cal_x, cal_thetas, cal_Y = generate_dataset(
-            classifier_config, nr_batches)
+            classifier_config_, nr_batches)
         print('Generated dataset')
 
         np.save(file=cal_trawls_path, arr=cal_trawls_)
@@ -160,7 +162,7 @@ def calibrate(trained_classifier_path, nr_batches):
         ######  EXTENDED MODEL HERE ########
         # CHECK KEYS ARE UPDATED
         model = VariableExtendedModel(base_model=model,  trawl_process_type=trawl_config['trawl_process_type'],
-                              tre_type=tre_type, use_summary_statistics=use_summary_statistics)
+                                      tre_type=tre_type, use_summary_statistics=use_summary_statistics)
 
         model.init(PRNGKey(0), cal_x[0], cal_thetas[0])
 
@@ -209,10 +211,11 @@ def calibrate(trained_classifier_path, nr_batches):
 
     ######################## post training regression ########################
 
-    log_r_path = os.path.join(trained_classifier_path, 'final_log_r.npy')
+    log_r_path = os.path.join(trained_classifier_path,
+                              f'final_log_r_{seq_len}.npy')
     pred_prob_Y_path = os.path.join(
-        trained_classifier_path, 'final_pred_prob_Y.npy')
-    Y_path = os.path.join(trained_classifier_path, 'final_Y.npy')
+        trained_classifier_path, f'final_pred_prob_Y_{seq_len}.npy')
+    Y_path = os.path.join(trained_classifier_path, f'final_Y_{seq_len}.npy')
 
     if not (os.path.isfile(log_r_path) and os.path.isfile(pred_prob_Y_path) and os.path.isfile(Y_path)):
 
@@ -252,7 +255,8 @@ def calibrate(trained_classifier_path, nr_batches):
 
     calibration_dict = {'use_beta_calibration': True,
                         'params': bc.calibrator_.map_}
-    with open(os.path.join(trained_classifier_path, 'calibration.pkl'), 'wb') as f:  # open a text file
+    # open a text file
+    with open(os.path.join(trained_classifier_path, f'calibration_{seq_len}.pkl'), 'wb') as f:
         # serialize the list
         pickle.dump(calibration_dict, f)
 
@@ -260,12 +264,11 @@ def calibrate(trained_classifier_path, nr_batches):
     pr = [lr.predict_proba(linspace.reshape(-1, 1))[:, 1],
           iso.predict(linspace), bc.predict(linspace)]
     methods_text = ['logistic', 'isotonic', 'beta']
-    
+
     # get calibrated datasets
     calibrated_pr = [lr.predict_proba(pred_prob_Y)[:, 1],
                      iso.predict(pred_prob_Y), bc.predict(pred_prob_Y)]
-    
-    
+
     ##################### compute metrics ########################
     metrics = []
     metrics.append(compute_metrics(log_r.squeeze(), pred_prob_Y.squeeze(), Y))
@@ -278,7 +281,8 @@ def calibrate(trained_classifier_path, nr_batches):
                       columns=('uncal', ' lr', 'isotonic', 'beta'),
                       index=('BCE', 'S', 'B'))
 
-    df.to_excel(os.path.join(trained_classifier_path, 'BCE_S_B.xlsx'))
+    df.to_excel(os.path.join(trained_classifier_path,
+                f'BCE_S_B_{seq_len}.xlsx'))
     # indeces_to_plot = np.random.randint(low=0, high = Y.shape[0], size = 1000)
 
     # calibration_results_path = os.path.join(trained_classifier_path,'calibration_results')
@@ -287,111 +291,107 @@ def calibrate(trained_classifier_path, nr_batches):
     ############ UNCALIBRATED plots ############
 
     # General classifier histogram
-    
-    if False:
-  
-      hist_beta, ax = plt.subplots()
-      ax.hist(
-          pred_prob_Y[Y == 1].squeeze(), label='Y=1', alpha=0.5, density=True,
-          bins=30)
-      ax.hist(
-          pred_prob_Y[Y == 0].squeeze(), label='Y=0', alpha=0.5, density=True)
-      ax.set_title(
-          'Histogram of c(x,theta) classifier')
-      ax.legend(loc='upper center')
-      hist_beta.savefig(os.path.join(
-          trained_classifier_path, 'Uncalibrated_hist.pdf'))
-  
-      # Reliability 1
-      diagram_un = ReliabilityDiagram(
-          15, equal_intervals=True)
-      fig_un = diagram_un.plot(
-          np.array(pred_prob_Y), np.array(Y)).get_figure()
-  
-      fig_un.savefig(os.path.join(
-          trained_classifier_path, 'uncalibrated_unequal.pdf'))
-  
-      # reliability 2
-  
-      try:
-          diagram_eq = ReliabilityDiagram(9, equal_intervals=False)
-          fig_eq = diagram_eq.plot(
-              np.array(pred_prob_Y), np.array(Y)).get_figure()
-  
-          fig_eq.savefig(os.path.join(
-              trained_classifier_path, 'uncalibrated_equal.pdf'))
-  
-      except:
-          print('one reliability map not possible to do')
-  
-      ################### Calibration curves ###########################
-      fig_map = plot_calibration_map(
-          pr, [None, None, linspace], methods_text)  # alpha
-      fig_map.savefig(os.path.join(
-          trained_classifier_path, 'calibration_map.pdf'))
-  
-  
-  
-      ################## CALIBRATED reliability diagrams ####################
-  
-      # General classifier histogram
-      for i in range(3):
-          try:
-              hist_beta, ax = plt.subplots()
-              ax.hist(
-                  calibrated_pr[i][Y == 1].squeeze(), label='Y=1', alpha=0.5, density=True, bins=15)
-              ax.hist(
-                  calibrated_pr[i][Y == 0].squeeze(), label='Y=0', alpha=0.5, density=True, bins=15)
-              ax.set_title(
-                  'Histogram of c(x,theta) classifier')
-              ax.legend(loc='upper center')
-              hist_beta.savefig(os.path.join(
-                  trained_classifier_path, f'Calibrated_hist_{methods_text[i]}.pdf'))
-          except:
-              print('problems')
-  
-      for i in range(3):
-  
-          diagram_un = ReliabilityDiagram(
-              15, equal_intervals=True)
-          fig_un = diagram_un.plot(
-              calibrated_pr[i], np.array(Y)).get_figure()
-  
-          fig_un.savefig(os.path.join(trained_classifier_path,
-                         f'calibrated_unequal_{methods_text[i]}.pdf'))
-  
-      for i in range(3):
-          try:
-  
-              diagram_eq = ReliabilityDiagram(
-                  8, equal_intervals=False)
-              fig_eq = diagram_eq.plot(
-                  calibrated_pr[i], np.array(Y)).get_figure()
-  
-              fig_eq.savefig(os.path.join(trained_classifier_path,
-                             f'calibrated_equal_{methods_text[i]}.pdf'))
-          except:
-              print('one reliability map not possible to do')
-  
 
+    if False:
+
+        hist_beta, ax = plt.subplots()
+        ax.hist(
+            pred_prob_Y[Y == 1].squeeze(), label='Y=1', alpha=0.5, density=True,
+            bins=30)
+        ax.hist(
+            pred_prob_Y[Y == 0].squeeze(), label='Y=0', alpha=0.5, density=True)
+        ax.set_title(
+            'Histogram of c(x,theta) classifier')
+        ax.legend(loc='upper center')
+        hist_beta.savefig(os.path.join(
+            trained_classifier_path, f'Uncalibrated_hist_{seq_len}.pdf'))
+
+        # Reliability 1
+        diagram_un = ReliabilityDiagram(
+            15, equal_intervals=True)
+        fig_un = diagram_un.plot(
+            np.array(pred_prob_Y), np.array(Y)).get_figure()
+
+        fig_un.savefig(os.path.join(
+            trained_classifier_path, f'uncalibrated_unequal_{seq_len}.pdf'))
+
+        # reliability 2
+
+        try:
+            diagram_eq = ReliabilityDiagram(9, equal_intervals=False)
+            fig_eq = diagram_eq.plot(
+                np.array(pred_prob_Y), np.array(Y)).get_figure()
+
+            fig_eq.savefig(os.path.join(
+                trained_classifier_path, f'uncalibrated_equal_{seq_len}.pdf'))
+
+        except:
+            print('one reliability map not possible to do')
+
+        ################### Calibration curves ###########################
+        fig_map = plot_calibration_map(
+            pr, [None, None, linspace], methods_text)  # alpha
+        fig_map.savefig(os.path.join(
+            trained_classifier_path, f'calibration_map_{seq_len}.pdf'))
+
+        ################## CALIBRATED reliability diagrams ####################
+
+        # General classifier histogram
+        for i in range(3):
+            try:
+                hist_beta, ax = plt.subplots()
+                ax.hist(
+                    calibrated_pr[i][Y == 1].squeeze(), label='Y=1', alpha=0.5, density=True, bins=15)
+                ax.hist(
+                    calibrated_pr[i][Y == 0].squeeze(), label='Y=0', alpha=0.5, density=True, bins=15)
+                ax.set_title(
+                    'Histogram of c(x,theta) classifier')
+                ax.legend(loc='upper center')
+                hist_beta.savefig(os.path.join(
+                    trained_classifier_path, f'Calibrated_hist_{methods_text[i]}_{seq_len}.pdf'))
+            except:
+                print('problems')
+
+        for i in range(3):
+
+            diagram_un = ReliabilityDiagram(
+                15, equal_intervals=True)
+            fig_un = diagram_un.plot(
+                calibrated_pr[i], np.array(Y)).get_figure()
+
+            fig_un.savefig(os.path.join(trained_classifier_path,
+                           f'calibrated_unequal_{methods_text[i]}_{seq_len}.pdf'))
+
+        for i in range(3):
+            try:
+
+                diagram_eq = ReliabilityDiagram(
+                    8, equal_intervals=False)
+                fig_eq = diagram_eq.plot(
+                    calibrated_pr[i], np.array(Y)).get_figure()
+
+                fig_eq.savefig(os.path.join(trained_classifier_path,
+                               f'calibrated_equal_{methods_text[i]}_{seq_len}.pdf'))
+            except:
+                print('one reliability map not possible to do')
 
 
 if __name__ == '__main__':
     nr_batches = 500
 
-    folder_names = {#'NRE_full_trawl': ['04_12_04_25_37', '04_11_23_17_38','04_12_05_18_53','04_12_12_34_53','04_12_00_24_16','04_11_23_37_05','04_12_02_18_27','04_12_08_21_48',
-   # '04_11_20_15_48','04_12_11_52_49','04_12_11_21_25'],########['03_03_10_00_51', '03_03_13_37_12', '03_03_19_26_42', '03_04_02_34_16', '03_04_08_50_44', '03_04_13_48_26'],
-                    'acf': ['04_12_00_27_16','04_11_20_26_03','04_12_12_36_45','04_12_08_35_46','04_12_04_29_36','04_12_03_36_28','04_12_09_57_22','04_12_00_25_13','04_11_20_30_16',
-                            '04_12_13_11_32',  '04_12_06_47_42',   '04_11_23_40_38', '04_12_09_14_24','04_11_20_32_11'],
-                    #'beta': ['04_12_04_26_56','04_12_12_35_41','04_12_00_25_49','04_12_05_27_48','04_11_23_24_46','04_12_12_17_28','04_12_08_31_07','04_11_23_37_34','04_12_11_30_54',                                '04_11_20_30_16'],
-                    #'mu': ['04_12_04_41_11','04_12_12_59_45','04_12_00_32_46','04_11_20_26_03','04_12_08_53_27','04_12_08_53_57','04_12_05_42_50','04_12_12_21_06']
-                    #'sigma': ['04_12_04_28_49','04_12_00_26_44','04_12_12_37_42','04_12_05_36_55','04_12_12_37_35','04_12_11_18_04','04_12_08_35_55','04_12_09_33_30','04_12_05_59_51',                                '04_11_20_26_03']
+    folder_names = {  # 'NRE_full_trawl': ['04_12_04_25_37', '04_11_23_17_38','04_12_05_18_53','04_12_12_34_53','04_12_00_24_16','04_11_23_37_05','04_12_02_18_27','04_12_08_21_48',
+        # '04_11_20_15_48','04_12_11_52_49','04_12_11_21_25'],########['03_03_10_00_51', '03_03_13_37_12', '03_03_19_26_42', '03_04_02_34_16', '03_04_08_50_44', '03_04_13_48_26'],
+        'acf': ['04_12_00_27_16', '04_11_20_26_03', '04_12_12_36_45', '04_12_08_35_46', '04_12_04_29_36', '04_12_03_36_28', '04_12_09_57_22', '04_12_00_25_13', '04_11_20_30_16',
+                '04_12_13_11_32',  '04_12_06_47_42',   '04_11_23_40_38', '04_12_09_14_24', '04_11_20_32_11'],
+        # 'beta': ['04_12_04_26_56','04_12_12_35_41','04_12_00_25_49','04_12_05_27_48','04_11_23_24_46','04_12_12_17_28','04_12_08_31_07','04_11_23_37_34','04_12_11_30_54',                                '04_11_20_30_16'],
+        # 'mu': ['04_12_04_41_11','04_12_12_59_45','04_12_00_32_46','04_11_20_26_03','04_12_08_53_27','04_12_08_53_57','04_12_05_42_50','04_12_12_21_06']
+        # 'sigma': ['04_12_04_28_49','04_12_00_26_44','04_12_12_37_42','04_12_05_36_55','04_12_12_37_35','04_12_11_18_04','04_12_08_35_55','04_12_09_33_30','04_12_05_59_51',                                '04_11_20_26_03']
 
-                    ## 'acf':['02_26_18_30_52', '02_28_16_37_11', '03_01_09_30_39', '03_01_21_17_21', '03_02_21_06_17','03_02_06_41_57'],
-                    ## 'beta':['02_26_15_56_48', '02_26_16_02_10', '02_26_19_29_54', '02_26_19_37_09', '02_26_23_14_03', '02_27_02_50_03'],
-                    ## 'mu':['03_03_16_41_47', '03_03_16_45_26', '03_03_18_35_58', '03_03_21_29_04', '03_04_01_33_54', '03_04_01_46_31'],
-                    ## 'sigma':['03_03_16_56_52', '03_03_23_18_48', '03_04_02_42_13', '03_04_07_34_58', '03_04_12_28_46', '03_04_21_43_47']
-                    }
+        # 'acf':['02_26_18_30_52', '02_28_16_37_11', '03_01_09_30_39', '03_01_21_17_21', '03_02_21_06_17','03_02_06_41_57'],
+        # 'beta':['02_26_15_56_48', '02_26_16_02_10', '02_26_19_29_54', '02_26_19_37_09', '02_26_23_14_03', '02_27_02_50_03'],
+        # 'mu':['03_03_16_41_47', '03_03_16_45_26', '03_03_18_35_58', '03_03_21_29_04', '03_04_01_33_54', '03_04_01_46_31'],
+        # 'sigma':['03_03_16_56_52', '03_03_23_18_48', '03_04_02_42_13', '03_04_07_34_58', '03_04_12_28_46', '03_04_21_43_47']
+    }
 
     for key in folder_names:
         for value in folder_names[key]:
