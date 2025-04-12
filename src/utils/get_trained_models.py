@@ -1,3 +1,4 @@
+import time
 import os
 import yaml
 import pickle
@@ -13,7 +14,7 @@ if True:
 from src.utils.reconstruct_beta_calibration import beta_calibrate_log_r
 from statsmodels.tsa.stattools import acf as compute_empirical_acf
 from src.utils.classifier_utils import get_projection_function
-from src.model.Extended_model_nn import ExtendedModel
+from src.model.Extended_model_nn import ExtendedModel, VariableExtendedModel
 from src.utils.get_model import get_model
 from src.utils.get_data_generator import get_theta_and_trawl_generator
 
@@ -25,7 +26,7 @@ from src.utils.get_data_generator import get_theta_and_trawl_generator
 
 
 def load_trained_models_for_posterior_inference(folder_path, dummy_x, trawl_process_type,
-                                                use_tre, use_summary_statistics):
+                                                use_tre, use_summary_statistics, calibration_file_name):
     """
     Loads the trained models, may it be NRE or TRE, and returns two functions,
     which approximate the log likelihood and log posterior. There are multiple
@@ -86,7 +87,7 @@ def load_trained_models_for_posterior_inference(folder_path, dummy_x, trawl_proc
         with open(os.path.join(folder, params_path[0]), 'rb') as file:
             params_list.append(pickle.load(file))
 
-        with open(os.path.join(folder, 'calibration.pkl'), 'rb') as file:
+        with open(os.path.join(folder, calibration_file_name), 'rb') as file:
             calibration_list.append(pickle.load(file))
 
         with open(os.path.join(folder, 'config.yaml'), 'r') as file:
@@ -99,9 +100,9 @@ def load_trained_models_for_posterior_inference(folder_path, dummy_x, trawl_proc
         model_ = get_model(config_list[-1], False)
 
         if use_tre:
-            model_ = ExtendedModel(base_model=model_, trawl_process_type=trawl_process_type,
-                                   tre_type=config_list[-1]['tre_config']['tre_type'],
-                                   use_summary_statistics=use_summary_statistics)
+            model_ = VariableExtendedModel(base_model=model_, trawl_process_type=trawl_process_type,
+                                           tre_type=config_list[-1]['tre_config']['tre_type'],
+                                           use_summary_statistics=use_summary_statistics)
 
         use_empirical_acf = False
         # Initialize
@@ -166,79 +167,143 @@ def load_trained_models_for_posterior_inference(folder_path, dummy_x, trawl_proc
             calibration_params.append(no_op_cal_params)
 
     # Define the optimized likelihood function
-    if use_empirical_acf:
+    # if use_empirical_acf:
+    #    @jax.jit
+    #    def approximate_log_likelihood_to_evidence(x, empirical_acf_x, theta):
+    #        total_log_r = 0.0
+    #
+    #        for i in range(len(model_applies)):
+    #            apply_fn = model_applies[i]
+    #            params = model_params[i]
+    #
+    #            # Select appropriate input data based on model index
+    #            x_to_use = empirical_acf_x if (
+    #                i == 0 and use_empirical_acf) else x
+    #
+    #            # Apply model
+    #            log_r = apply_fn(variables=params, x=x_to_use,
+    #                             theta=theta, train=False)
+    #
+    #            # Always apply calibration - will be no-op for models that don't need it
+    #            log_r = beta_calibrate_log_r(log_r, calibration_params[i])
+    #
+    #            total_log_r += log_r
+    #
+    #        return total_log_r
+    #
+    #    @jax.jit
+    #    def approximate_log_posterior(x, empirical_acf_x, theta):
+    #        log_likelihood = approximate_log_likelihood_to_evidence(
+    #            x, empirical_acf_x, theta)
+    #        in_bounds = jnp.all((theta > lower_bounds) &
+    #                            (theta < upper_bounds))
+    #        log_prior = jnp.where(in_bounds, - jnp.log(total_mass), -jnp.inf)
+    #        return log_likelihood + log_prior
+    #
+    # else:
+    @jax.jit
+    def approximate_log_likelihood_to_evidence(x, theta):
+        total_log_r = 0.0
+
+        print('here')
+
+        for i in range(len(model_applies)):
+            apply_fn = model_applies[i]
+            params = model_params[i]
+
+            # Apply model
+            log_r, _ = apply_fn(variables=params, x=x,
+                                theta=theta, train=False)
+
+            # Always apply calibration - will be no-op for models that don't need it
+            log_r = beta_calibrate_log_r(log_r, calibration_params[i])
+
+            total_log_r += log_r
+
+        return total_log_r
+
+    def wrapper_for_cached_approximate_log_likelihood_to_evidence(x):
+
+        x_cache_list = []
+
+        for i in range(len(model_applies)):
+            apply_fn = model_applies[i]
+            params = model_params[i]
+
+            # Apply model
+            _, x_cache = apply_fn(variables=params, x=x,
+                                  theta=dummy_theta, train=False)
+
+            x_cache_list.append(x_cache)
+
         @jax.jit
-        def approximate_log_likelihood_to_evidence(x, empirical_acf_x, theta):
+        def cached_approximate_log_likelihood_to_evidence(theta):
             total_log_r = 0.0
+
+            print('here cached')
 
             for i in range(len(model_applies)):
                 apply_fn = model_applies[i]
                 params = model_params[i]
-
-                # Select appropriate input data based on model index
-                x_to_use = empirical_acf_x if (
-                    i == 0 and use_empirical_acf) else x
+                x_cache = x_cache_list[i]
 
                 # Apply model
-                log_r = apply_fn(variables=params, x=x_to_use,
-                                 theta=theta, train=False)
+                log_r, _ = apply_fn(variables=params, x=None,
+                                    theta=theta, x_cache=x_cache, train=False)
 
                 # Always apply calibration - will be no-op for models that don't need it
                 log_r = beta_calibrate_log_r(log_r, calibration_params[i])
 
                 total_log_r += log_r
 
-            return total_log_r
+            return total_log_r.squeeze(-1)
 
-        @jax.jit
-        def approximate_log_posterior(x, empirical_acf_x, theta):
-            log_likelihood = approximate_log_likelihood_to_evidence(
-                x, empirical_acf_x, theta)
-            in_bounds = jnp.all((theta > lower_bounds) &
-                                (theta < upper_bounds))
-            log_prior = jnp.where(in_bounds, - jnp.log(total_mass), -jnp.inf)
-            return log_likelihood + log_prior
+        return cached_approximate_log_likelihood_to_evidence
 
-    else:
-        @jax.jit
-        def approximate_log_likelihood_to_evidence(x, theta):
-            total_log_r = 0.0
+    @jax.jit
+    def approximate_log_posterior(x, theta):
+        log_likelihood = approximate_log_likelihood_to_evidence(x, theta)
+        in_bounds = jnp.all((theta > lower_bounds) &
+                            (theta < upper_bounds))
+        log_prior = jnp.where(in_bounds, - jnp.log(total_mass), -jnp.inf)
+        return log_likelihood + log_prior
 
-            print('here')
-
-            for i in range(len(model_applies)):
-                apply_fn = model_applies[i]
-                params = model_params[i]
-
-                # Apply model
-                log_r = apply_fn(variables=params, x=x,
-                                 theta=theta, train=False)
-
-                # Always apply calibration - will be no-op for models that don't need it
-                log_r = beta_calibrate_log_r(log_r, calibration_params[i])
-
-                total_log_r += log_r
-
-            return total_log_r
-
-        @jax.jit
-        def approximate_log_posterior(x, theta):
-            log_likelihood = approximate_log_likelihood_to_evidence(x, theta)
-            in_bounds = jnp.all((theta > lower_bounds) &
-                                (theta < upper_bounds))
-            log_prior = jnp.where(in_bounds, - jnp.log(total_mass), -jnp.inf)
-            return log_likelihood + log_prior
-
-    return approximate_log_likelihood_to_evidence, approximate_log_posterior, \
-        use_empirical_acf
+    return approximate_log_likelihood_to_evidence, wrapper_for_cached_approximate_log_likelihood_to_evidence  # approximate_log_posterior, \
+    # use_empirical_acf, (model_applies, model_params, calibration_params)
 
 
 if __name__ == '__main__':
 
-    folder_path = r'D:\sbi_ambit\SBI_for_trawl_processes_and_ambit_fields\models\classifier\TRE_summary_statistics\trial_set1'
+    folder_path = r'D:\sbi_ambit\SBI_for_trawl_processes_and_ambit_fields\models\new_classifier\TRE_full_trawl\selected_models'
     trawl_process_type = 'sup_ig_nig_5p'
     use_tre = True
-    use_summary_statistics = True
-    dummy_x = jnp.load('trawl.npy')
+    use_summary_statistics = False
+    dummy_x = jnp.load('trawl.npy')[[0], :]
     dummy_theta = jnp.ones([dummy_x.shape[0], 5])
+    calibration_file_name = 'calibration_1500.pkl'
     # x = ....
+    approx_like, wrapper_approx_like_cache = load_trained_models_for_posterior_inference(folder_path, dummy_x, trawl_process_type,
+                                                                                         use_tre, use_summary_statistics, calibration_file_name)
+    approx_like_cached = wrapper_approx_like_cache(dummy_x)
+
+    n_runs = 25
+    start = time.time()
+    for _ in range(n_runs):
+        # Force execution completion
+        result = approx_like(dummy_x, dummy_theta).block_until_ready()
+    end = time.time()
+    time_function1 = (end - start) / n_runs
+
+    # Time function2
+    start = time.time()
+    for _ in range(n_runs):
+        # Force execution completion
+        result = approx_like_cached(dummy_theta).block_until_ready()
+    end = time.time()
+    time_function2 = (end - start) / n_runs
+
+    print(f"Function 1 average time: {time_function1:.6f} seconds")
+    print(f"Function 2 average time: {time_function2:.6f} seconds")
+
+    vmaped_cached = jax.jit(jax.vmap(approx_like_cached))
+    vmaped_cached(jnp.array([dummy_theta, dummy_theta])).shape

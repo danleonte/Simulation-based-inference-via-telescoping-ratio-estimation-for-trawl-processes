@@ -1,8 +1,8 @@
 from src.utils.get_trained_models import load_trained_models_for_posterior_inference as load_trained_models
-from src.utils.summary_statistics_plotting import plot_acfs, plot_marginals
+# from src.utils.summary_statistics_plotting import plot_acfs, plot_marginals
 from src.utils.get_data_generator import get_theta_and_trawl_generator
 from src.utils.classifier_utils import get_projection_function
-from src.model.Extended_model_nn import ExtendedModel
+# from src.model.Extended_model_nn import ExtendedModel
 import numpy as np
 import datetime
 import pickle
@@ -25,14 +25,14 @@ if True:
     import matplotlib.pyplot as plt
 
 
-import numpyro
-from numpyro.infer import MCMC, NUTS
-import numpyro.distributions as dist
-from numpyro.diagnostics import effective_sample_size as ess
-import arviz as az
+# import numpyro
+# from numpyro.infer import MCMC, NUTS
+# import numpyro.distributions as dist
+# from numpyro.diagnostics import effective_sample_size as ess
+# import arviz as az
 
 
-def validate_classifiers(folder_path):
+def validate_classifiers(folder_path, dataset_len):
 
     if 'TRE' in folder_path:
         use_tre = True
@@ -62,7 +62,7 @@ def validate_classifiers(folder_path):
         trawl_process_type = a_classifier_config['trawl_config']['trawl_process_type']
 
     dataset_path = os.path.join(os.path.dirname(
-        os.path.dirname(folder_path)),  'cal_dataset')
+        os.path.dirname(folder_path)),  f'cal_dataset_{dataset_len}')
     # load calidation dataset
     cal_trawls_path = os.path.join(dataset_path, 'cal_trawls.npy')
     cal_x_path = os.path.join(dataset_path, 'cal_x.npy')
@@ -74,13 +74,14 @@ def validate_classifiers(folder_path):
     cal_thetas = jnp.load(cal_thetas_path)
     cal_Y = jnp.load(cal_Y_path)
 
-    approximate_log_likelihood_to_evidence, approximate_log_posterior, _ = \
+    approximate_log_likelihood_to_evidence,  _ = \
         load_trained_models(folder_path, cal_x[0], trawl_process_type,  # [::-1] not necessary, it s just a dummy, but just to make sure we don t pollute wth true values of some sort
-                            use_tre, use_summary_statistics)
+                            use_tre, use_summary_statistics, f'calibration_{dataset_len}.pkl')
 
     log_r, pred_prob_Y, Y = [], [], []
 
     for i in range(cal_x.shape[0]):
+        print(i, cal_x.shape[0])
 
         log_r.append(approximate_log_likelihood_to_evidence(
             cal_x[i], cal_thetas[i]))
@@ -100,7 +101,7 @@ def validate_classifiers(folder_path):
 
     bce_loss, bce_std = bce_.mean(), bce_.std() / len(bce_)**0.5
 
-    with open(os.path.join(folder_path, 'metrics.txt'), "w") as f:
+    with open(os.path.join(folder_path, f'metrics_{dataset_len}.txt'), "w") as f:
         f.write(f"S: {S}\n")
         f.write(f"B: {B}\n")
         f.write(f"Accuracy: {accuracy}\n")
@@ -113,21 +114,21 @@ if __name__ == '__main__':
     folder_paths = []
 
     folder_paths.append(
-        r'D:\sbi_ambit\SBI_for_trawl_processes_and_ambit_fields\models\classifier\TRE_full_trawl\uncalibrated')
+        r'D:\sbi_ambit\SBI_for_trawl_processes_and_ambit_fields\models\new_classifier\TRE_full_trawl\selected_models')
+    # folder_paths.append(
+    #    r'D:\sbi_ambit\SBI_for_trawl_processes_and_ambit_fields\models\new_classifier\TRE_full_trawl\selected_models')
+    #
     folder_paths.append(
-        r'D:\sbi_ambit\SBI_for_trawl_processes_and_ambit_fields\models\classifier\TRE_full_trawl\beta_calibrated')
-
-    folder_paths.append(
-        r'D:\sbi_ambit\SBI_for_trawl_processes_and_ambit_fields\models\classifier\NRE_full_trawl\uncalibrated')
-    folder_paths.append(
-        r'D:\sbi_ambit\SBI_for_trawl_processes_and_ambit_fields\models\classifier\NRE_full_trawl\beta_calibrated')
+        r'D:\sbi_ambit\SBI_for_trawl_processes_and_ambit_fields\models\new_classifier\NRE_full_trawl\selected_model')
+    # folder_paths.append(
+    #    r'D:\sbi_ambit\SBI_for_trawl_processes_and_ambit_fields\models\new_classifier\NRE_full_trawl\selected_models')
 
     # for subfolder in ['acf','beta','mu','sigma']:
     #    for cal in ['uncalibrated','beta_calibrated']:
 
     for folder_path in folder_paths:
 
-        validate_classifiers(folder_path)
+        validate_classifiers(folder_path, 1500)
 
 
 # base_path = '/home/leonted/SBI/SBI_for_trawl_processes_and_ambit_fields'
