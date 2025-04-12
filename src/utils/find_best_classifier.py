@@ -156,15 +156,15 @@ if __name__ == '__main__':
 
         paths_to_check = []
         classifier_models_path = os.path.join(
-            os.path.dirname(os.getcwd()), 'models', 'classifier')
+            os.path.dirname(os.getcwd()), 'models', 'new_classifier')
 
         # NRE WITH SUMMARY
         paths_to_check.append(os.path.join(classifier_models_path,
-                                           'NRE_summary_statistics'))
+                                           'NRE_full_trawl'))
 
         # TRE WITH SUMMARY
         tre_super_folder_path = os.path.join(
-            classifier_models_path, 'TRE_summary_statistics')
+            classifier_models_path, 'TRE_full_trawl')
         paths_to_check += [f.path for f in os.scandir(
             tre_super_folder_path) if f.is_dir()]
 
