@@ -123,7 +123,7 @@ def calibrate(trained_classifier_path, nr_batches, seq_len):
 
     if os.path.isfile(cal_trawls_path) and os.path.isfile(cal_thetas_path) and os.path.isfile(cal_Y_path):
 
-        print('Calidation dataset already created')
+        print('Validation dataset already created')
 
         cal_trawls_ = np.load(cal_trawls_path)
         cal_x = np.load(cal_x_path)
@@ -198,11 +198,20 @@ def calibrate(trained_classifier_path, nr_batches, seq_len):
 
     def compute_metrics(log_r, classifier_output, Y):
 
-        bce_loss = jnp.mean(optax.losses.sigmoid_binary_cross_entropy(
-            logits=log_r, labels=Y))
+        extended_bce_loss = optax.losses.sigmoid_binary_cross_entropy(
+            logits=log_r, labels=Y)
+
+        # this is due to numerical instability in the logit function and should be 0
+        mask = jnp.logical_and(Y == 0, log_r == -jnp.inf)
+
+        # Replace values where mask is True with 0, otherwise keep original values
+        extended_bce_loss = jnp.where(mask, 0.0, extended_bce_loss)
+
+        bce_loss = jnp.mean(extended_bce_loss)
 
         # half of them are 0s, half of them are 1, so we have to x2
-        S = 2 * jnp.mean(log_r * Y)
+        # S = 2 * jnp.mean(log_r * Y)
+        S = jnp.mean(log_r[Y == 1])
         B = 2 * jnp.mean(classifier_output)
         accuracy = jnp.mean(
             (classifier_output > 0.5).astype(jnp.float32) == Y)
@@ -292,7 +301,7 @@ def calibrate(trained_classifier_path, nr_batches, seq_len):
 
     # General classifier histogram
 
-    if False:
+    if True:
 
         hist_beta, ax = plt.subplots()
         ax.hist(
@@ -387,7 +396,7 @@ if __name__ == '__main__':
         # 'mu': ['04_12_04_41_11','04_12_12_59_45','04_12_00_32_46','04_11_20_26_03','04_12_08_53_27','04_12_08_53_57','04_12_05_42_50','04_12_12_21_06'],
         # 'sigma': ['04_12_04_28_49','04_12_00_26_44','04_12_12_37_42','04_12_05_36_55','04_12_12_37_35','04_12_11_18_04','04_12_08_35_55','04_12_09_33_30','04_12_05_59_51',                                '04_11_20_26_03']
         'acf': ['04_12_12_36_45'],
-        'beta': ['04_12_04_26_56'],
+        # 'beta': ['04_12_04_26_56'],
         'mu': ['04_12_00_32_46'],
         'sigma': ['04_12_04_28_49'],
         # 'acf':['02_26_18_30_52', '02_28_16_37_11', '03_01_09_30_39', '03_01_21_17_21', '03_02_21_06_17','03_02_06_41_57'],
@@ -407,8 +416,10 @@ if __name__ == '__main__':
                 trained_classifier_path = os.path.join(
                     os.getcwd(), 'models', 'new_classifier', 'TRE_full_trawl', key, value, 'best_model')  # 'NRE_full_trawl '
 
-            calibrate(trained_classifier_path, nr_batches, 1500)
+            calibrate(trained_classifier_path, nr_batches, 3500)
+            calibrate(trained_classifier_path, nr_batches, 2500)
             # calibrate(trained_classifier_path, nr_batches, 2000)
+            # calibrate(trained_classifier_path, nr_batches, 1500)
 
     # TRE options: acf, beta, mu, sigma
 
