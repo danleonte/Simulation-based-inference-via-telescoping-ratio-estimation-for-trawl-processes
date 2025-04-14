@@ -166,7 +166,7 @@ def main():
         folder_path=folder_path,
         true_trawls=true_trawls,
         true_thetas=true_thetas,
-        approximate_log_likelihood_to_evidence=wrapper_for_approx_likelihood_just_theta,
+        wrapper_for_approx_likelihood_just_theta=wrapper_for_approx_likelihood_just_theta,
         trawl_process_type=trawl_process_type,
         num_samples=num_samples,
         num_warmup=num_warmup,
