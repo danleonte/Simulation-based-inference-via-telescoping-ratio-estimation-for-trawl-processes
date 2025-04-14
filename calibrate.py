@@ -18,6 +18,7 @@ from jax.random import PRNGKey
 from functools import partial
 from statsmodels.tsa.stattools import acf as compute_empirical_acf
 from src.utils.get_model import get_model
+from src.utils.get_trained_models import load_trained_models_for_posterior_inference as load_trained_models
 from src.utils.get_data_generator import get_theta_and_trawl_generator
 from src.utils.classifier_utils import get_projection_function, tre_shuffle
 from netcal.presentation import ReliabilityDiagram
@@ -105,6 +106,160 @@ def generate_dataset(classifier_config, nr_batches):
     cal_thetas = jnp.array(cal_thetas)  # , axis=0)
 
     return cal_trawls, cal_x, cal_thetas, Y
+
+
+def calibrated_the_NRE_of_a_calibrated_TRE(trained_classifier_path, seq_len):
+
+    assert 'TRE' in trained_classifier_path
+    use_tre = True
+
+    if 'full_trawl' in trained_classifier_path:
+        use_summary_statistics = False
+
+    elif 'summary_statistics' in trained_classifier_path:
+        use_summary_statistics = True
+
+    else:
+        raise ValueError
+
+    assert use_tre
+    classifier_config_file_path = os.path.join(
+        trained_classifier_path, 'acf', 'config.yaml')
+    # else:
+    #    classifier_config_file_path = os.path.join(folder_path, 'config.yaml')
+
+    with open(classifier_config_file_path, 'r') as f:
+        # an arbitrary config gile; if using TRE, can
+        a_classifier_config = yaml.safe_load(f)
+        trawl_process_type = a_classifier_config['trawl_config']['trawl_process_type']
+
+    dataset_path = os.path.join(os.path.dirname(
+        os.path.dirname(trained_classifier_path)),  f'cal_dataset_{seq_len}')
+    # load calidation dataset
+    cal_trawls_path = os.path.join(dataset_path, 'cal_trawls.npy')
+    cal_x_path = os.path.join(dataset_path, 'cal_x.npy')
+    cal_thetas_path = os.path.join(dataset_path, 'cal_thetas.npy')
+    cal_Y_path = os.path.join(dataset_path, 'cal_Y.npy')
+
+    cal_trawls_ = jnp.load(cal_trawls_path)
+    cal_x = jnp.load(cal_x_path)
+    cal_thetas = jnp.load(cal_thetas_path)
+    cal_Y = jnp.load(cal_Y_path)
+
+    approximate_log_likelihood_to_evidence,  _ = \
+        load_trained_models(trained_classifier_path, cal_x[0], trawl_process_type,  # [::-1] not necessary, it s just a dummy, but just to make sure we don t pollute wth true values of some sort
+                            use_tre, use_summary_statistics, f'calibration_{seq_len}.pkl')
+
+    double_calibration_path = os.path.join(
+        trained_classifier_path, f'double_cal_{seq_len}')
+    os.makedirs(double_calibration_path, exist_ok=True)
+
+    log_r_path = os.path.join(double_calibration_path,
+                              f'double_cal_log_r_{seq_len}.npy')
+    pred_prob_Y_path = os.path.join(
+        double_calibration_path, f'double_cal_pred_prob_Y_{seq_len}.npy')
+    Y_path = os.path.join(double_calibration_path,
+                          f'double_cal_Y_{seq_len}.npy')
+
+    if not (os.path.isfile(log_r_path) and os.path.isfile(pred_prob_Y_path) and os.path.isfile(Y_path)):
+
+        log_r, pred_prob_Y, Y = [], [], []
+
+        for i in range(cal_x.shape[0]):
+
+            log_r_to_append = approximate_log_likelihood_to_evidence(
+                cal_x[i], cal_thetas[i])
+            pred_prob_Y_to_append = jax.nn.sigmoid(log_r_to_append)
+
+            log_r.append(log_r_to_append)
+            pred_prob_Y.append(pred_prob_Y_to_append)
+            Y.append(cal_Y)
+
+        log_r = jnp.concatenate(log_r, axis=0)           # num_samples, 1
+        pred_prob_Y = jnp.concatenate(
+            pred_prob_Y, axis=0)      # num_samples, 1
+        Y = jnp.concatenate(Y, axis=0)
+
+        np.save(file=log_r_path, arr=log_r)
+        np.save(file=pred_prob_Y_path, arr=pred_prob_Y)
+        np.save(file=Y_path, arr=Y)
+
+    else:
+
+        log_r = np.load(log_r_path)
+        pred_prob_Y = np.load(pred_prob_Y_path)
+        Y = jnp.load(Y_path)
+
+    # perform isotonic regression, Beta and Plat scaling
+    lr = LogisticRegression(C=99999999999)
+    iso = IsotonicRegression(y_min=0.001, y_max=0.999)
+    bc = BetaCalibration(parameters="abm")
+
+    lr.fit(pred_prob_Y, np.array(Y))
+    iso.fit(pred_prob_Y, np.array(Y))
+    bc.fit(pred_prob_Y,  np.array(Y))
+
+    calibration_dict = {'use_beta_calibration': True,
+                        'params': bc.calibrator_.map_}
+    # open a text file
+    with open(os.path.join(double_calibration_path, f'double_cal_{seq_len}.pkl'), 'wb') as f:
+        # serialize the list
+        pickle.dump(calibration_dict, f)
+
+    linspace = np.linspace(0, 1, 100)
+    pr = [lr.predict_proba(linspace.reshape(-1, 1))[:, 1],
+          iso.predict(linspace), bc.predict(linspace)]
+    methods_text = ['logistic', 'isotonic', 'beta']
+
+    # get calibrated datasets
+    calibrated_pr = [lr.predict_proba(pred_prob_Y)[:, 1],
+                     iso.predict(pred_prob_Y), bc.predict(pred_prob_Y)]
+
+    def compute_metrics(log_r, classifier_output, Y):
+
+        extended_bce_loss = optax.losses.sigmoid_binary_cross_entropy(
+            logits=log_r, labels=Y)
+
+        # this is due to numerical instability in the logit function and should be 0
+        mask = jnp.logical_and(Y == 0, log_r == -jnp.inf)
+
+        # Replace values where mask is True with 0, otherwise keep original values
+        extended_bce_loss = jnp.where(mask, 0.0, extended_bce_loss)
+
+        bce_loss = jnp.mean(extended_bce_loss)
+
+        # half of them are 0s, half of them are 1, so we have to x2
+        # S = 2 * jnp.mean(log_r * Y)
+        S = jnp.mean(log_r[Y == 1])
+        B = 2 * jnp.mean(classifier_output)
+        accuracy = jnp.mean(
+            (classifier_output > 0.5).astype(jnp.float32) == Y)
+
+        return bce_loss, S, B
+
+    metrics = []
+    metrics.append(compute_metrics(log_r.squeeze(), pred_prob_Y.squeeze(), Y))
+    for i in range(3):
+
+        metrics.append(compute_metrics(
+            logit(calibrated_pr[i]), calibrated_pr[i], Y))
+
+    df = pd.DataFrame(np.array(metrics).transpose(),
+                      columns=('uncal', ' lr', 'isotonic', 'beta'),
+                      index=('BCE', 'S', 'B'))
+
+    df.to_excel(os.path.join(double_calibration_path,
+                f'double_cal_BCE_S_B_{seq_len}.xlsx'))
+
+    ################### Calibration curves ###########################
+    try:
+        fig_map = plot_calibration_map(
+            pr, [None, None, linspace], methods_text)  # alpha
+        fig_map.savefig(os.path.join(
+            double_calibration_path, f'double_calibration_map_{seq_len}.pdf'))
+
+    except:
+        pass
 
 
 def calibrate(trained_classifier_path, nr_batches, seq_len):
@@ -404,23 +559,25 @@ if __name__ == '__main__':
         # 'mu':['03_03_16_41_47', '03_03_16_45_26', '03_03_18_35_58', '03_03_21_29_04', '03_04_01_33_54', '03_04_01_46_31'],
         # 'sigma':['03_03_16_56_52', '03_03_23_18_48', '03_04_02_42_13', '03_04_07_34_58', '03_04_12_28_46', '03_04_21_43_47']
     }
+    if False:
+        for key in folder_names:
+            for value in folder_names[key]:
 
-    for key in folder_names:
-        for value in folder_names[key]:
+                if key == 'NRE_full_trawl':
 
-            if key == 'NRE_full_trawl':
+                    trained_classifier_path = os.path.join(
+                        os.getcwd(), 'models', 'new_classifier', 'NRE_full_trawl', value, 'best_model')
+                else:
+                    trained_classifier_path = os.path.join(
+                        os.getcwd(), 'models', 'new_classifier', 'TRE_full_trawl', key, value, 'best_model')  # 'NRE_full_trawl '
 
-                trained_classifier_path = os.path.join(
-                    os.getcwd(), 'models', 'new_classifier', 'NRE_full_trawl', value, 'best_model')
-            else:
-                trained_classifier_path = os.path.join(
-                    os.getcwd(), 'models', 'new_classifier', 'TRE_full_trawl', key, value, 'best_model')  # 'NRE_full_trawl '
-
-            calibrate(trained_classifier_path, nr_batches, 1000)
-            #calibrate(trained_classifier_path, nr_batches, 2500)
-            # calibrate(trained_classifier_path, nr_batches, 2000)
-            # calibrate(trained_classifier_path, nr_batches, 1500)
+                calibrate(trained_classifier_path, nr_batches, 1000)
+                # calibrate(trained_classifier_path, nr_batches, 2500)
+                # calibrate(trained_classifier_path, nr_batches, 2000)
+                # calibrate(trained_classifier_path, nr_batches, 1500)
 
     # TRE options: acf, beta, mu, sigma
 
     # calibrate
+    double_trained_classifier_path = os.path.join(
+        os.getcwd(), 'models', 'new_classifier', 'TRE_full_trawl', 'selected_models')
