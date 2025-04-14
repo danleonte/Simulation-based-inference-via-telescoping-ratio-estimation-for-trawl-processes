@@ -73,10 +73,23 @@ def validate_classifiers(folder_path, dataset_len):
     cal_x = jnp.load(cal_x_path)
     cal_thetas = jnp.load(cal_thetas_path)
     cal_Y = jnp.load(cal_Y_path)
-
-    approximate_log_likelihood_to_evidence,  _ = \
-        load_trained_models(folder_path, cal_x[0], trawl_process_type,  # [::-1] not necessary, it s just a dummy, but just to make sure we don t pollute wth true values of some sort
-                            use_tre, use_summary_statistics, f'calibration_{dataset_len}.pkl')
+    
+    calibrated__ = False
+    
+    if calibrated__:
+  
+      approximate_log_likelihood_to_evidence,  _ = \
+          load_trained_models(folder_path, cal_x[0], trawl_process_type,  # [::-1] not necessary, it s just a dummy, but just to make sure we don t pollute wth true values of some sort
+                              use_tre, use_summary_statistics, f'calibration_{dataset_len}.pkl')
+                              
+      calibration_prefix = 'calibrated_'
+                              
+    else:
+      approximate_log_likelihood_to_evidence,  _ = \
+          load_trained_models(folder_path, cal_x[0], trawl_process_type,  # [::-1] not necessary, it s just a dummy, but just to make sure we don t pollute wth true values of some sort
+                              use_tre, use_summary_statistics, f'uncalibrated.pkl')
+      calibration_prefix = 'uncalibrated_'
+      
 
     log_r, pred_prob_Y, Y = [], [], []
 
@@ -101,7 +114,7 @@ def validate_classifiers(folder_path, dataset_len):
 
     bce_loss, bce_std = bce_.mean(), bce_.std() / len(bce_)**0.5
 
-    with open(os.path.join(folder_path, f'metrics_{dataset_len}.txt'), "w") as f:
+    with open(os.path.join(folder_path, calibration_prefix + f'metrics_{dataset_len}.txt'), "w") as f:
         f.write(f"S: {S}\n")
         f.write(f"B: {B}\n")
         f.write(f"Accuracy: {accuracy}\n")
@@ -113,13 +126,13 @@ if __name__ == '__main__':
 
     folder_paths = []
 
-    folder_paths.append(
-        r'D:\sbi_ambit\SBI_for_trawl_processes_and_ambit_fields\models\new_classifier\TRE_full_trawl\selected_models')
+    folder_paths.append(r'/home/leonted/SBI/SBI_for_trawl_processes_and_ambit_fields/models/new_classifier/TRE_full_trawl/selected_models')
+    #    r'D:\sbi_ambit\SBI_for_trawl_processes_and_ambit_fields\models\new_classifier\TRE_full_trawl\selected_models')
     # folder_paths.append(
     #    r'D:\sbi_ambit\SBI_for_trawl_processes_and_ambit_fields\models\new_classifier\TRE_full_trawl\selected_models')
     #
-    folder_paths.append(
-        r'D:\sbi_ambit\SBI_for_trawl_processes_and_ambit_fields\models\new_classifier\NRE_full_trawl\selected_model')
+    #folder_paths.append(
+    #    r'D:\sbi_ambit\SBI_for_trawl_processes_and_ambit_fields\models\new_classifier\NRE_full_trawl\selected_model')
     # folder_paths.append(
     #    r'D:\sbi_ambit\SBI_for_trawl_processes_and_ambit_fields\models\new_classifier\NRE_full_trawl\selected_models')
 
@@ -127,8 +140,12 @@ if __name__ == '__main__':
     #    for cal in ['uncalibrated','beta_calibrated']:
 
     for folder_path in folder_paths:
-
+        
         validate_classifiers(folder_path, 1500)
+        validate_classifiers(folder_path, 2000)
+        validate_classifiers(folder_path, 2500)
+        validate_classifiers(folder_path, 3000)
+        validate_classifiers(folder_path, 3500)
 
 
 # base_path = '/home/leonted/SBI/SBI_for_trawl_processes_and_ambit_fields'
