@@ -41,7 +41,7 @@ def process_batch(batch_indices, folder_path, true_trawls, true_thetas, wrapper_
                 trawl_idx=idx,
                 # true_trawls=true_trawls,
                 true_thetas=true_thetas,
-                approximate_log_likelihood_to_evidence=wrapper_for_approx_likelihood_just_theta(
+                approximate_log_likelihood_to_evidence_just_theta=wrapper_for_approx_likelihood_just_theta(
                     jnp.reshape(true_trawls[idx], (1, -1))),
                 seed=seed + idx**2,
                 num_samples=num_samples,
