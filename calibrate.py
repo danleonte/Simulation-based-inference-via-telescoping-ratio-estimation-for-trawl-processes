@@ -258,8 +258,23 @@ def calibrated_the_NRE_of_a_calibrated_TRE(trained_classifier_path, seq_len):
         fig_map.savefig(os.path.join(
             double_calibration_path, f'double_calibration_map_{seq_len}.pdf'))
 
+        # General classifier histogram
+
+        hist_beta, ax = plt.subplots()
+        ax.hist(
+            pred_prob_Y[Y == 1].squeeze(), label='Y=1', alpha=0.5, density=True,
+            bins=30)
+        ax.hist(
+            pred_prob_Y[Y == 0].squeeze(), label='Y=0', alpha=0.5, density=True)
+        ax.set_title(
+            'Histogram of c(x,theta) classifier')
+        ax.legend(loc='upper center')
+        hist_beta.savefig(os.path.join(
+            double_calibration_path, f'Uncalibrated_hist_{seq_len}.pdf'))
+
     except:
         pass
+    print(min(pred_prob_Y[Y == 1]), max(pred_prob_Y[Y == 0]))
 
 
 def calibrate(trained_classifier_path, nr_batches, seq_len):
@@ -453,8 +468,6 @@ def calibrate(trained_classifier_path, nr_batches, seq_len):
     # os.makedirs(calibration_results_path, exist_ok=True)
 
     ############ UNCALIBRATED plots ############
-
-    # General classifier histogram
 
     if False:
 
