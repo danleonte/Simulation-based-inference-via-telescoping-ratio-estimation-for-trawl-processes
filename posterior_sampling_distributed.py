@@ -58,7 +58,8 @@ def process_batch(batch_indices, folder_path, true_trawls, true_thetas, approxim
 
             try:
                 create_and_save_plots(
-                    results=results,
+                    posterior_samples=posterior_samples,
+                    true_theta = results['true_theta'],
                     save_dir=trawl_dir
                 )
             except Exception as e:
@@ -146,16 +147,16 @@ def main():
     del cal_Y
 
     # Load approximate likelihood function
-    approximate_log_likelihood_to_evidence, _, _ = load_trained_models(
+    approximate_log_likelihood_to_evidence, _ = load_trained_models(
         folder_path, true_trawls[[0], ::-1], trawl_process_type,
-        use_tre, use_summary_statistics, seq_len
+        use_tre, use_summary_statistics, f'calibration_{seq_len}.pkl'
     )
 
     # MCMC parameters
     num_samples = 12500  # Adjust as needed
     num_warmup = 5000
     num_burnin = 2500
-    num_chains = 30
+    num_chains = 20
     seed = 13414
 
     # Process assigned batch

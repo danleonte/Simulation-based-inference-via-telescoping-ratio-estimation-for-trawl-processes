@@ -110,7 +110,7 @@ def run_mcmc_for_trawl(trawl_idx, true_trawls, approximate_log_likelihood_to_evi
 
     mcmc = MCMC(nuts_kernel,  # hmc_kernel,
                 num_warmup=num_warmup, num_samples=total_post_warmup,
-                num_chains=num_chains, chain_method='vectorized', progress_bar=True)
+                num_chains=num_chains, chain_method='vectorized', progress_bar=False)
 
     start_time = time.time()
     mcmc.run(chain_keys)
