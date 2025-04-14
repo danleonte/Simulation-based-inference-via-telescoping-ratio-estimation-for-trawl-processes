@@ -581,3 +581,6 @@ if __name__ == '__main__':
     # calibrate
     double_trained_classifier_path = os.path.join(
         os.getcwd(), 'models', 'new_classifier', 'TRE_full_trawl', 'selected_models')
+
+    calibrated_the_NRE_of_a_calibrated_TRE(
+        double_trained_classifier_path, 1500)
