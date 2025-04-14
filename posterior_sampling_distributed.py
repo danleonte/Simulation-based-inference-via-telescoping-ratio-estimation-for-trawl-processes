@@ -8,7 +8,7 @@ from posterior_sampling_utils import run_mcmc_for_trawl, save_results, create_an
 from src.utils.get_trained_models import load_trained_models_for_posterior_inference as load_trained_models
 
 
-def process_batch(batch_indices, folder_path, true_trawls, true_thetas, approximate_log_likelihood_to_evidence,
+def process_batch(batch_indices, folder_path, true_trawls, true_thetas, wrapper_for_approx_likelihood_just_theta,
                   trawl_process_type, num_samples, num_warmup, num_burnin, num_chains, seed, seq_len):
     """
     Process a batch of trawl indices
@@ -39,9 +39,10 @@ def process_batch(batch_indices, folder_path, true_trawls, true_thetas, approxim
             # Run MCMC for this trawl
             results, posterior_samples = run_mcmc_for_trawl(
                 trawl_idx=idx,
-                true_trawls=true_trawls,
+                # true_trawls=true_trawls,
                 true_thetas=true_thetas,
-                approximate_log_likelihood_to_evidence=approximate_log_likelihood_to_evidence,
+                approximate_log_likelihood_to_evidence=wrapper_for_approx_likelihood_just_theta(
+                    jnp.reshape(true_trawls[idx], (1, -1))),
                 seed=seed + idx**2,
                 num_samples=num_samples,
                 num_warmup=num_warmup,
@@ -59,7 +60,7 @@ def process_batch(batch_indices, folder_path, true_trawls, true_thetas, approxim
             try:
                 create_and_save_plots(
                     posterior_samples=posterior_samples,
-                    true_theta = results['true_theta'],
+                    true_theta=results['true_theta'],
                     save_dir=trawl_dir
                 )
             except Exception as e:
@@ -147,16 +148,16 @@ def main():
     del cal_Y
 
     # Load approximate likelihood function
-    approximate_log_likelihood_to_evidence, _ = load_trained_models(
+    _, wrapper_for_approx_likelihood_just_theta = load_trained_models(
         folder_path, true_trawls[[0], ::-1], trawl_process_type,
         use_tre, use_summary_statistics, f'calibration_{seq_len}.pkl'
     )
 
     # MCMC parameters
-    num_samples = 12500  # Adjust as needed
+    num_samples = 15000  # Adjust as needed
     num_warmup = 5000
-    num_burnin = 2500
-    num_chains = 20
+    num_burnin = 5000
+    num_chains = 25
     seed = 13414
 
     # Process assigned batch
@@ -165,7 +166,7 @@ def main():
         folder_path=folder_path,
         true_trawls=true_trawls,
         true_thetas=true_thetas,
-        approximate_log_likelihood_to_evidence=approximate_log_likelihood_to_evidence,
+        approximate_log_likelihood_to_evidence=wrapper_for_approx_likelihood_just_theta,
         trawl_process_type=trawl_process_type,
         num_samples=num_samples,
         num_warmup=num_warmup,

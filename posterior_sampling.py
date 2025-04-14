@@ -10,7 +10,7 @@ from src.utils.get_trained_models import load_trained_models_for_posterior_infer
 def main(start_idx, end_idx, seq_len):
 
     # Load configuration
-    # folder_path = r'/home/leonted/SBI/SBI_for_trawl_processes_and_ambit_fields/models/classifier/TRE_full_trawl/beta_calibrated'
+    # folder_path = r'/home/leonted/SBI/SBI_for_trawl_processes_and_ambit_fields/models/new_classifier/TRE_full_trawl/selected_models'
     folder_path = r'D:\sbi_ambit\SBI_for_trawl_processes_and_ambit_fields\models\new_classifier\TRE_full_trawl\selected_models'
 
     # Set up model configuration
@@ -47,15 +47,15 @@ def main(start_idx, end_idx, seq_len):
     del cal_Y
 
     # Load approximate likelihood function
-    approximate_log_likelihood_to_evidence, _ = load_trained_models(
+    _, wrapper = load_trained_models(
         folder_path, true_trawls[[0], ::-1], trawl_process_type,
         use_tre, use_summary_statistics, f'calibration_{seq_len}.pkl'
     )
 
     # MCMC parameters
-    num_samples = 6000  # 7500
-    num_warmup = 2000  # 2500
-    num_burnin = 2000  # 2500
+    num_samples = 7500  # 7500
+    num_warmup = 2500  # 2500
+    num_burnin = 2500  # 2500
     num_chains = 25  # 25
     seed = 25246  # this gets chaged inside the posterior_sampling_utils
 
@@ -82,9 +82,10 @@ def main(start_idx, end_idx, seq_len):
             # Run MCMC for this trawl
             results, posterior_samples = run_mcmc_for_trawl(
                 trawl_idx=idx,
-                true_trawls=true_trawls,
+                # true_trawls=true_trawls,
                 true_thetas=true_thetas,
-                approximate_log_likelihood_to_evidence=approximate_log_likelihood_to_evidence,
+                approximate_log_likelihood_to_evidence_just_theta=wrapper(
+                    jnp.reshape(true_trawls[idx], (1, -1))),
                 seed=seed + idx**2,
                 num_samples=num_samples,
                 num_warmup=num_warmup,

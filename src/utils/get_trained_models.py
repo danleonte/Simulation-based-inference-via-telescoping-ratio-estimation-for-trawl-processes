@@ -241,6 +241,8 @@ def load_trained_models_for_posterior_inference(folder_path, dummy_x, trawl_proc
             total_log_r = 0.0
 
             print('here cached')
+            if theta.ndim < 2:
+                theta = jnp.reshape(theta, (1, -1))
 
             for i in range(len(model_applies)):
                 apply_fn = model_applies[i]

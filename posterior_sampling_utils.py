@@ -37,7 +37,7 @@ import arviz as az
 # from jax import debug
 
 
-def run_mcmc_for_trawl(trawl_idx, true_trawls, approximate_log_likelihood_to_evidence,
+def run_mcmc_for_trawl(trawl_idx, approximate_log_likelihood_to_evidence_just_theta,
                        true_thetas, seed, num_samples=12500,
                        num_warmup=5000, num_burnin=2500,
                        num_chains=25):
@@ -60,25 +60,25 @@ def run_mcmc_for_trawl(trawl_idx, true_trawls, approximate_log_likelihood_to_evi
     dict
         Results dictionary with samples, diagnostics, etc.
     """
-    test_trawl = true_trawls[trawl_idx, :]
+    # test_trawl = true_trawls[trawl_idx, :]
     test_theta = true_thetas[trawl_idx, :]
 
-    test_trawl_reshaped = jnp.reshape(test_trawl, (1, -1))
+    # test_trawl_reshaped = jnp.reshape(test_trawl, (1, -1))
 
     # Define a pure function for the log probability
-    @jax.jit
-    def log_prob_fn(theta_vector):
-        # counter = 0
-        # counter += 1
-        # debug.print("Function called {} times", counter)
-        # Reshape theta to expected shape
-        theta = theta_vector.reshape(1, -1)
-
-        # Get log likelihood
-        log_like = approximate_log_likelihood_to_evidence(
-            test_trawl_reshaped, theta)[0, 0]
-
-        return log_like
+    # @jax.jit
+    # def log_prob_fn(theta_vector):
+    #    # counter = 0
+    #    # counter += 1
+    #    # debug.print("Function called {} times", counter)
+    #    # Reshape theta to expected shape
+    #    theta = theta_vector.reshape(1, -1)
+    #
+    #    # Get log likelihood
+    #    log_like = approximate_log_likelihood_to_evidence(
+    #        test_trawl_reshaped, theta)[0, 0]
+    #
+    #    return log_like
 
     # Use this in your model function
     def model_vec():
@@ -91,7 +91,8 @@ def run_mcmc_for_trawl(trawl_idx, true_trawls, approximate_log_likelihood_to_evi
         theta_vec = jnp.array([gamma, eta, mu, sigma, beta])
 
         # Use the pre-compiled function
-        log_likelihood = log_prob_fn(theta_vec)
+        log_likelihood = approximate_log_likelihood_to_evidence_just_theta(
+            theta_vec)
 
         numpyro.deterministic("log_likelihood", log_likelihood)
         numpyro.factor("likelihood_factor", log_likelihood)
@@ -130,8 +131,8 @@ def run_mcmc_for_trawl(trawl_idx, true_trawls, approximate_log_likelihood_to_evi
     # Convert to arviz format for diagnostics
     az_data = az.convert_to_dataset(posterior_samples)
 
-    log_liked_at_true_params = approximate_log_likelihood_to_evidence(
-        test_trawl[jnp.newaxis, :], test_theta[jnp.newaxis, :])[0].item()
+    log_liked_at_true_params = approximate_log_likelihood_to_evidence_just_theta(
+        test_theta[jnp.newaxis, :])[0].item()
 
     log_likelihood_at_samples = all_samples["log_likelihood"][:, num_burnin:]
 
