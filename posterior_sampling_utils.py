@@ -1,8 +1,7 @@
-from src.utils.get_trained_models import load_trained_models_for_posterior_inference as load_trained_models
-from src.utils.summary_statistics_plotting import plot_acfs, plot_marginals
+# from src.utils.get_trained_models import load_trained_models_for_posterior_inference as load_trained_models
+# from src.utils.summary_statistics_plotting import plot_acfs, plot_marginals
 from src.utils.get_data_generator import get_theta_and_trawl_generator
 from src.utils.classifier_utils import get_projection_function
-from src.model.Extended_model_nn import ExtendedModel
 import numpy as np
 import datetime
 import pickle
@@ -39,9 +38,9 @@ import arviz as az
 
 
 def run_mcmc_for_trawl(trawl_idx, true_trawls, approximate_log_likelihood_to_evidence,
-                       true_thetas, seed, num_samples=5000,
-                       num_warmup=2500, num_burnin=1500,
-                       num_chains=20):
+                       true_thetas, seed, num_samples=12500,
+                       num_warmup=5000, num_burnin=2500,
+                       num_chains=25):
     """
     Run MCMC for a specific trawl index
 
@@ -83,13 +82,13 @@ def run_mcmc_for_trawl(trawl_idx, true_trawls, approximate_log_likelihood_to_evi
 
     # Use this in your model function
     def model_vec():
-        eta = numpyro.sample("eta", dist.Uniform(10, 20))
         gamma = numpyro.sample("gamma", dist.Uniform(10, 20))
+        eta = numpyro.sample("eta", dist.Uniform(10, 20))
         mu = numpyro.sample("mu", dist.Uniform(-1, 1))
         sigma = numpyro.sample("sigma", dist.Uniform(0.5, 1.5))
         beta = numpyro.sample("beta", dist.Uniform(-5, 5))
 
-        theta_vec = jnp.array([eta, gamma, mu, sigma, beta])
+        theta_vec = jnp.array([gamma, eta, mu, sigma, beta])
 
         # Use the pre-compiled function
         log_likelihood = log_prob_fn(theta_vec)
@@ -111,7 +110,7 @@ def run_mcmc_for_trawl(trawl_idx, true_trawls, approximate_log_likelihood_to_evi
 
     mcmc = MCMC(nuts_kernel,  # hmc_kernel,
                 num_warmup=num_warmup, num_samples=total_post_warmup,
-                num_chains=num_chains, chain_method='vectorized', progress_bar=False)
+                num_chains=num_chains, chain_method='vectorized', progress_bar=True)
 
     start_time = time.time()
     mcmc.run(chain_keys)
@@ -138,18 +137,20 @@ def run_mcmc_for_trawl(trawl_idx, true_trawls, approximate_log_likelihood_to_evi
 
     # Gather results
     results = {
-        'posterior_samples': posterior_samples,
+        # 'posterior_samples': posterior_samples,
         'runtime': end_time - start_time,
-        'ess_bulk': az.ess(posterior_samples,method="bulk"), #az.ess(az.from_numpyro(mcmc), method="bulk"),
-        'ess_tail': az.ess(posterior_samples,method="tail"),#az.ess(az.from_numpyro(mcmc), method="tail"),
-        'rhat': az.rhat(posterior_samples), #az.rhat(az.from_numpyro(mcmc)),
+        # az.ess(az.from_numpyro(mcmc), method="bulk"),
+        'ess_bulk': az.ess(posterior_samples, method="bulk"),
+        # az.ess(az.from_numpyro(mcmc), method="tail"),
+        'ess_tail': az.ess(posterior_samples, method="tail"),
+        'rhat': az.rhat(posterior_samples),  # az.rhat(az.from_numpyro(mcmc)),
         'log_likelihood_samples': log_likelihood_at_samples,
         'true_log_like': log_liked_at_true_params,
         'coverage': np.sum(log_liked_at_true_params < log_likelihood_at_samples) / np.prod(log_likelihood_at_samples.shape)
         # 'covariance_matrix': mcmc.last_state.adapt_state.inverse_mass_matrix,
         # 'true_theta': test_theta,
     }
-    return results
+    return results, posterior_samples
 
 # Save/load helpers
 
@@ -164,11 +165,11 @@ def load_results(filename):
         return pickle.load(f)
 
 
-def create_and_save_plots(results, save_dir):
+def create_and_save_plots(posterior_samples, true_theta, save_dir):
     """Create and save diagnostic plots from MCMC results"""
     # Extract data
-    posterior_samples = results['posterior_samples']
-    true_theta = results['true_theta']
+    # posterior_samples = results['posterior_samples']
+    # true_theta = results['true_theta']
 
     # Convert to arviz format
     az_data = az.convert_to_dataset(posterior_samples)
@@ -176,20 +177,35 @@ def create_and_save_plots(results, save_dir):
     # Create pair plot
     grid = az.plot_pair(
         az_data,
-        var_names=["eta", "gamma", "mu", "sigma", "beta"],
+        var_names=["gamma", "eta",  "mu", "sigma", "beta"],
         marginals=True,
         kind='kde',
-        figsize=(10, 10),
-        reference_values={"eta": true_theta[0],
-                          "gamma": true_theta[1],
+        figsize=(12, 12),
+        reference_values={"gamma": true_theta[0],
+                          "eta": true_theta[1],
                           "mu": true_theta[2],
                           "sigma": true_theta[3],
                           "beta": true_theta[4]},
-        reference_values_kwargs={"color": "r", "marker": "o"},
-        point_estimate='mode'
+        reference_values_kwargs={"color": "r", "marker": "o"}
+        # point_estimate='mode'
     )
 
-    # Manually add true values to marginals (diagonal plots)
+    plt.tight_layout()
+
+    # Loop through axes to format
+    for ax in grid.flat:
+        if ax is not None:
+            # Rotate x-axis labels
+            ax.tick_params(axis='x', labelrotation=45)
+
+            # Format tick labels to use fewer decimal places
+            ax.xaxis.set_major_formatter(plt.FormatStrFormatter('%.1f'))
+
+            # Increase font size
+            ax.tick_params(axis='both', labelsize=10)
+
+    # Add more space at the bottom for labels
+    # plt.subplots_adjust(bottom=0.15)
 
     # Get the figure from one of the axes
     fig = plt.gcf()  # Get current figure

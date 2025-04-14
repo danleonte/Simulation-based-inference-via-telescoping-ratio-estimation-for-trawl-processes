@@ -7,11 +7,11 @@ from posterior_sampling_utils import run_mcmc_for_trawl, save_results, create_an
 from src.utils.get_trained_models import load_trained_models_for_posterior_inference as load_trained_models
 
 
-def main(start_idx, end_idx):
+def main(start_idx, end_idx, seq_len):
 
     # Load configuration
-    folder_path = r'/home/leonted/SBI/SBI_for_trawl_processes_and_ambit_fields/models/classifier/TRE_full_trawl/beta_calibrated'
-    #folder_path = r'D:\sbi_ambit\SBI_for_trawl_processes_and_ambit_fields\models\classifier\TRE_full_trawl\beta_calibrated'
+    # folder_path = r'/home/leonted/SBI/SBI_for_trawl_processes_and_ambit_fields/models/classifier/TRE_full_trawl/beta_calibrated'
+    folder_path = r'D:\sbi_ambit\SBI_for_trawl_processes_and_ambit_fields\models\new_classifier\TRE_full_trawl\selected_models'
 
     # Set up model configuration
     use_tre = 'TRE' in folder_path
@@ -32,11 +32,10 @@ def main(start_idx, end_idx):
     with open(classifier_config_file_path, 'r') as f:
         a_classifier_config = yaml.safe_load(f)
         trawl_process_type = a_classifier_config['trawl_config']['trawl_process_type']
-        seq_len = a_classifier_config['trawl_config']['seq_len']
 
     # Load dataset
     dataset_path = os.path.join(os.path.dirname(
-        os.path.dirname(folder_path)), 'cal_dataset')
+        os.path.dirname(folder_path)), f'cal_dataset_{seq_len}')
     cal_x_path = os.path.join(dataset_path, 'cal_x.npy')
     cal_thetas_path = os.path.join(dataset_path, 'cal_thetas.npy')
     cal_Y_path = os.path.join(dataset_path, 'cal_Y.npy')
@@ -48,16 +47,16 @@ def main(start_idx, end_idx):
     del cal_Y
 
     # Load approximate likelihood function
-    approximate_log_likelihood_to_evidence, _, _ = load_trained_models(
+    approximate_log_likelihood_to_evidence, _ = load_trained_models(
         folder_path, true_trawls[[0], ::-1], trawl_process_type,
-        use_tre, use_summary_statistics
+        use_tre, use_summary_statistics, f'calibration_{seq_len}.pkl'
     )
 
     # MCMC parameters
     num_samples = 6000  # 7500
     num_warmup = 2000  # 2500
     num_burnin = 2000  # 2500
-    num_chains = 75  # 25
+    num_chains = 25  # 25
     seed = 25246  # this gets chaged inside the posterior_sampling_utils
 
     if end_idx <= start_idx:
@@ -66,7 +65,7 @@ def main(start_idx, end_idx):
 
     # Create results directory
     results_dir = f"mcmc_results_{trawl_process_type}"
-    results_dir = os.path.join(folder_path, results_dir)
+    results_dir = os.path.join(folder_path, results_dir, str(seq_len))
     os.makedirs(results_dir, exist_ok=True)
 
     for idx in range(start_idx, end_idx):
@@ -81,7 +80,7 @@ def main(start_idx, end_idx):
 
         try:
             # Run MCMC for this trawl
-            results = run_mcmc_for_trawl(
+            results, posterior_samples = run_mcmc_for_trawl(
                 trawl_idx=idx,
                 true_trawls=true_trawls,
                 true_thetas=true_thetas,
@@ -102,7 +101,8 @@ def main(start_idx, end_idx):
 
             try:
                 create_and_save_plots(
-                    results=results,
+                    posterior_samples=posterior_samples,
+                    true_theta=results['true_theta'],
                     save_dir=trawl_dir
                 )
             except Exception as e:

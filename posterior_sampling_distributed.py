@@ -9,7 +9,7 @@ from src.utils.get_trained_models import load_trained_models_for_posterior_infer
 
 
 def process_batch(batch_indices, folder_path, true_trawls, true_thetas, approximate_log_likelihood_to_evidence,
-                  trawl_process_type, num_samples, num_warmup, num_burnin, num_chains, seed):
+                  trawl_process_type, num_samples, num_warmup, num_burnin, num_chains, seed, seq_len):
     """
     Process a batch of trawl indices
 
@@ -21,7 +21,7 @@ def process_batch(batch_indices, folder_path, true_trawls, true_thetas, approxim
         Path to the model folder
     """
     # Create results directory
-    results_dir = f"mcmc_results_{trawl_process_type}"
+    results_dir = f"mcmc_results_{trawl_process_type}_{seq_len}"
     results_dir = os.path.join(folder_path, results_dir)
     os.makedirs(results_dir, exist_ok=True)
 
@@ -37,7 +37,7 @@ def process_batch(batch_indices, folder_path, true_trawls, true_thetas, approxim
 
         try:
             # Run MCMC for this trawl
-            results = run_mcmc_for_trawl(
+            results, posterior_samples = run_mcmc_for_trawl(
                 trawl_idx=idx,
                 true_trawls=true_trawls,
                 true_thetas=true_thetas,
@@ -85,6 +85,7 @@ def main():
     end_idx = int(sys.argv[2])
     task_id = int(sys.argv[3])
     total_tasks = 128  # Total number of cores/tasks
+    seq_len = 1500
 
     print(
         f"DEBUG: Python received args: start_idx={start_idx}, end_idx={end_idx}, task_id={task_id}")
@@ -108,7 +109,7 @@ def main():
     print(f"Task {task_id}: Processing trawls {indices[0]} to {indices[-1]}")
 
     # Load configuration
-    folder_path = r'/home/leonted/SBI/SBI_for_trawl_processes_and_ambit_fields/models/classifier/TRE_full_trawl/beta_calibrated'
+    folder_path = r'/home/leonted/SBI/SBI_for_trawl_processes_and_ambit_fields/models/new_classifier/TRE_full_trawl/selected_models'
 
     # Set up model configuration
     use_tre = 'TRE' in folder_path
@@ -129,11 +130,11 @@ def main():
     with open(classifier_config_file_path, 'r') as f:
         a_classifier_config = yaml.safe_load(f)
         trawl_process_type = a_classifier_config['trawl_config']['trawl_process_type']
-        seq_len = a_classifier_config['trawl_config']['seq_len']
+        # seq_len = a_classifier_config['trawl_config']['seq_len']
 
     # Load dataset
     dataset_path = os.path.join(os.path.dirname(
-        os.path.dirname(folder_path)), 'cal_dataset')
+        os.path.dirname(folder_path)), f'cal_dataset_{seq_len}')
     cal_x_path = os.path.join(dataset_path, 'cal_x.npy')
     cal_thetas_path = os.path.join(dataset_path, 'cal_thetas.npy')
     cal_Y_path = os.path.join(dataset_path, 'cal_Y.npy')
@@ -147,13 +148,13 @@ def main():
     # Load approximate likelihood function
     approximate_log_likelihood_to_evidence, _, _ = load_trained_models(
         folder_path, true_trawls[[0], ::-1], trawl_process_type,
-        use_tre, use_summary_statistics
+        use_tre, use_summary_statistics, seq_len
     )
 
     # MCMC parameters
-    num_samples = 5000  # Adjust as needed
-    num_warmup = 1750
-    num_burnin = 1250
+    num_samples = 12500  # Adjust as needed
+    num_warmup = 5000
+    num_burnin = 2500
     num_chains = 30
     seed = 13414
 
@@ -169,7 +170,8 @@ def main():
         num_warmup=num_warmup,
         num_burnin=num_burnin,
         num_chains=num_chains,
-        seed=seed + task_id**2
+        seed=seed + task_id**2,
+        seq_len=seq_len
     )
 
     print(f"Task {task_id}: Completed all assigned trawls")
