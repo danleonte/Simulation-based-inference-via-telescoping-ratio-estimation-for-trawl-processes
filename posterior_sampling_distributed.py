@@ -9,7 +9,7 @@ from src.utils.get_trained_models import load_trained_models_for_posterior_infer
 
 
 def process_batch(batch_indices, folder_path, true_trawls, true_thetas, wrapper_for_approx_likelihood_just_theta,
-                  trawl_process_type, num_samples, num_warmup, num_burnin, num_chains, seed, seq_len):
+                  trawl_process_type, num_samples, num_warmup, num_burnin, num_chains, seed, seq_len, calibration_boole):
     """
     Process a batch of trawl indices
 
@@ -21,7 +21,8 @@ def process_batch(batch_indices, folder_path, true_trawls, true_thetas, wrapper_
         Path to the model folder
     """
     # Create results directory
-    results_dir = f"mcmc_results_{trawl_process_type}_{seq_len}"
+    results_dir = f"mcmc_results_{trawl_process_type}_{seq_len}" + \
+        ('calibrated' if calibration_boole else 'uncalibrated')
     results_dir = os.path.join(folder_path, results_dir)
     os.makedirs(results_dir, exist_ok=True)
 
@@ -88,6 +89,7 @@ def main():
     task_id = int(sys.argv[3])
     total_tasks = 128  # Total number of cores/tasks
     seq_len = 3000
+    calibration_boole = True
 
     print(
         f"DEBUG: Python received args: start_idx={start_idx}, end_idx={end_idx}, task_id={task_id}")
@@ -147,14 +149,22 @@ def main():
     true_thetas = true_thetas[:, cal_Y == 1].reshape(-1, true_thetas.shape[-1])
     del cal_Y
 
+    if calibration_boole:
+
+        calibration_filename = f'calibration_{seq_len}.pkl'
+
+    else:
+
+        calibration_filename = 'no_calibration.pkl'
+
     # Load approximate likelihood function
     _, wrapper_for_approx_likelihood_just_theta = load_trained_models(
         folder_path, true_trawls[[0], ::-1], trawl_process_type,
-        use_tre, use_summary_statistics, f'calibration_{seq_len}.pkl'
+        use_tre, use_summary_statistics, calibration_filename
     )
 
     # MCMC parameters
-    num_samples = 15000  # Adjust as needed
+    num_samples = 20000  # Adjust as needed
     num_warmup = 5000
     num_burnin = 5000
     num_chains = 25
@@ -173,7 +183,8 @@ def main():
         num_burnin=num_burnin,
         num_chains=num_chains,
         seed=seed + task_id**2,
-        seq_len=seq_len
+        seq_len=seq_len,
+        calibration_boole=calibration_boole
     )
 
     print(f"Task {task_id}: Completed all assigned trawls")
