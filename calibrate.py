@@ -64,7 +64,7 @@ def generate_dataset(classifier_config, nr_batches):
         classifier_config)
 
     # Generate calibration data
-    cal_trawls = []
+    #cal_trawls = []
     cal_thetas = []
     cal_x = []
 
@@ -97,15 +97,15 @@ def generate_dataset(classifier_config, nr_batches):
         x_cal, theta_cal, Y = tre_shuffle(
             x_cal, theta_cal, jnp.roll(theta_cal, -1, axis=0), classifier_config)
 
-        cal_trawls.append(trawl_cal)
+        #cal_trawls.append(trawl_cal)
         cal_thetas.append(theta_cal)
         cal_x.append(x_cal)
 
-    cal_trawls = jnp.array(cal_trawls)  # , axis=0)
+    #cal_trawls = jnp.array(cal_trawls)  # , axis=0)
     cal_x = jnp.array(cal_x)       # , axis=0)
     cal_thetas = jnp.array(cal_thetas)  # , axis=0)
 
-    return cal_trawls, cal_x, cal_thetas, Y
+    return cal_x, cal_thetas, Y #cal_trawls, cal_x, cal_thetas, Y
 
 
 def calibrated_the_NRE_of_a_calibrated_TRE(trained_classifier_path, seq_len):
@@ -136,12 +136,12 @@ def calibrated_the_NRE_of_a_calibrated_TRE(trained_classifier_path, seq_len):
     dataset_path = os.path.join(os.path.dirname(
         os.path.dirname(trained_classifier_path)),  f'cal_dataset_{seq_len}')
     # load calidation dataset
-    cal_trawls_path = os.path.join(dataset_path, 'cal_trawls.npy')
+    #cal_trawls_path = os.path.join(dataset_path, 'cal_trawls.npy')
     cal_x_path = os.path.join(dataset_path, 'cal_x.npy')
     cal_thetas_path = os.path.join(dataset_path, 'cal_thetas.npy')
     cal_Y_path = os.path.join(dataset_path, 'cal_Y.npy')
 
-    cal_trawls_ = jnp.load(cal_trawls_path)
+    #cal_trawls_ = jnp.load(cal_trawls_path)
     cal_x = jnp.load(cal_x_path)
     cal_thetas = jnp.load(cal_thetas_path)
     cal_Y = jnp.load(cal_Y_path)
@@ -286,16 +286,16 @@ def calibrate(trained_classifier_path, nr_batches, seq_len):
     dataset_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
         os.path.dirname(trained_classifier_path)))),  f'cal_dataset_{seq_len}')
     # load calidation dataset
-    cal_trawls_path = os.path.join(dataset_path, 'cal_trawls.npy')
+    #cal_trawls_path = os.path.join(dataset_path, 'cal_trawls.npy')
     cal_x_path = os.path.join(dataset_path, 'cal_x.npy')
     cal_thetas_path = os.path.join(dataset_path, 'cal_thetas.npy')
     cal_Y_path = os.path.join(dataset_path, 'cal_Y.npy')
 
-    if os.path.isfile(cal_trawls_path) and os.path.isfile(cal_thetas_path) and os.path.isfile(cal_Y_path):
+    if os.path.isfile(cal_x_path) and os.path.isfile(cal_thetas_path) and os.path.isfile(cal_Y_path): #os.path.isfile(cal_trawls_path) and os.path.isfile(cal_thetas_path) and os.path.isfile(cal_Y_path):
 
         print('Validation dataset already created')
 
-        cal_trawls_ = np.load(cal_trawls_path)
+        #cal_trawls_ = np.load(cal_trawls_path)
         cal_x = np.load(cal_x_path)
         cal_thetas = np.load(cal_thetas_path)
         cal_Y = np.load(cal_Y_path)
@@ -305,11 +305,12 @@ def calibrate(trained_classifier_path, nr_batches, seq_len):
         print('Generating dataset')
         classifier_config_ = deepcopy(classifier_config)
         classifier_config_['trawl_config']['seq_len'] = seq_len
-        cal_trawls_, cal_x, cal_thetas, cal_Y = generate_dataset(
-            classifier_config_, nr_batches)
+        cal_x, cal_thetas, cal_Y = generate_dataset(
+            classifier_config_, nr_batches)#cal_trawls_, cal_x, cal_thetas, cal_Y = generate_dataset(
+        #    classifier_config_, nr_batches)
         print('Generated dataset')
 
-        np.save(file=cal_trawls_path, arr=cal_trawls_)
+        #np.save(file=cal_trawls_path, arr=cal_trawls_)
         np.save(file=cal_x_path, arr=cal_x)
         np.save(file=cal_thetas_path, arr=cal_thetas)
         np.save(file=cal_Y_path, arr=cal_Y)
@@ -425,7 +426,7 @@ def calibrate(trained_classifier_path, nr_batches, seq_len):
 
     # perform isotonic regression, Beta and Plat scaling
     lr = LogisticRegression(C=99999999999)
-    iso = IsotonicRegression(y_min=0.001, y_max=0.999)
+    iso = IsotonicRegression(y_min=0.0001, y_max=0.9999)
     bc = BetaCalibration(parameters="abm")
 
     lr.fit(pred_prob_Y, np.array(Y))
@@ -439,7 +440,7 @@ def calibrate(trained_classifier_path, nr_batches, seq_len):
         # serialize the list
         pickle.dump(calibration_dict, f)
 
-    linspace = np.linspace(0, 1, 100)
+    linspace = np.linspace(0.0001, 0.9999, 100)
     pr = [lr.predict_proba(linspace.reshape(-1, 1))[:, 1],
           iso.predict(linspace), bc.predict(linspace)]
     methods_text = ['logistic', 'isotonic', 'beta']
@@ -554,7 +555,7 @@ def calibrate(trained_classifier_path, nr_batches, seq_len):
 
 
 if __name__ == '__main__':
-    nr_batches = 500
+    nr_batches = 1500
 
     folder_names = {  # 'NRE_full_trawl': ['04_12_04_25_37', '04_11_23_17_38','04_12_05_18_53','04_12_12_34_53','04_12_00_24_16','04_11_23_37_05','04_12_02_18_27','04_12_08_21_48',
         # '04_11_20_15_48','04_12_11_52_49','04_12_11_21_25'],########['03_03_10_00_51', '03_03_13_37_12', '03_03_19_26_42', '03_04_02_34_16', '03_04_08_50_44', '03_04_13_48_26'],
@@ -572,7 +573,7 @@ if __name__ == '__main__':
         # 'mu':['03_03_16_41_47', '03_03_16_45_26', '03_03_18_35_58', '03_03_21_29_04', '03_04_01_33_54', '03_04_01_46_31'],
         # 'sigma':['03_03_16_56_52', '03_03_23_18_48', '03_04_02_42_13', '03_04_07_34_58', '03_04_12_28_46', '03_04_21_43_47']
     }
-    if False:
+    if True:
         for key in folder_names:
             for value in folder_names[key]:
 
@@ -584,10 +585,13 @@ if __name__ == '__main__':
                     trained_classifier_path = os.path.join(
                         os.getcwd(), 'models', 'new_classifier', 'TRE_full_trawl', key, value, 'best_model')  # 'NRE_full_trawl '
 
+                calibrate(trained_classifier_path, nr_batches, 3500)
                 calibrate(trained_classifier_path, nr_batches, 1000)
-                # calibrate(trained_classifier_path, nr_batches, 2500)
-                # calibrate(trained_classifier_path, nr_batches, 2000)
-                # calibrate(trained_classifier_path, nr_batches, 1500)
+                calibrate(trained_classifier_path, nr_batches, 1500)
+                calibrate(trained_classifier_path, nr_batches, 2500)
+                calibrate(trained_classifier_path, nr_batches, 2000)
+                #calibrate(trained_classifier_path, nr_batches, 3000)
+
 
     # TRE options: acf, beta, mu, sigma
 
@@ -595,5 +599,5 @@ if __name__ == '__main__':
     double_trained_classifier_path = os.path.join(
         os.getcwd(), 'models', 'new_classifier', 'TRE_full_trawl', 'selected_models')
 
-    calibrated_the_NRE_of_a_calibrated_TRE(
-        double_trained_classifier_path, 1500)
+    #calibrated_the_NRE_of_a_calibrated_TRE(
+    #    double_trained_classifier_path, 1500)

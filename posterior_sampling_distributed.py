@@ -87,8 +87,8 @@ def main():
     start_idx = int(sys.argv[1])
     end_idx = int(sys.argv[2])
     task_id = int(sys.argv[3])
-    total_tasks = 128  # Total number of cores/tasks
-    seq_len = 3000
+    total_tasks = 64  # Total number of cores/tasks
+    seq_len = 5000
     calibration_boole = True
 
     print(
