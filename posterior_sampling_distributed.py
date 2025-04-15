@@ -87,7 +87,7 @@ def main():
     end_idx = int(sys.argv[2])
     task_id = int(sys.argv[3])
     total_tasks = 128  # Total number of cores/tasks
-    seq_len = 1500
+    seq_len = 3000
 
     print(
         f"DEBUG: Python received args: start_idx={start_idx}, end_idx={end_idx}, task_id={task_id}")
