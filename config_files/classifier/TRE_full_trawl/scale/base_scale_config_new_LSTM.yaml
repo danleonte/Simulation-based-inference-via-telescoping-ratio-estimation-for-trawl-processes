@@ -7,8 +7,8 @@ tre_config:
   nlags: 35
 trawl_config:
   tau: 1.0
-  seq_len: 1500
-  seq_len_bounds: [1500, 3500]
+  seq_len: 2500
+  seq_len_bounds: [2500, 3500]
   variable_seq_len: False
   num_seq_lens: 20
   input_size: 5

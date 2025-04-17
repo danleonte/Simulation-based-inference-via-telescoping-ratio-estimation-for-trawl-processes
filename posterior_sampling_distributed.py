@@ -88,7 +88,7 @@ def main():
     end_idx = int(sys.argv[2])
     task_id = int(sys.argv[3])
     total_tasks = 64  # Total number of cores/tasks
-    seq_len = 5000
+    seq_len = 2000
     calibration_boole = True
 
     print(
@@ -164,10 +164,10 @@ def main():
     )
 
     # MCMC parameters
-    num_samples = 20000  # Adjust as needed
-    num_warmup = 5000
-    num_burnin = 5000
-    num_chains = 25
+    num_samples = 25000  # Adjust as needed
+    num_warmup = 10000
+    num_burnin = 10000
+    num_chains = 5
     seed = 13414
 
     # Process assigned batch

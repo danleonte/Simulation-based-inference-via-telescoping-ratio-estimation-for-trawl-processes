@@ -107,11 +107,11 @@ def run_mcmc_for_trawl(trawl_idx, approximate_log_likelihood_to_evidence_just_th
     #                 adapt_step_size=True, adapt_mass_matrix=True, dense_mass=True, num_steps=5)
     nuts_kernel = NUTS(model_vec, step_size=0.075, adapt_step_size=True,
                        adapt_mass_matrix=True, dense_mass=True,  # num_steps = 5)
-                       max_tree_depth=3)  # Adaptive HMC
+                       max_tree_depth=10)  # Adaptive HMC
 
     mcmc = MCMC(nuts_kernel,  # hmc_kernel,
                 num_warmup=num_warmup, num_samples=total_post_warmup,
-                num_chains=num_chains, chain_method='vectorized', progress_bar=False)
+                num_chains=num_chains, chain_method='sequential', progress_bar=False)
 
     start_time = time.time()
     mcmc.run(chain_keys)

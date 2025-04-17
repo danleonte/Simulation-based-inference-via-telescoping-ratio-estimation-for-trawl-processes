@@ -6,8 +6,8 @@ import gc  # Import garbage collector
 
 # Load configuration
 calibrate_bool = True
-seq_len = 5000
-calibrate_suffix = '_calibrated' if calibrate_bool else '_uncalibrated'
+seq_len = 2500
+calibrate_suffix = 'calibrated' if calibrate_bool else 'uncalibrated'
 folder_path = r'/home/leonted/SBI/SBI_for_trawl_processes_and_ambit_fields/models/new_classifier/TRE_full_trawl/selected_models/mcmc_results_sup_ig_nig_5p_' + str(seq_len) + calibrate_suffix
 trawl_folders = [item for item in os.listdir(folder_path) 
                if os.path.isdir(os.path.join(folder_path, item))]

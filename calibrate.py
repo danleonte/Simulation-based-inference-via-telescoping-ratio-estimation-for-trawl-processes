@@ -98,12 +98,12 @@ def generate_dataset(classifier_config, nr_batches):
             x_cal, theta_cal, jnp.roll(theta_cal, -1, axis=0), classifier_config)
 
         #cal_trawls.append(trawl_cal)
-        cal_thetas.append(theta_cal)
-        cal_x.append(x_cal)
+        cal_thetas.append(np.array(theta_cal))
+        cal_x.append(np.array(x_cal))
 
     #cal_trawls = jnp.array(cal_trawls)  # , axis=0)
-    cal_x = jnp.array(cal_x)       # , axis=0)
-    cal_thetas = jnp.array(cal_thetas)  # , axis=0)
+    cal_x = np.array(cal_x)       # , axis=0)
+    cal_thetas = np.array(cal_thetas)  # , axis=0)
 
     return cal_x, cal_thetas, Y #cal_trawls, cal_x, cal_thetas, Y
 
@@ -252,7 +252,8 @@ def calibrated_the_NRE_of_a_calibrated_TRE(trained_classifier_path, seq_len):
                 f'double_cal_BCE_S_B_{seq_len}.xlsx'))
 
     ################### Calibration curves ###########################
-    try:
+    if False: 
+     try:
         fig_map = plot_calibration_map(
             pr, [None, None, linspace], methods_text)  # alpha
         fig_map.savefig(os.path.join(
@@ -272,45 +273,34 @@ def calibrated_the_NRE_of_a_calibrated_TRE(trained_classifier_path, seq_len):
         hist_beta.savefig(os.path.join(
             double_calibration_path, f'Uncalibrated_hist_{seq_len}.pdf'))
 
-    except:
+     except:
         pass
     print(min(pred_prob_Y[Y == 1]), max(pred_prob_Y[Y == 0]))
 
-
 def calibrate(trained_classifier_path, nr_batches, seq_len):
-
     # Load config
     with open(os.path.join(trained_classifier_path, "config.yaml"), 'r') as f:
         classifier_config = yaml.safe_load(f)
 
     dataset_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
         os.path.dirname(trained_classifier_path)))),  f'cal_dataset_{seq_len}')
-    # load calidation dataset
-    #cal_trawls_path = os.path.join(dataset_path, 'cal_trawls.npy')
+    # load validation dataset
     cal_x_path = os.path.join(dataset_path, 'cal_x.npy')
     cal_thetas_path = os.path.join(dataset_path, 'cal_thetas.npy')
     cal_Y_path = os.path.join(dataset_path, 'cal_Y.npy')
 
-    if os.path.isfile(cal_x_path) and os.path.isfile(cal_thetas_path) and os.path.isfile(cal_Y_path): #os.path.isfile(cal_trawls_path) and os.path.isfile(cal_thetas_path) and os.path.isfile(cal_Y_path):
-
+    if os.path.isfile(cal_x_path) and os.path.isfile(cal_thetas_path) and os.path.isfile(cal_Y_path):
         print('Validation dataset already created')
-
-        #cal_trawls_ = np.load(cal_trawls_path)
-        cal_x = np.load(cal_x_path)
-        cal_thetas = np.load(cal_thetas_path)
-        cal_Y = np.load(cal_Y_path)
-
+        # Don't load the entire arrays at once - we'll load and process in batches later
     else:
         from copy import deepcopy
         print('Generating dataset')
         classifier_config_ = deepcopy(classifier_config)
         classifier_config_['trawl_config']['seq_len'] = seq_len
         cal_x, cal_thetas, cal_Y = generate_dataset(
-            classifier_config_, nr_batches)#cal_trawls_, cal_x, cal_thetas, cal_Y = generate_dataset(
-        #    classifier_config_, nr_batches)
+            classifier_config_, nr_batches)
         print('Generated dataset')
 
-        #np.save(file=cal_trawls_path, arr=cal_trawls_)
         np.save(file=cal_x_path, arr=cal_x)
         np.save(file=cal_thetas_path, arr=cal_thetas)
         np.save(file=cal_Y_path, arr=cal_Y)
@@ -327,25 +317,23 @@ def calibrate(trained_classifier_path, nr_batches, seq_len):
 
     if use_tre:
         assert tre_type in ('beta', 'mu', 'sigma', 'scale', 'acf')
-        # if tre_type == 'acf' and (not use_summary_statistics):
-        #    assert replace_acf
-
-        ######  EXTENDED MODEL HERE ########
-        # CHECK KEYS ARE UPDATED
-        model = VariableExtendedModel(base_model=model,  trawl_process_type=trawl_config['trawl_process_type'],
+        
+        # The model expects a specific shape for initialization
+        # Get first sample from first batch with correct dimensions
+        sample_x = np.load(cal_x_path, mmap_mode='r')[0]  # Get first sample
+        sample_thetas = np.load(cal_thetas_path, mmap_mode='r')[0]  # Get first sample
+        
+        # Convert to JAX for initialization only
+        sample_x_jax = jnp.array(sample_x)
+        sample_thetas_jax = jnp.array(sample_thetas)
+        
+        model = VariableExtendedModel(base_model=model, trawl_process_type=trawl_config['trawl_process_type'],
                                       tre_type=tre_type, use_summary_statistics=use_summary_statistics)
+        
+        # Initialize with single samples, not batches
+        model.init(PRNGKey(0), sample_x_jax, sample_thetas_jax)
 
-        model.init(PRNGKey(0), cal_x[0], cal_thetas[0])
-
-    # First check there's only one pickled file for the params, then load params
-    # list_params_names = [filename for filename in os.listdir(
-    #    trained_classifier_path) if (filename.endswith(".pkl") and filename.startswith('param'))]
-    # assert len(list_params_names) == 1
-
-    # with open(os.path.join(trained_classifier_path, list_params_names[0]), 'rb') as file:
-    #    params = pickle.load(file)
-        # params = {'params': params['params']['base_model']}
-
+    # Load best model params
     with open(os.path.join(trained_classifier_path, "best_model_info.txt"), "r") as file:
         lines = file.readlines()
 
@@ -358,80 +346,108 @@ def calibrate(trained_classifier_path, nr_batches, seq_len):
     with open(best_model_path, 'rb') as file:
         params = pickle.load(file)
 
-    ###########################################################################
     @jax.jit
     def compute_log_r_approx(params, x, theta):
-        log_r, aaaaaa = model.apply(
+        log_r, _ = model.apply(
             variables=params, x=x, theta=theta, train=False)
         classifier_output = jax.nn.sigmoid(log_r)
-
         return log_r, classifier_output
 
     def compute_metrics(log_r, classifier_output, Y):
-
         extended_bce_loss = optax.losses.sigmoid_binary_cross_entropy(
             logits=log_r, labels=Y)
-
-        # this is due to numerical instability in the logit function and should be 0
         mask = jnp.logical_and(Y == 0, log_r == -jnp.inf)
-
-        # Replace values where mask is True with 0, otherwise keep original values
         extended_bce_loss = jnp.where(mask, 0.0, extended_bce_loss)
-
         bce_loss = jnp.mean(extended_bce_loss)
-
-        # half of them are 0s, half of them are 1, so we have to x2
-        # S = 2 * jnp.mean(log_r * Y)
         S = jnp.mean(log_r[Y == 1])
         B = 2 * jnp.mean(classifier_output)
         accuracy = jnp.mean(
             (classifier_output > 0.5).astype(jnp.float32) == Y)
-
         return bce_loss, S, B
 
-    ######################## post training regression ########################
-
-    log_r_path = os.path.join(trained_classifier_path,
-                              f'final_log_r_{seq_len}.npy')
-    pred_prob_Y_path = os.path.join(
-        trained_classifier_path, f'final_pred_prob_Y_{seq_len}.npy')
+    log_r_path = os.path.join(trained_classifier_path, f'final_log_r_{seq_len}.npy')
+    pred_prob_Y_path = os.path.join(trained_classifier_path, f'final_pred_prob_Y_{seq_len}.npy')
     Y_path = os.path.join(trained_classifier_path, f'final_Y_{seq_len}.npy')
 
     if not (os.path.isfile(log_r_path) and os.path.isfile(pred_prob_Y_path) and os.path.isfile(Y_path)):
-
-        log_r, pred_prob_Y, Y = [], [], []
-
-        for i in range(cal_x.shape[0]):
-
-            log_r_to_append, pred_prob_Y_to_append = compute_log_r_approx(
-                params, cal_x[i], cal_thetas[i])
-            log_r.append(log_r_to_append)
-            pred_prob_Y.append(pred_prob_Y_to_append)
-            Y.append(cal_Y)
-
-        log_r = jnp.concatenate(log_r, axis=0)           # num_samples, 1
-        pred_prob_Y = jnp.concatenate(
-            pred_prob_Y, axis=0)      # num_samples, 1
-        Y = jnp.concatenate(Y, axis=0)
-
-        np.save(file=log_r_path, arr=log_r)
-        np.save(file=pred_prob_Y_path, arr=pred_prob_Y)
-        np.save(file=Y_path, arr=Y)
-
+        # Load the data in batches and process
+        # Use memmap for initial loading without pulling all data into memory
+        cal_x_array = np.load(cal_x_path, mmap_mode='r')
+        cal_thetas_array = np.load(cal_thetas_path, mmap_mode='r')
+        cal_Y_array = np.load(cal_Y_path, mmap_mode='r')
+        
+        # Get file info first to understand the data structure
+        cal_x_info = np.load(cal_x_path, mmap_mode='r')
+        batch_count = cal_x_info.shape[0]
+        samples_per_batch = cal_x_info.shape[1]
+        total_samples = batch_count * samples_per_batch
+        
+        # Initialize lists to collect results (we'll convert to arrays later)
+        log_r_list = []
+        pred_prob_Y_list = []
+        Y_list = []
+        
+        # Process one batch at a time
+        for i in range(batch_count):
+            if i % 10 == 0:
+                print(f"Processing batch {i} out of {batch_count}")
+                
+            # Load the current batch into memory
+            x_batch = np.array(cal_x_array[i])  # Make a copy to ensure it's in memory
+            theta_batch = np.array(cal_thetas_array[i])
+            y_batch = np.array(cal_Y_array)
+            
+            # Convert to JAX arrays for processing
+            x_batch_jax = jnp.array(x_batch)
+            theta_batch_jax = jnp.array(theta_batch)
+            
+            # Process with JAX
+            log_r_batch, pred_prob_Y_batch = compute_log_r_approx(params, x_batch_jax, theta_batch_jax)
+            
+            # Convert results back to numpy and store
+            log_r_list.append(np.array(log_r_batch))
+            pred_prob_Y_list.append(np.array(pred_prob_Y_batch))
+            Y_list.append(np.array(y_batch))
+            
+            # Explicitly delete JAX arrays to free memory
+            del x_batch_jax
+            del theta_batch_jax
+        
+        # Concatenate all results
+        log_r_np = np.concatenate(log_r_list, axis=0)
+        pred_prob_Y_np = np.concatenate(pred_prob_Y_list, axis=0)
+        Y_np = np.concatenate(Y_list, axis=0)
+            
+        # Explicitly delete JAX arrays to free memory
+        #del x_batch_jax
+        #del theta_batch_jax
+        #del log_r_batch
+        #del pred_prob_Y_batch
+            
+        # Save results
+        np.save(file=log_r_path, arr=log_r_np)
+        np.save(file=pred_prob_Y_path, arr=pred_prob_Y_np)
+        np.save(file=Y_path, arr=Y_np)
+        
+        # Use numpy arrays for calibration
+        log_r = log_r_np
+        pred_prob_Y = pred_prob_Y_np
+        Y = Y_np
     else:
-
+        # Load existing results
         log_r = np.load(log_r_path)
         pred_prob_Y = np.load(pred_prob_Y_path)
-        Y = jnp.load(Y_path)
+        Y = np.load(Y_path)
 
     # perform isotonic regression, Beta and Plat scaling
     lr = LogisticRegression(C=99999999999)
     iso = IsotonicRegression(y_min=0.0001, y_max=0.9999)
     bc = BetaCalibration(parameters="abm")
 
+    # These sklearn methods work with numpy arrays
     lr.fit(pred_prob_Y, np.array(Y))
     iso.fit(pred_prob_Y, np.array(Y))
-    bc.fit(pred_prob_Y,  np.array(Y))
+    bc.fit(pred_prob_Y, np.array(Y))
 
     calibration_dict = {'use_beta_calibration': True,
                         'params': bc.calibrator_.map_}
@@ -449,20 +465,34 @@ def calibrate(trained_classifier_path, nr_batches, seq_len):
     calibrated_pr = [lr.predict_proba(pred_prob_Y)[:, 1],
                      iso.predict(pred_prob_Y), bc.predict(pred_prob_Y)]
 
-    ##################### compute metrics ########################
+    # We need to convert to JAX for the metrics calculation
+    # Convert in chunks if needed for large datasets
+    # For demonstration, we'll convert all at once but you could do this in batches too
+    log_r_jax = jnp.array(log_r.squeeze())
+    pred_prob_Y_jax = jnp.array(pred_prob_Y.squeeze())
+    Y_jax = jnp.array(Y)
+    
     metrics = []
-    metrics.append(compute_metrics(log_r.squeeze(), pred_prob_Y.squeeze(), Y))
+    metrics.append(compute_metrics(log_r_jax, pred_prob_Y_jax, Y_jax))
+    
     for i in range(3):
-
-        metrics.append(compute_metrics(
-            logit(calibrated_pr[i]), calibrated_pr[i], Y))
+        # Convert one calibrated result at a time
+        calibrated_pr_jax = jnp.array(calibrated_pr[i])
+        logit_calibrated = logit(calibrated_pr_jax)
+        metrics.append(compute_metrics(logit_calibrated, calibrated_pr_jax, Y_jax))
+        # Free memory
+        #del calibrated_pr_jax
+        #del logit_calibrated
 
     df = pd.DataFrame(np.array(metrics).transpose(),
-                      columns=('uncal', ' lr', 'isotonic', 'beta'),
-                      index=('BCE', 'S', 'B'))
+                    columns=('uncal', ' lr', 'isotonic', 'beta'),
+                    index=('BCE', 'S', 'B'))
 
-    df.to_excel(os.path.join(trained_classifier_path,
-                f'BCE_S_B_{seq_len}.xlsx'))
+    df.to_excel(os.path.join(trained_classifier_path, f'BCE_S_B_{seq_len}.xlsx'))
+    
+    # Optionally add the visualization code here if needed (set if False: to if True:)
+    
+    # Optionally add the visualization code here if needed (set if False: to if True:)
     # indeces_to_plot = np.random.randint(low=0, high = Y.shape[0], size = 1000)
 
     # calibration_results_path = os.path.join(trained_classifier_path,'calibration_results')
@@ -555,7 +585,7 @@ def calibrate(trained_classifier_path, nr_batches, seq_len):
 
 
 if __name__ == '__main__':
-    nr_batches = 1500
+    nr_batches = 5500
 
     folder_names = {  # 'NRE_full_trawl': ['04_12_04_25_37', '04_11_23_17_38','04_12_05_18_53','04_12_12_34_53','04_12_00_24_16','04_11_23_37_05','04_12_02_18_27','04_12_08_21_48',
         # '04_11_20_15_48','04_12_11_52_49','04_12_11_21_25'],########['03_03_10_00_51', '03_03_13_37_12', '03_03_19_26_42', '03_04_02_34_16', '03_04_08_50_44', '03_04_13_48_26'],
@@ -585,12 +615,13 @@ if __name__ == '__main__':
                     trained_classifier_path = os.path.join(
                         os.getcwd(), 'models', 'new_classifier', 'TRE_full_trawl', key, value, 'best_model')  # 'NRE_full_trawl '
 
-                calibrate(trained_classifier_path, nr_batches, 3500)
+                
                 calibrate(trained_classifier_path, nr_batches, 1000)
                 calibrate(trained_classifier_path, nr_batches, 1500)
                 calibrate(trained_classifier_path, nr_batches, 2500)
-                calibrate(trained_classifier_path, nr_batches, 2000)
+                #calibrate(trained_classifier_path, nr_batches, 2000)
                 #calibrate(trained_classifier_path, nr_batches, 3000)
+                #calibrate(trained_classifier_path, nr_batches, 3500)
 
 
     # TRE options: acf, beta, mu, sigma
