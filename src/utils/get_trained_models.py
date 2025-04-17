@@ -6,7 +6,9 @@ import jax
 import jax.numpy as jnp
 from jax.random import PRNGKey
 import numpy as np
-
+import distrax
+from jax.nn import sigmoid
+from jax.scipy.special import logit
 if True:
     from path_setup import setup_sys_path
     setup_sys_path()
@@ -87,8 +89,19 @@ def load_trained_models_for_posterior_inference(folder_path, dummy_x, trawl_proc
         with open(os.path.join(folder, params_path[0]), 'rb') as file:
             params_list.append(pickle.load(file))
 
-        with open(os.path.join(folder, calibration_file_name), 'rb') as file:
-            calibration_list.append(pickle.load(file))
+        if 'spline' in calibration_file_name:
+            assert calibration_file_name[-4:] == '.npy'
+            calibration_list.append(
+                jnp.load(os.path.join(folder, calibration_file_name)))
+
+            spline_cal = True
+
+        elif ('beta' or 'n_calibration') in calibration_file_name:
+            assert calibration_file_name[-4:] == '.pkl'
+            with open(os.path.join(folder, calibration_file_name), 'rb') as file:
+                calibration_list.append(pickle.load(file))
+
+            spline_cal = False
 
         with open(os.path.join(folder, 'config.yaml'), 'r') as file:
             config_list.append(yaml.safe_load(file))
@@ -158,13 +171,20 @@ def load_trained_models_for_posterior_inference(folder_path, dummy_x, trawl_proc
     model_params = [params for params in params_list]
 
     # Process calibration parameters
-    calibration_params = []
-    for c in calibration_list:
-        if c['use_beta_calibration']:
-            calibration_params.append(
-                (c['params'][0], c['params'][1], c['params'][2]))
-        else:
-            calibration_params.append(no_op_cal_params)
+    if spline_cal:
+
+        calibration_params = calibration_list
+
+    else:
+
+        calibration_params = []
+        for c in calibration_list:
+
+            if c['use_beta_calibration']:
+                calibration_params.append(
+                    (c['params'][0], c['params'][1], c['params'][2]))
+            else:
+                calibration_params.append(no_op_cal_params)
 
     # Define the optimized likelihood function
     # if use_empirical_acf:
@@ -215,8 +235,16 @@ def load_trained_models_for_posterior_inference(folder_path, dummy_x, trawl_proc
             log_r, _ = apply_fn(variables=params, x=x,
                                 theta=theta, train=False)
 
-            # Always apply calibration - will be no-op for models that don't need it
-            log_r = beta_calibrate_log_r(log_r, calibration_params[i])
+            if spline_cal:
+
+                spline = distrax.RationalQuadraticSpline(
+                    params=calibration_params[i], range_min=0.0, range_max=1.0)
+
+                log_r = logit(spline.forward(sigmoid(log_r)))
+
+            else:
+                # Always apply calibration - will be no-op for models that don't need it
+                log_r = beta_calibrate_log_r(log_r, calibration_params[i])
 
             total_log_r += log_r
 
@@ -254,7 +282,14 @@ def load_trained_models_for_posterior_inference(folder_path, dummy_x, trawl_proc
                                     theta=theta, x_cache=x_cache, train=False)
 
                 # Always apply calibration - will be no-op for models that don't need it
-                log_r = beta_calibrate_log_r(log_r, calibration_params[i])
+                if spline_cal:
+                    spline = distrax.RationalQuadraticSpline(
+                        params=calibration_params[i], range_min=0.0, range_max=1.0)
+
+                    log_r = logit(spline.forward(sigmoid(log_r)))
+
+                else:
+                    log_r = beta_calibrate_log_r(log_r, calibration_params[i])
 
                 total_log_r += log_r
 
@@ -282,13 +317,14 @@ if __name__ == '__main__':
     use_summary_statistics = False
     dummy_x = jnp.load('trawl.npy')[[0], :]
     dummy_theta = jnp.ones([dummy_x.shape[0], 5])
-    calibration_file_name = 'calibration_1500.pkl'
+    # calibration_file_name = 'spline_calibration_1500.npy' #OR
+    calibration_file_name = 'beta_calibration_1500.pkl'
     # x = ....
     approx_like, wrapper_approx_like_cache = load_trained_models_for_posterior_inference(folder_path, dummy_x, trawl_process_type,
                                                                                          use_tre, use_summary_statistics, calibration_file_name)
     approx_like_cached = wrapper_approx_like_cache(dummy_x)
 
-    n_runs = 25
+    n_runs = 500
     start = time.time()
     for _ in range(n_runs):
         # Force execution completion

@@ -20,6 +20,7 @@ def process_batch(batch_indices, folder_path, true_trawls, true_thetas, wrapper_
     folder_path : str
         Path to the model folder
     """
+
     # Create results directory
     results_dir = f"mcmc_results_{trawl_process_type}_{seq_len}" + \
         ('calibrated' if calibration_boole else 'uncalibrated')
