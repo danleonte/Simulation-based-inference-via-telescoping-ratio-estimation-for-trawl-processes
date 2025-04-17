@@ -9,7 +9,7 @@ from src.utils.get_trained_models import load_trained_models_for_posterior_infer
 
 
 def process_batch(batch_indices, folder_path, true_trawls, true_thetas, wrapper_for_approx_likelihood_just_theta,
-                  trawl_process_type, num_samples, num_warmup, num_burnin, num_chains, seed, seq_len, calibration_boole):
+                  trawl_process_type, num_samples, num_warmup, num_burnin, num_chains, seed, seq_len, calibration_filename):
     """
     Process a batch of trawl indices
 
@@ -20,10 +20,20 @@ def process_batch(batch_indices, folder_path, true_trawls, true_thetas, wrapper_
     folder_path : str
         Path to the model folder
     """
+    if 'no_cal' in calibration_filename:
+
+        suffix = '_uncalibrated'
+
+    elif ('spline' in calibration_filename) or ('beta' in calibration_filename):
+
+        suffix = calibration_filename[:-4]
+
+    else:
+
+        raise ValueError
 
     # Create results directory
-    results_dir = f"mcmc_results_{trawl_process_type}_{seq_len}" + \
-        ('calibrated' if calibration_boole else 'uncalibrated')
+    results_dir = f"mcmc_results_{trawl_process_type}_{seq_len}" + suffix
     results_dir = os.path.join(folder_path, results_dir)
     os.makedirs(results_dir, exist_ok=True)
 
@@ -88,9 +98,9 @@ def main():
     start_idx = int(sys.argv[1])
     end_idx = int(sys.argv[2])
     task_id = int(sys.argv[3])
-    total_tasks = 64  # Total number of cores/tasks
-    seq_len = 2000
-    calibration_boole = True
+    total_tasks = 128  # Total number of cores/tasks
+    seq_len = 2500
+    calibration_filename = 'spline_calibration_2500.npy'
 
     print(
         f"DEBUG: Python received args: start_idx={start_idx}, end_idx={end_idx}, task_id={task_id}")
@@ -150,14 +160,6 @@ def main():
     true_thetas = true_thetas[:, cal_Y == 1].reshape(-1, true_thetas.shape[-1])
     del cal_Y
 
-    if calibration_boole:
-
-        calibration_filename = f'calibration_{seq_len}.pkl'
-
-    else:
-
-        calibration_filename = 'no_calibration.pkl'
-
     # Load approximate likelihood function
     _, wrapper_for_approx_likelihood_just_theta = load_trained_models(
         folder_path, true_trawls[[0], ::-1], trawl_process_type,
@@ -185,7 +187,7 @@ def main():
         num_chains=num_chains,
         seed=seed + task_id**2,
         seq_len=seq_len,
-        calibration_boole=calibration_boole
+        calibration_filename=calibration_filename
     )
 
     print(f"Task {task_id}: Completed all assigned trawls")

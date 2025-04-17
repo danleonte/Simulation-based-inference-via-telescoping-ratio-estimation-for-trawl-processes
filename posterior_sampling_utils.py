@@ -38,9 +38,9 @@ import arviz as az
 
 
 def run_mcmc_for_trawl(trawl_idx, approximate_log_likelihood_to_evidence_just_theta,
-                       true_thetas, seed, num_samples=12500,
-                       num_warmup=5000, num_burnin=2500,
-                       num_chains=25):
+                       true_thetas, seed, num_samples=25000,
+                       num_warmup=10000, num_burnin=10000,
+                       num_chains=5):
     """
     Run MCMC for a specific trawl index
 
