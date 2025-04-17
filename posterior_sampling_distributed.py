@@ -101,6 +101,7 @@ def main():
     total_tasks = 128  # Total number of cores/tasks
     seq_len = 2500
     calibration_filename = 'spline_calibration_2500.npy'
+    num_rows_to_load = 5050
 
     print(
         f"DEBUG: Python received args: start_idx={start_idx}, end_idx={end_idx}, task_id={task_id}")
@@ -154,17 +155,30 @@ def main():
     cal_thetas_path = os.path.join(dataset_path, 'cal_thetas.npy')
     cal_Y_path = os.path.join(dataset_path, 'cal_Y.npy')
 
-    cal_Y = jnp.load(cal_Y_path)
-    true_trawls = jnp.load(cal_x_path)[:, cal_Y == 1].reshape(-1, seq_len)
-    true_thetas = jnp.load(cal_thetas_path)
-    true_thetas = true_thetas[:, cal_Y == 1].reshape(-1, true_thetas.shape[-1])
-    del cal_Y
+    # Load first few rows of cal_x with memory mapping
+    cal_x = np.load(cal_x_path, mmap_mode='r')[:num_rows_to_load]
+    
+    # Also load just the first few rows of cal_Y to match
+    cal_Y = np.load(cal_Y_path)[:num_rows_to_load]
+    
+    # Load cal_thetas (adjust if it also needs to be limited)
+    cal_thetas = np.load(cal_thetas_path)[:num_rows_to_load]
+    
+    # Now create the mask using the truncated cal_Y
+    mask = cal_Y == 1
+    
+    # Apply the mask and reshape as before
+    true_trawls = cal_x[:, mask].reshape(-1, seq_len)
+    true_thetas = cal_thetas[:, mask].reshape(-1, true_thetas.shape[-1])
 
     # Load approximate likelihood function
     _, wrapper_for_approx_likelihood_just_theta = load_trained_models(
         folder_path, true_trawls[[0], ::-1], trawl_process_type,
         use_tre, use_summary_statistics, calibration_filename
     )
+    
+    del cal_x
+    del cal_Y
 
     # MCMC parameters
     num_samples = 25000  # Adjust as needed
