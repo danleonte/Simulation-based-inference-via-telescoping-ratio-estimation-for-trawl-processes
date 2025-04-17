@@ -46,27 +46,27 @@ def get_MLE(trawl_subfolder):
     # THE NAMES OF GAMMA AND ETA ARE SWAPPED IN MODEL VEC
     # SWAP GAMMA AND ETA IN MCMC
 
-    diff = results['posterior_samples']['sigma'].shape[1] - \
-        results['log_likelihood_samples'].shape[1]
-    max_index = (max_index[0], max_index[1]+diff)
-    mcmc_starting_point = jnp.array([results['posterior_samples'][key][max_index] for key in
-                                     ['eta', 'gamma', 'mu', 'sigma', 'beta']])
-
+    # diff = results['posterior_samples']['sigma'].shape[1] - \
+    #    results['log_likelihood_samples'].shape[1]
+    # max_index = (max_index[0], max_index[1]+diff)
+    # mcmc_starting_point = jnp.array([results['posterior_samples'][key][max_index] for key in
+    #                                 ['eta', 'gamma', 'mu', 'sigma', 'beta']])
+    #
     true_trawl, true_theta = jnp.array(
         results['true_trawl']), jnp.array(results['true_theta'])
 
     # SANITY CHECK
-    assert 0.9999 * max_mcmc_value < approximate_log_likelihood_to_evidence(
-        true_trawl[jnp.newaxis, :], mcmc_starting_point[jnp.newaxis, :]).item(), trawl_subfolder
+    # assert 0.9999 * max_mcmc_value < approximate_log_likelihood_to_evidence(
+    #    true_trawl[jnp.newaxis, :], mcmc_starting_point[jnp.newaxis, :]).item(), trawl_subfolder
     # BECAUSE WE HAD TO SWAP ETA AND GAMMA HERE
 
-    do_bfgs = False
+    do_bfgs = True
     if do_bfgs:
         func_to_optimize = minus_like_with_grad_wrapper(true_trawl)
 
         # Use method that accepts gradients
-        result_from_mcmc = minimize(func_to_optimize, np.array(mcmc_starting_point),
-                                    method='L-BFGS-B', jac=True, bounds=((10, 20), (10, 20), (-1, 1), (0.5, 1.5), (-5, 5)))
+        # result_from_mcmc = minimize(func_to_optimize, np.array(mcmc_starting_point),
+        # method='L-BFGS-B', jac=True, bounds=((10, 20), (10, 20), (-1, 1), (0.5, 1.5), (-5, 5)))
 
         result_from_true = minimize(func_to_optimize, np.array(true_theta),
                                     method='L-BFGS-B', jac=True, bounds=((10, 20), (10, 20), (-1, 1), (0.5, 1.5), (-5, 5)))
@@ -85,14 +85,16 @@ def get_MLE(trawl_subfolder):
 if __name__ == '__main__':
 
     # folder_path = r'/home/leonted/SBI/SBI_for_trawl_processes_and_ambit_fields/models/classifier/NRE_full_trawl/uncalibrated'
-    folder_path = r'D:\sbi_ambit\SBI_for_trawl_processes_and_ambit_fields\models\classifier\TRE_full_trawl\uncalibrated'
+    folder_path = r'D:\sbi_ambit\SBI_for_trawl_processes_and_ambit_fields\models\new_classifier\TRE_full_trawl\selected_models'
+    seq_len = 2000
+    num_trawls_to_load = 6000
 
     # r'/home/leonted/SBI/SBI_for_trawl_processes_and_ambit_fields/models/classifier/TRE_full_trawl/beta_calibrated/'
     # Get all matching folders
-    trawl_subfolders = [
-        f for f in glob.glob(os.path.join(folder_path, 'mcmc_results_sup_ig_nig_5p', "trawl_*"))
-        if os.path.isdir(f)
-    ]
+    # trawl_subfolders = [
+    #    f for f in glob.glob(os.path.join(folder_path, 'mcmc_results_sup_ig_nig_5p', "trawl_*"))
+    #    if os.path.isdir(f)
+    # ]
 
     # Set up model configuration
     use_tre = 'TRE' in folder_path

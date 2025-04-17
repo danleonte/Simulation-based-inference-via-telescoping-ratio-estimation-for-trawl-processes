@@ -157,26 +157,26 @@ def main():
 
     # Load first few rows of cal_x with memory mapping
     cal_x = np.load(cal_x_path, mmap_mode='r')[:num_rows_to_load]
-    
+
     # Also load just the first few rows of cal_Y to match
     cal_Y = np.load(cal_Y_path)[:num_rows_to_load]
-    
+
     # Load cal_thetas (adjust if it also needs to be limited)
     cal_thetas = np.load(cal_thetas_path)[:num_rows_to_load]
-    
+
     # Now create the mask using the truncated cal_Y
     mask = cal_Y == 1
-    
+
     # Apply the mask and reshape as before
     true_trawls = cal_x[:, mask].reshape(-1, seq_len)
-    true_thetas = cal_thetas[:, mask].reshape(-1, true_thetas.shape[-1])
+    true_thetas = cal_thetas[:, mask].reshape(-1, cal_thetas.shape[-1])
 
     # Load approximate likelihood function
     _, wrapper_for_approx_likelihood_just_theta = load_trained_models(
         folder_path, true_trawls[[0], ::-1], trawl_process_type,
         use_tre, use_summary_statistics, calibration_filename
     )
-    
+
     del cal_x
     del cal_Y
 
