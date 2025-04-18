@@ -101,7 +101,7 @@ def main():
     total_tasks = 128  # Total number of cores/tasks
     seq_len = 2500
     calibration_filename = 'spline_calibration_2500.npy'
-    num_rows_to_load = 5050
+    num_rows_to_load = 140
 
     print(
         f"DEBUG: Python received args: start_idx={start_idx}, end_idx={end_idx}, task_id={task_id}")

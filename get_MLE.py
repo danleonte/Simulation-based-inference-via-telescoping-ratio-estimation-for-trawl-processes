@@ -6,19 +6,27 @@ import pandas as pd
 import gc  # Import garbage collector
 import numpy as np
 import jax.numpy as jnp
+import jax
 from jax import jit, value_and_grad
 from scipy.optimize import minimize
 from posterior_sampling_utils import run_mcmc_for_trawl, save_results, create_and_save_plots
 from src.utils.get_trained_models import load_trained_models_for_posterior_inference as load_trained_models
+from tqdm import tqdm
 
 
 def minus_like_with_grad_wrapper(trawl_to_use):
 
-    def like(theta):
-        return approximate_log_likelihood_to_evidence(trawl_to_use[jnp.newaxis, :], theta[jnp.newaxis, :])[0, 0]
+    log_like = wrapper_for_approx_likelihood_just_theta(
+        jnp.array(trawl_to_use)[jnp.newaxis, :])
 
-    # Use value_and_grad to compute both function value and gradient
-    like_and_grad = jit(value_and_grad(like))
+    # Define a function that returns a scalar by indexing or using item()
+    def scalar_log_like(theta):
+        result = log_like(theta)
+        # Extract the scalar from the (1,) shape array
+        return result[0]  # or result.sum() or result.item()
+
+    # Use value_and_grad on the scalar function
+    like_and_grad = jit(value_and_grad(scalar_log_like))
 
     def minus_like_with_grad(theta_np):
         theta_jax = jnp.array(theta_np)
@@ -28,66 +36,28 @@ def minus_like_with_grad_wrapper(trawl_to_use):
     return minus_like_with_grad
 
 
-def get_MLE(trawl_subfolder):
-
-    trawl_idx = int(os.path.basename(trawl_subfolder).removeprefix("trawl_"))
-    result_file_path = os.path.join(trawl_subfolder, 'results.pkl')
-    if not os.path.isfile(result_file_path):
-        return None
-
-    with open(result_file_path, 'rb') as f:
-        results = pickle.load(f)
-
-    log_likelihoods = results['log_likelihood_samples']
-    max_index = np.unravel_index(
-        np.argmax(log_likelihoods), log_likelihoods.shape)
-    max_mcmc_value = log_likelihoods[max_index].item()
-
-    # THE NAMES OF GAMMA AND ETA ARE SWAPPED IN MODEL VEC
-    # SWAP GAMMA AND ETA IN MCMC
-
-    # diff = results['posterior_samples']['sigma'].shape[1] - \
-    #    results['log_likelihood_samples'].shape[1]
-    # max_index = (max_index[0], max_index[1]+diff)
-    # mcmc_starting_point = jnp.array([results['posterior_samples'][key][max_index] for key in
-    #                                 ['eta', 'gamma', 'mu', 'sigma', 'beta']])
-    #
-    true_trawl, true_theta = jnp.array(
-        results['true_trawl']), jnp.array(results['true_theta'])
+def get_MLE(trawl_to_use, theta_to_use):
 
     # SANITY CHECK
     # assert 0.9999 * max_mcmc_value < approximate_log_likelihood_to_evidence(
     #    true_trawl[jnp.newaxis, :], mcmc_starting_point[jnp.newaxis, :]).item(), trawl_subfolder
     # BECAUSE WE HAD TO SWAP ETA AND GAMMA HERE
 
-    do_bfgs = True
-    if do_bfgs:
-        func_to_optimize = minus_like_with_grad_wrapper(true_trawl)
+    func_to_optimize = minus_like_with_grad_wrapper(trawl_to_use)
+    result_from_true = minimize(func_to_optimize, np.array(theta_to_use),
+                                method='L-BFGS-B', jac=True, bounds=((10, 20), (10, 20), (-1, 1), (0.5, 1.5), (-5, 5)))
 
-        # Use method that accepts gradients
-        # result_from_mcmc = minimize(func_to_optimize, np.array(mcmc_starting_point),
-        # method='L-BFGS-B', jac=True, bounds=((10, 20), (10, 20), (-1, 1), (0.5, 1.5), (-5, 5)))
-
-        result_from_true = minimize(func_to_optimize, np.array(true_theta),
-                                    method='L-BFGS-B', jac=True, bounds=((10, 20), (10, 20), (-1, 1), (0.5, 1.5), (-5, 5)))
-
-        likelihoods = [max_mcmc_value, -
-                       result_from_mcmc.fun, - result_from_true.fun]
-        thetas = [mcmc_starting_point, result_from_mcmc.x, result_from_true.x]
-
-        best_index = np.argmax(likelihoods)
-        return trawl_idx, true_theta, thetas[best_index], likelihoods[best_index]
-
-    else:
-        return trawl_idx, true_theta, mcmc_starting_point, max_mcmc_value
+    return result_from_true
 
 
 if __name__ == '__main__':
 
     # folder_path = r'/home/leonted/SBI/SBI_for_trawl_processes_and_ambit_fields/models/classifier/NRE_full_trawl/uncalibrated'
     folder_path = r'D:\sbi_ambit\SBI_for_trawl_processes_and_ambit_fields\models\new_classifier\TRE_full_trawl\selected_models'
-    seq_len = 2000
-    num_trawls_to_load = 6000
+    seq_len = 3500
+    num_rows_to_load = 150
+    num_trawls_to_use = 3500
+    calibration_filename = 'spline_calibration_3000.npy'
 
     # r'/home/leonted/SBI/SBI_for_trawl_processes_and_ambit_fields/models/classifier/TRE_full_trawl/beta_calibrated/'
     # Get all matching folders
@@ -115,56 +85,62 @@ if __name__ == '__main__':
     with open(classifier_config_file_path, 'r') as f:
         a_classifier_config = yaml.safe_load(f)
         trawl_process_type = a_classifier_config['trawl_config']['trawl_process_type']
-        seq_len = a_classifier_config['trawl_config']['seq_len']
+        # seq_len = a_classifier_config['trawl_config']['seq_len']
 
     # Load dataset
     dataset_path = os.path.join(os.path.dirname(
-        os.path.dirname(folder_path)), 'cal_dataset')
+        os.path.dirname(folder_path)), f'cal_dataset_{seq_len}')
     cal_x_path = os.path.join(dataset_path, 'cal_x.npy')
     cal_thetas_path = os.path.join(dataset_path, 'cal_thetas.npy')
     cal_Y_path = os.path.join(dataset_path, 'cal_Y.npy')
 
-    cal_Y = jnp.load(cal_Y_path)
-    true_trawls = jnp.load(cal_x_path)[:, cal_Y == 1].reshape(-1, seq_len)
-    true_thetas = jnp.load(cal_thetas_path)
-    true_thetas = true_thetas[:, cal_Y == 1].reshape(-1, true_thetas.shape[-1])
-    del cal_Y
+    # Load first few rows of cal_x with memory mapping
+    cal_x = np.load(cal_x_path, mmap_mode='r')[:num_rows_to_load]
+
+    # Also load just the first few rows of cal_Y to match
+    cal_Y = np.load(cal_Y_path)[:num_rows_to_load]
+
+    # Load cal_thetas (adjust if it also needs to be limited)
+    cal_thetas = np.load(cal_thetas_path)[:num_rows_to_load]
+
+    # Now create the mask using the truncated cal_Y
+    mask = cal_Y == 1
+
+    # Apply the mask and reshape as before
+    true_trawls = cal_x[:, mask].reshape(-1, seq_len)
+    true_thetas = cal_thetas[:, mask].reshape(-1, cal_thetas.shape[-1])
 
     # Load approximate likelihood function
-    approximate_log_likelihood_to_evidence, _, _ = load_trained_models(
+    _, wrapper_for_approx_likelihood_just_theta = load_trained_models(
         folder_path, true_trawls[[0], ::-1], trawl_process_type,
-        use_tre, use_summary_statistics
+        use_tre, use_summary_statistics, calibration_filename
     )
+
+    results_list = []
+    for idx in tqdm(range(num_trawls_to_use)):
+
+        results_list.append(get_MLE(true_trawls[idx], true_thetas[idx]))
 
     idx_list = []
     true_theta_list = []
     MLE_list = []
-    likelihood_list = []
-    count = 0
-    for trawl_subfolder in trawl_subfolders:
+    log_likelihood_list = []
 
-        count += 1
-        if count % 25 == 1:
-            print(count)
-            gc.collect()
+    for idx in range(num_trawls_to_use):
 
-        result_to_add = get_MLE(trawl_subfolder)
-
-        if result_to_add == None:
-            pass
-        else:
-            idx_list.append(result_to_add[0])
-            true_theta_list.append(result_to_add[1])
-            MLE_list.append(result_to_add[2])
-            likelihood_list.append(result_to_add[3])
+        idx_list.append(idx)
+        true_theta_list.append(true_thetas[idx])
+        MLE_list.append(np.array(results_list[idx].x))
+        log_likelihood_list.append(-results_list[idx].fun)
 
     df = pd.DataFrame({
         'idx': idx_list,
         'true_theta': true_theta_list,
         'MLE': MLE_list,
-        'likelihoods': likelihood_list
+        'log_likelihood_list': log_likelihood_list
     })
 
-    results_path = os.path.join(folder_path, 'results')
+    results_path = os.path.join(folder_path, f'results_{seq_len}')
     os.makedirs(results_path,  exist_ok=True)
-    df.to_pickle(os.path.join(results_path, 'MLE_results.pkl'))
+    df.to_pickle(os.path.join(
+        results_path, f'MLE_results_{calibration_filename[:-4]}.pkl'))
