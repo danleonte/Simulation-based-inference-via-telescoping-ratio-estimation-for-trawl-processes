@@ -36,7 +36,7 @@ def fit_spline(probs, labels, num_bins=10, random_seed=0, params=None):
         )
         calibrated = spline.forward(probs)
         # Clamp to prevent log(0)
-        eps = 1e-8
+        eps = 1e-10
         calibrated = jnp.clip(calibrated, eps, 1 - eps)
         loss = -jnp.mean(labels * jnp.log(calibrated) +
                          (1 - labels) * jnp.log(1 - calibrated))

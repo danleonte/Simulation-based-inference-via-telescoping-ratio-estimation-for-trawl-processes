@@ -43,6 +43,30 @@ if True:
 plt.rcParams["text.usetex"] = False
 
 
+def compact_logit(x, epsilon):
+    """
+    Implements the compact logit function G_ε(x)
+
+    Args:
+        x: Input values in [0, 1]
+        epsilon: Parameter controlling the transition regions (0 < epsilon < 0.5)
+
+    Returns:
+        Transformed values according to the compact logit function
+    """
+    # Constants based on epsilon
+    scale_factor = (1 - 2 * epsilon) / (2 * jnp.log((1 - epsilon) / epsilon))
+
+    # Conditions for the piecewise function
+    in_middle = (x >= epsilon) & (x <= 1 - epsilon)
+
+    # Calculate the logit transformation for the middle region
+    logit_part = scale_factor * jnp.log(x / (1 - x)) + 0.5
+
+    # Return the piecewise function using where
+    return jnp.where(in_middle, logit_part, x)
+
+
 # generate calibration dataset
 def generate_dataset(classifier_config, nr_batches):
 
@@ -138,84 +162,66 @@ def calibrated_the_NRE_of_a_calibrated_TRE(trained_classifier_path, seq_len):
     dataset_path = os.path.join(os.path.dirname(
         os.path.dirname(trained_classifier_path)),  f'cal_dataset_{seq_len}')
     # load calidation dataset
-    # cal_trawls_path = os.path.join(dataset_path, 'cal_trawls.npy')
-    cal_x_path = os.path.join(dataset_path, 'cal_x.npy')
-    cal_thetas_path = os.path.join(dataset_path, 'cal_thetas.npy')
     cal_Y_path = os.path.join(dataset_path, 'cal_Y.npy')
-
-    # cal_trawls_ = jnp.load(cal_trawls_path)
-    cal_x = jnp.load(cal_x_path)
-    cal_thetas = jnp.load(cal_thetas_path)
     cal_Y = jnp.load(cal_Y_path)
 
-    approximate_log_likelihood_to_evidence,  _ = \
-        load_trained_models(trained_classifier_path, cal_x[0], trawl_process_type,  # [::-1] not necessary, it s just a dummy, but just to make sure we don t pollute wth true values of some sort
-                            use_tre, use_summary_statistics, f'calibration_{seq_len}.pkl')
+    # cal_trawls_ = jnp.load(cal_trawls_path)
+    # cal_x = jnp.load(cal_x_path)
+    # cal_thetas = jnp.load(cal_thetas_path)
 
-    double_calibration_path = os.path.join(
-        trained_classifier_path, f'double_cal_{seq_len}')
-    os.makedirs(double_calibration_path, exist_ok=True)
+    # approximate_log_likelihood_to_evidence,  _ = \
+    #    load_trained_models(trained_classifier_path, cal_x[0], trawl_process_type,  # [::-1] not necessary, it s just a dummy, but just to make sure we don t pollute wth true values of some sort
+    #                        use_tre, use_summary_statistics, f'spline_calibration_{seq_len}.pkl')
 
-    log_r_path = os.path.join(double_calibration_path,
-                              f'double_cal_log_r_{seq_len}.npy')
-    pred_prob_Y_path = os.path.join(
-        double_calibration_path, f'double_cal_pred_prob_Y_{seq_len}.npy')
-    Y_path = os.path.join(double_calibration_path,
-                          f'double_cal_Y_{seq_len}.npy')
+    log_r = 0.0
 
-    if not (os.path.isfile(log_r_path) and os.path.isfile(pred_prob_Y_path) and os.path.isfile(Y_path)):
+    for TRE_component, best_model_name in zip(['acf', 'beta', 'mu', 'sigma'], ['04_12_12_36_45', '04_12_04_26_56', '04_12_00_32_46', '04_12_04_28_49']):
 
-        log_r, pred_prob_Y, Y = [], [], []
+        TRE_component_path = os.path.join(os.path.dirname(
+            trained_classifier_path), TRE_component, best_model_name, 'best_model')
+        spline_params = jnp.load(os.path.join(TRE_component_path,
+                                              f'spline_calibration_{seq_len}.npy'))
 
-        for i in range(cal_x.shape[0]):
+        spline = distrax.RationalQuadraticSpline(
+            params=spline_params, range_min=0.0, range_max=1.0)
+        log_r_to_add = jnp.load(os.path.join(
+            TRE_component_path, f'final_log_r_{seq_len}.npy'))
+        log_r_to_add = logit(spline.forward(jax.nn.sigmoid(log_r_to_add)))
+        log_r += log_r_to_add
 
-            log_r_to_append = approximate_log_likelihood_to_evidence(
-                cal_x[i], cal_thetas[i])
-            pred_prob_Y_to_append = jax.nn.sigmoid(log_r_to_append)
+    Y = jnp.concatenate([cal_Y] * (len(log_r) // len(cal_Y)))
 
-            log_r.append(log_r_to_append)
-            pred_prob_Y.append(pred_prob_Y_to_append)
-            Y.append(cal_Y)
+    pred_prob_Y = jax.nn.sigmoid(log_r)
+    max_pred_Y = jnp.max(pred_prob_Y)
+    min_pred_Y = jnp.min(pred_prob_Y)
 
-        log_r = jnp.concatenate(log_r, axis=0)           # num_samples, 1
-        pred_prob_Y = jnp.concatenate(
-            pred_prob_Y, axis=0)      # num_samples, 1
-        Y = jnp.concatenate(Y, axis=0)
-
-        np.save(file=log_r_path, arr=log_r)
-        np.save(file=pred_prob_Y_path, arr=pred_prob_Y)
-        np.save(file=Y_path, arr=Y)
+    if seq_len <= 2000:
+        num_bins = 10
+        epsilon = None
 
     else:
+        num_bins = 15
 
-        log_r = np.load(log_r_path)
-        pred_prob_Y = np.load(pred_prob_Y_path)
-        Y = jnp.load(Y_path)
+        if seq_len == 2500:
+            epsilon = 10**(-4)
+        else:
+            raise ValueError
 
-    # perform isotonic regression, Beta and Plat scaling
-    lr = LogisticRegression(C=99999999999)
-    iso = IsotonicRegression(y_min=0.001, y_max=0.999)
-    bc = BetaCalibration(parameters="abm")
+    spline_params = fit_spline(probs=jnp.array(pred_prob_Y).squeeze(),
+                               labels=jnp.array(Y), params=None, num_bins=num_bins)
 
-    lr.fit(pred_prob_Y, np.array(Y))
-    iso.fit(pred_prob_Y, np.array(Y))
-    bc.fit(pred_prob_Y,  np.array(Y))
+    spline = distrax.RationalQuadraticSpline(
+        params=spline_params, range_min=0.0, range_max=1.0)
 
-    calibration_dict = {'use_beta_calibration': True,
-                        'params': bc.calibrator_.map_}
-    # open a text file
-    with open(os.path.join(double_calibration_path, f'double_cal_{seq_len}.pkl'), 'wb') as f:
-        # serialize the list
-        pickle.dump(calibration_dict, f)
+    if epsilon is None:
 
-    linspace = np.linspace(0, 1, 100)
-    pr = [lr.predict_proba(linspace.reshape(-1, 1))[:, 1],
-          iso.predict(linspace), bc.predict(linspace)]
-    methods_text = ['logistic', 'isotonic', 'beta']
+        spline_calibrated_classifier_output = spline.forward(
+            jax.nn.sigmoid(log_r))
+    else:
+        spline_calibrated_classifier_output = spline.forward(
+            compact_logit(jax.nn.sigmoid(log_r)), epsilon)
 
-    # get calibrated datasets
-    calibrated_pr = [lr.predict_proba(pred_prob_Y)[:, 1],
-                     iso.predict(pred_prob_Y), bc.predict(pred_prob_Y)]
+    spline_calibrated_log_r = logit(spline_calibrated_classifier_output)
 
     def compute_metrics(log_r, classifier_output, Y):
 
@@ -239,45 +245,18 @@ def calibrated_the_NRE_of_a_calibrated_TRE(trained_classifier_path, seq_len):
 
         return bce_loss, S, B
 
-    metrics = []
-    metrics.append(compute_metrics(log_r.squeeze(), pred_prob_Y.squeeze(), Y))
-    for i in range(4):
-
-        metrics.append(compute_metrics(
-            logit(calibrated_pr[i]), calibrated_pr[i], Y))
-
-    df = pd.DataFrame(np.array(metrics).transpose(),
-                      columns=('uncal', ' lr', 'isotonic', 'beta'),
-                      index=('BCE', 'S', 'B'))
-
-    df.to_excel(os.path.join(double_calibration_path,
-                f'double_cal_BCE_S_B_{seq_len}.xlsx'))
-
-    ################### Calibration curves ###########################
-    if True:
-        try:
-            fig_map = plot_calibration_map(
-                pr, [None, None, linspace], methods_text)  # alpha
-            fig_map.savefig(os.path.join(
-                double_calibration_path, f'double_calibration_map_{seq_len}.pdf'))
-
-            # General classifier histogram
-
-            hist_beta, ax = plt.subplots()
-            ax.hist(
-                pred_prob_Y[Y == 1].squeeze(), label='Y=1', alpha=0.5, density=True,
-                bins=30)
-            ax.hist(
-                pred_prob_Y[Y == 0].squeeze(), label='Y=0', alpha=0.5, density=True)
-            ax.set_title(
-                'Histogram of c(x,theta) classifier')
-            ax.legend(loc='upper center')
-            hist_beta.savefig(os.path.join(
-                double_calibration_path, f'Uncalibrated_hist_{seq_len}.pdf'))
-
-        except:
-            pass
-    print(min(pred_prob_Y[Y == 1]), max(pred_prob_Y[Y == 0]))
+    pre_cal = compute_metrics(
+        log_r.squeeze(), jax.nn.sigmoid(log_r).squeeze(), Y)
+    post_cal = compute_metrics(
+        spline_calibrated_log_r.squeeze(), spline_calibrated_classifier_output, Y)
+    double_calibration_path = os.path.join(
+        trained_classifier_path, f'overall_NRE_spline_cal_of_TRE_{seq_len}')
+    os.makedirs(double_calibration_path, exist_ok=True)
+    np.save(arr=spline_params, file=os.path.join(
+        double_calibration_path, 'double_cal_spline_params.npy'))
+    print(seq_len)
+    print(pre_cal)
+    print(post_cal)
 
 
 def calibrate(trained_classifier_path, nr_batches, seq_len):
@@ -668,7 +647,7 @@ if __name__ == '__main__':
         # 'mu':['03_03_16_41_47', '03_03_16_45_26', '03_03_18_35_58', '03_03_21_29_04', '03_04_01_33_54', '03_04_01_46_31'],
         # 'sigma':['03_03_16_56_52', '03_03_23_18_48', '03_04_02_42_13', '03_04_07_34_58', '03_04_12_28_46', '03_04_21_43_47']
     }
-    if True:
+    if False:
         for key in folder_names:
             for value in folder_names[key]:
 
@@ -690,8 +669,19 @@ if __name__ == '__main__':
     # TRE options: acf, beta, mu, sigma
 
     # calibrate
-    double_trained_classifier_path = os.path.join(
-        os.getcwd(), 'models', 'new_classifier', 'TRE_full_trawl', 'selected_models')
+    if True:
+        double_trained_classifier_path = os.path.join(
+            os.getcwd(), 'models', 'new_classifier', 'TRE_full_trawl', 'selected_models')
 
-    # calibrated_the_NRE_of_a_calibrated_TRE(
-    #    double_trained_classifier_path, 1500)
+        # calibrated_the_NRE_of_a_calibrated_TRE(
+        #    double_trained_classifier_path, 2000)
+        # calibrated_the_NRE_of_a_calibrated_TRE(
+        #    double_trained_classifier_path, 1500)
+        # calibrated_the_NRE_of_a_calibrated_TRE(
+        #    double_trained_classifier_path, 1000)
+        calibrated_the_NRE_of_a_calibrated_TRE(
+            double_trained_classifier_path, 1500)
+        # calibrated_the_NRE_of_a_calibrated_TRE(
+        #    double_trained_classifier_path, 2000)
+        # calibrated_the_NRE_of_a_calibrated_TRE(
+        #    double_trained_classifier_path, 1000)

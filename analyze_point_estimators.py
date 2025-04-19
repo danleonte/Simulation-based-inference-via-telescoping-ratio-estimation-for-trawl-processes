@@ -80,15 +80,17 @@ def compare_point_estimators(true_theta, infered_theta, mle_or_gmm, num_lags=35)
 if __name__ == '__main__':
 
     # folder_path = r'/home/leonted/SBI/SBI_for_trawl_processes_and_ambit_fields/models/classifier/TRE_full_trawl/beta_calibrated/results'
-    folder_path = r'D:\sbi_ambit\SBI_for_trawl_processes_and_ambit_fields\models\classifier\NRE_full_trawl\uncalibrated'
-    results_path = os.path.join(folder_path, 'results')
+    folder_path = r'D:\sbi_ambit\SBI_for_trawl_processes_and_ambit_fields\models\new_classifier\TRE_full_trawl\selected_models'
+    seq_len = 2000
+    results_path = os.path.join(folder_path, f'results_{seq_len}')
     acf_func = jax.vmap(get_acf('sup_IG'), in_axes=(None, 0))
 
     MLE = True
     GMM = False
     if MLE and not GMM:
 
-        df = pd.read_pickle(os.path.join(results_path, 'MLE_results.pkl'))
+        df = pd.read_pickle(os.path.join(
+            results_path, f'MLE_results_spline_calibration_{seq_len}.pkl'))
         true_theta = np.array([np.array(i) for i in df.true_theta.values])
         infered_theta = np.array([np.array(i) for i in df.MLE.values])
         compare_point_estimators(true_theta, infered_theta, 'MLE')
