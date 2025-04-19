@@ -126,6 +126,14 @@ def get_model_VariableLSTM(config_file, initialize=True):
     dropout_rate = model_config['dropout_rate']
     increased_size = model_config['increased_size']
 
+    if 'variable_seq_len' not in trawl_config.keys():
+
+        add_seq_len = False
+
+    else:
+
+        add_seq_len = trawl_config['add_seq_len']
+
     # Create model
     model = VariableLSTMModel(
         lstm_hidden_size=lstm_hidden_size,
@@ -134,7 +142,8 @@ def get_model_VariableLSTM(config_file, initialize=True):
         mean_aggregation=mean_aggregation,
         final_output_size=final_output_size,
         increased_size=increased_size,
-        dropout_rate=dropout_rate
+        dropout_rate=dropout_rate,
+        add_seq_len=add_seq_len
     )
 
     if not initialize:

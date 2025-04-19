@@ -1,7 +1,7 @@
 prng_key: 2135161
 tre_config:
-  use_tre: False
-  tre_type: acf 
+  use_tre: True
+  tre_type: beta 
   use_summary_statistics: False
   replace_full_trawl_with_acf: False
   nlags: 35
@@ -28,18 +28,18 @@ trawl_config:
 model_config:
   model_name: VariableLSTMModel
   lstm_hidden_size: 32
-  increased_size: 16
   num_lstm_layers: 1
   linear_layer_sizes: [16,8,4]
   mean_aggregation: False
   final_output_size: 1
   dropout_rate: 0.105
+  with_theta: True
 train_config:
   n_iterations: 40001 
 val_config:
-  val_freq: 500
-  val_n_batches: 20
+  val_freq: 750
+  val_n_batches: 40
 optimizer:
   name: adam
   lr: 0.0015
-  alpha: 0.0025
+  alpha: 0.005

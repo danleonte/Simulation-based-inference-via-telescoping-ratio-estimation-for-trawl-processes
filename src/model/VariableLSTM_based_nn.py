@@ -12,6 +12,7 @@ class VariableLSTMModel(nn.Module):
     mean_aggregation: bool
     final_output_size: int
     dropout_rate: float
+    add_seq_len: bool
 
     def setup(self):
         # LSTM layers
@@ -67,6 +68,16 @@ class VariableLSTMModel(nn.Module):
 
             mu_stddev = jnp.concatenate(
                 [jnp.squeeze(x_mu, -1), jnp.squeeze(x_std, -1)], axis=1)
+
+            if self.add_seq_len:
+                seq_len_tensor = jnp.ones(
+                    (x.shape[0], 1)) * (x.shape[1] - 2000)/500
+                mu_stddev = jnp.concatenate(
+                    [mu_stddev, seq_len_tensor], axis=1)
+
+            # if self.add_seq_len:
+            #    embedded_seq_len
+            #    mu_stddev = jnp.concatenate([mu_stddev, jnp.ones(jnp.squeeze(x_mu, -1))])
 
             # Process through LSTM layers
             for lstm in self.lstm_layers:
