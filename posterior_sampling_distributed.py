@@ -1,15 +1,24 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Sat Apr 19 20:26:54 2025
+
+@author: dleon
+"""
+
 import sys
 import os
 import yaml
 import pickle
 import numpy as np
+import jax
 import jax.numpy as jnp
 from posterior_sampling_utils import run_mcmc_for_trawl, save_results, create_and_save_plots
 from src.utils.get_trained_models import load_trained_models_for_posterior_inference as load_trained_models
+import distrax
 
 
 def process_batch(batch_indices, folder_path, true_trawls, true_thetas, wrapper_for_approx_likelihood_just_theta,
-                  trawl_process_type, num_samples, num_warmup, num_burnin, num_chains, seed, seq_len, calibration_filename):
+                  trawl_process_type, num_samples, num_warmup, num_burnin, num_chains, seed, seq_len, calibration_filename, double_cal):
     """
     Process a batch of trawl indices
 
@@ -34,6 +43,8 @@ def process_batch(batch_indices, folder_path, true_trawls, true_thetas, wrapper_
 
     # Create results directory
     results_dir = f"mcmc_results_{trawl_process_type}_{seq_len}" + suffix
+    if double_cal:
+        results_dir += 'double_cal'
     results_dir = os.path.join(folder_path, results_dir)
     os.makedirs(results_dir, exist_ok=True)
 
@@ -48,19 +59,53 @@ def process_batch(batch_indices, folder_path, true_trawls, true_thetas, wrapper_
             continue
 
         try:
-            # Run MCMC for this trawl
-            results, posterior_samples = run_mcmc_for_trawl(
-                trawl_idx=idx,
-                # true_trawls=true_trawls,
-                true_thetas=true_thetas,
-                approximate_log_likelihood_to_evidence_just_theta=wrapper_for_approx_likelihood_just_theta(
-                    jnp.reshape(true_trawls[idx], (1, -1))),
-                seed=seed + idx**2,
-                num_samples=num_samples,
-                num_warmup=num_warmup,
-                num_burnin=num_burnin,
-                num_chains=num_chains
-            )
+
+            assert (double_cal and seq_len < 2500) or (not double_cal)
+
+            if not double_cal:
+                # Run MCMC for this trawl
+                results, posterior_samples = run_mcmc_for_trawl(
+                    trawl_idx=idx,
+                    # true_trawls=true_trawls,
+                    true_thetas=true_thetas,
+                    approximate_log_likelihood_to_evidence_just_theta=wrapper_for_approx_likelihood_just_theta(
+                        jnp.reshape(true_trawls[idx], (1, -1))),
+                    seed=seed + idx**2,
+                    num_samples=num_samples,
+                    num_warmup=num_warmup,
+                    num_burnin=num_burnin,
+                    num_chains=num_chains
+                )
+            else:
+
+                _approx_log_like_ = wrapper_for_approx_likelihood_just_theta(
+                    jnp.reshape(true_trawls[idx], (1, -1)))
+
+                if double_cal:
+                    double_cal_params_path = os.path.join(
+                        folder_path, f'overall_NRE_spline_cal_of_TRE_{seq_len}', 'double_cal_spline_params.npy')
+                    double_cal_spline_params = np.load(double_cal_params_path)
+                    spline = distrax.RationalQuadraticSpline(
+                        params=double_cal_spline_params, range_min=0.0, range_max=1.0)
+
+                @jax.jit
+                def double_cal_approx_log_like(theta):
+                    uncal = _approx_log_like_(theta)
+                    cal = spline.forward(jax.nn.sigmoid(uncal))
+                    return jax.scipy.special.logit(cal)
+
+                # Run MCMC for this trawl
+                results, posterior_samples = run_mcmc_for_trawl(
+                    trawl_idx=idx,
+                    # true_trawls=true_trawls,
+                    true_thetas=true_thetas,
+                    approximate_log_likelihood_to_evidence_just_theta=double_cal_approx_log_like,
+                    seed=seed + idx**2,
+                    num_samples=num_samples,
+                    num_warmup=num_warmup,
+                    num_burnin=num_burnin,
+                    num_chains=num_chains
+                )
 
             # Add true theta to results
             results['true_theta'] = true_thetas[idx].tolist()
@@ -99,9 +144,9 @@ def main():
     end_idx = int(sys.argv[2])
     task_id = int(sys.argv[3])
     total_tasks = 128  # Total number of cores/tasks
-    seq_len = 2000
-    calibration_filename = 'beta_calibration_2000.npy'
-    num_rows_to_load = 140
+    seq_len = 1000
+    calibration_filename = 'spline_calibration_1000.npy'
+    num_rows_to_load = 130
 
     print(
         f"DEBUG: Python received args: start_idx={start_idx}, end_idx={end_idx}, task_id={task_id}")
@@ -186,6 +231,7 @@ def main():
     num_burnin = 10000
     num_chains = 5
     seed = 13414
+    double_cal = True
 
     # Process assigned batch
     process_batch(
@@ -201,7 +247,8 @@ def main():
         num_chains=num_chains,
         seed=seed + task_id**2,
         seq_len=seq_len,
-        calibration_filename=calibration_filename
+        calibration_filename=calibration_filename,
+        double_cal=double_cal
     )
 
     print(f"Task {task_id}: Completed all assigned trawls")
