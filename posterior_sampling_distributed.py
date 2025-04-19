@@ -145,7 +145,7 @@ def main():
     task_id = int(sys.argv[3])
     total_tasks = 128  # Total number of cores/tasks
     seq_len = 1000
-    calibration_filename = 'spline_calibration_1000.npy'
+    calibration_filename = 'beta_calibration_1000.pkl'
     num_rows_to_load = 130
 
     print(
@@ -230,8 +230,8 @@ def main():
     num_warmup = 10000
     num_burnin = 10000
     num_chains = 5
-    seed = 13414
-    double_cal = True
+    seed = 97668
+    double_cal = False
 
     # Process assigned batch
     process_batch(
