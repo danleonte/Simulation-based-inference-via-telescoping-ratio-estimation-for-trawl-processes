@@ -4,10 +4,11 @@ import pickle
 import matplotlib.pyplot as plt
 import gc  # Import garbage collector
 
+#mcmc_results_sup_ig_nig_5p_3000spline_calibration_2500
+
 # Load configuration
-calibrate_bool = True
-seq_len = 2500
-calibrate_suffix = 'calibrated' if calibrate_bool else 'uncalibrated'
+calibrate_suffix = 'spline_calibration_1500'
+seq_len = 1500
 folder_path = r'/home/leonted/SBI/SBI_for_trawl_processes_and_ambit_fields/models/new_classifier/TRE_full_trawl/selected_models/mcmc_results_sup_ig_nig_5p_' + str(seq_len) + calibrate_suffix
 trawl_folders = [item for item in os.listdir(folder_path) 
                if os.path.isdir(os.path.join(folder_path, item))]

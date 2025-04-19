@@ -99,8 +99,8 @@ def main():
     end_idx = int(sys.argv[2])
     task_id = int(sys.argv[3])
     total_tasks = 128  # Total number of cores/tasks
-    seq_len = 2500
-    calibration_filename = 'spline_calibration_2500.npy'
+    seq_len = 2000
+    calibration_filename = 'beta_calibration_2000.npy'
     num_rows_to_load = 140
 
     print(
