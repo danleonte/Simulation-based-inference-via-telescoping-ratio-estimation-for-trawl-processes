@@ -289,13 +289,23 @@ def train_classifier(classifier_config):
         if classifier_config['optimizer']['name'] == 'adam':
             if 'weight_decay' in classifier_config['optimizer']:
                 # AdamW = Adam with weight decay
-                optimizer = optax.adamw(
-                    learning_rate=schedule_fn,
-                    weight_decay=classifier_config['optimizer']['weight_decay']
+                optimizer = optax.chain(
+                    optax.clip(2.0),  # Clip gradients to [-2, 2]
+                    optax.adamw(
+                        learning_rate=schedule_fn,
+                        weight_decay=classifier_config['optimizer']['weight_decay']
+                    )
                 )
             else:
                 # Regular Adam if no weight_decay specified
                 optimizer = optax.adam(learning_rate=schedule_fn)
+                optimizer = optax.chain(
+                    optax.clip(2.0),  # Clip gradients to [-2, 2]
+                    optax.adamw(
+                        learning_rate=schedule_fn,
+                        # weight_decay=classifier_config['optimizer']['weight_decay']
+                    )
+                )
 
         state = train_state.TrainState.create(
             apply_fn=model.apply,
@@ -634,13 +644,14 @@ if __name__ == "__main__":
     import sys
 
     # Load config file - use command line arg if provided, otherwise use default
-    classifier_config_file_path = sys.argv[1] if len(sys.argv) > 1 else None#r'config_files/classifier/NRE_full_trawl/base_nre_config_new_LSTM.yaml'
+    # r'config_files/classifier/TRE_full_trawl/beta/base_beta_config_variable_LSTM.yaml'
+    classifier_config_file_path = sys.argv[1] if len(sys.argv) > 1 else None
     assert classifier_config_file_path is not None
-    
+
     print(f"Using configuration file: {classifier_config_file_path}")
 
     # Load config file
-    #classifier_config_file_path = r'config_files/classifier/TRE_full_trawl/mu/base_mu_config_new_LSTM.yaml'
+    # classifier_config_file_path = r'config_files/classifier/TRE_full_trawl/mu/base_mu_config_new_LSTM.yaml'
 
     with open(classifier_config_file_path, 'r') as f:
         base_config = yaml.safe_load(f)
@@ -650,8 +661,8 @@ if __name__ == "__main__":
 
     if model_name == 'VariableLSTMModel':
 
-        for lstm_hidden_size in (16, 48, 32,64,128):
-            for num_lstm_layers in (4,3,2):
+        for lstm_hidden_size in (16, 48, 32, 64, 128):
+            for num_lstm_layers in (4, 3, 2):
                 for increased_size in (16, 48, 32, 8):
                     for linear_layer_sizes in ([32, 16, 8, 4], [48, 32, 15, 8, 4, 2],
                                                [32, 16, 8, 4, 2], [64, 32, 16, 8, 4, 2]):

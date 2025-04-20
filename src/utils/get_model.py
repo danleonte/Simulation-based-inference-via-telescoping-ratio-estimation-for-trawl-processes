@@ -132,7 +132,7 @@ def get_model_VariableLSTM(config_file, initialize=True):
 
     else:
 
-        add_seq_len = trawl_config['add_seq_len']
+        add_seq_len = trawl_config['variable_seq_len']
 
     # Create model
     model = VariableLSTMModel(
