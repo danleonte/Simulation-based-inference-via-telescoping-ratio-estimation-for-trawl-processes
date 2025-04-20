@@ -127,7 +127,8 @@ if __name__ == "__main__":
         mean_aggregation=mean_aggregation,
         final_output_size=final_output_size,
         dropout_rate=dropout_rate,
-        increased_size=increased_size
+        increased_size=increased_size,
+        add_seq_len=True
     )
 
     # Generate dummy data
