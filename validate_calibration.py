@@ -300,7 +300,7 @@ if __name__ == '__main__':
                 # validate_calibrator(trained_classifier_path, nr_batches, 1500)
                 # calibrate(trained_classifier_path, nr_batches, 2000)
                 # calibrate(trained_classifier_path, nr_batches, 2500)
-                calibrate(trained_classifier_path, nr_batches, 3000)
+                validate_calibrator(trained_classifier_path, nr_batches, 3000)
                 # calibrate(trained_classifier_path, nr_batches, 3500)
 
                 # validate_calibrator(trained_classifier_path, nr_batches, seq_len)
