@@ -237,8 +237,8 @@ def load_trained_models_for_posterior_inference(folder_path, dummy_x, trawl_proc
 
             if spline_cal:
 
-                spline = distrax.RationalQuadraticSpline(
-                    params=calibration_params[i], range_min=0.0, range_max=1.0)
+                spline = distrax.RationalQuadraticSpline(boundary_slopes='identity',  # can be changed
+                                                         params=calibration_params[i], range_min=0.0, range_max=1.0)
 
                 log_r = logit(spline.forward(sigmoid(log_r)))
 
@@ -283,8 +283,8 @@ def load_trained_models_for_posterior_inference(folder_path, dummy_x, trawl_proc
 
                 # Always apply calibration - will be no-op for models that don't need it
                 if spline_cal:
-                    spline = distrax.RationalQuadraticSpline(
-                        params=calibration_params[i], range_min=0.0, range_max=1.0)
+                    spline = distrax.RationalQuadraticSpline(boundary_slopes='identity',
+                                                             params=calibration_params[i], range_min=0.0, range_max=1.0)
 
                     log_r = logit(spline.forward(sigmoid(log_r)))
 
