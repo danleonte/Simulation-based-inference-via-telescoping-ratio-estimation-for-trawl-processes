@@ -37,7 +37,7 @@ def validate_calibrator(trained_classifier_path, nr_batches, seq_len):
         classifier_config = yaml.safe_load(f)
 
     dataset_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
-        os.path.dirname(trained_classifier_path)))),  f'validation_dataset_for_calibration_{seq_len}')
+        os.path.dirname(trained_classifier_path)))),  'validation_dataset_for_calibration')
 
     # load validation dataset
     val_x_path = os.path.join(dataset_path, 'cal_x.npy')
