@@ -8,8 +8,8 @@ import gc  # Import garbage collector
 #mcmc_results_sup_ig_nig_5p_1000spline_calibration_1000double_cal
 
 # Load configuration
-calibrate_suffix = 'beta_calibration_1000'
-seq_len = 1000
+calibrate_suffix = 'spline_calibration_1500'
+seq_len = 1500
 folder_path = r'/home/leonted/SBI/SBI_for_trawl_processes_and_ambit_fields/models/new_classifier/TRE_full_trawl/selected_models/mcmc_results_sup_ig_nig_5p_' + str(seq_len) + calibrate_suffix
 double_cal = False
 if double_cal:

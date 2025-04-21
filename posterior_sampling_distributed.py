@@ -114,14 +114,14 @@ def process_batch(batch_indices, folder_path, true_trawls, true_thetas, wrapper_
             # Save results
             save_results(results, os.path.join(trawl_dir, "results.pkl"))
 
-            try:
-                create_and_save_plots(
-                    posterior_samples=posterior_samples,
-                    true_theta=results['true_theta'],
-                    save_dir=trawl_dir
-                )
-            except Exception as e:
-                print(f"Error creating plots for trawl {idx}: {str(e)}")
+            #try:
+            #    create_and_save_plots(
+            #        posterior_samples=posterior_samples,
+            #        true_theta=results['true_theta'],
+            #        save_dir=trawl_dir
+            #    )
+            #except Exception as e:
+            #    print(f"Error creating plots for trawl {idx}: {str(e)}")
 
             # Save memory by clearing results
             del results
@@ -144,8 +144,8 @@ def main():
     end_idx = int(sys.argv[2])
     task_id = int(sys.argv[3])
     total_tasks = 128  # Total number of cores/tasks
-    seq_len = 1000
-    calibration_filename = 'beta_calibration_1000.pkl'
+    seq_len = 1500
+    calibration_filename = 'spline_calibration_1500.npy'
     num_rows_to_load = 130
 
     print(
