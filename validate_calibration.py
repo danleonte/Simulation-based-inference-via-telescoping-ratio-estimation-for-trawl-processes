@@ -50,7 +50,7 @@ def validate_calibrator(trained_classifier_path, nr_batches, seq_len):
         from copy import deepcopy
         print('Generating dataset')
         classifier_config_ = deepcopy(classifier_config)
-        classifier_config_['trawl_config']['seq_len'] = seq_len
+        classifier_config_['trawl_config']['seq_len'] = 3000
         val_x, val_thetas, val_Y = generate_dataset(
             classifier_config_, nr_batches)
         print('Generated dataset')
@@ -149,7 +149,7 @@ def validate_calibrator(trained_classifier_path, nr_batches, seq_len):
 
         # Process one batch at a time
         for i in range(batch_count):
-            if i % 10 == 0:
+            if i % 20 == 0:
                 print(f"Processing batch {i} out of {batch_count}")
 
             # Load the current batch into memory
@@ -158,8 +158,13 @@ def validate_calibrator(trained_classifier_path, nr_batches, seq_len):
             theta_batch = np.array(val_thetas_array[i])
             y_batch = np.array(val_Y_array)
 
+            if i == 0:
+                assert x_batch.shape[-1] == 3000
+                # assert theta_batch.shape[-1] == 3000
+                # assert y_batch.shape[-1] == 3000
+
             # Convert to JAX arrays for processing
-            x_batch_jax = jnp.array(x_batch)
+            x_batch_jax = jnp.array(x_batch)[:, :seq_len]
             theta_batch_jax = jnp.array(theta_batch)
 
             # Process with JAX
@@ -291,11 +296,11 @@ if __name__ == '__main__':
                     trained_classifier_path = os.path.join(
                         os.getcwd(), 'models', 'new_classifier', 'TRE_full_trawl', key, value, 'best_model')  # 'NRE_full_trawl '
 
-                validate_calibrator(trained_classifier_path, nr_batches, 1000)
-                validate_calibrator(trained_classifier_path, nr_batches, 1500)
+                # validate_calibrator(trained_classifier_path, nr_batches, 1000)
+                # validate_calibrator(trained_classifier_path, nr_batches, 1500)
                 # calibrate(trained_classifier_path, nr_batches, 2000)
                 # calibrate(trained_classifier_path, nr_batches, 2500)
-                # calibrate(trained_classifier_path, nr_batches, 3000)
+                calibrate(trained_classifier_path, nr_batches, 3000)
                 # calibrate(trained_classifier_path, nr_batches, 3500)
 
                 # validate_calibrator(trained_classifier_path, nr_batches, seq_len)
