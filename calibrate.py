@@ -182,8 +182,8 @@ def calibrated_the_NRE_of_a_calibrated_TRE(trained_classifier_path, seq_len):
         spline_params = jnp.load(os.path.join(TRE_component_path,
                                               f'spline_calibration_{seq_len}.npy'))
 
-        spline = distrax.RationalQuadraticSpline(
-            params=spline_params, range_min=0.0, range_max=1.0)
+        spline = distrax.RationalQuadraticSpline(boundary_slopes='identity',
+                                                 params=spline_params, range_min=0.0, range_max=1.0)
         log_r_to_add = jnp.load(os.path.join(
             TRE_component_path, f'final_log_r_{seq_len}.npy'))
         log_r_to_add = logit(spline.forward(jax.nn.sigmoid(log_r_to_add)))
@@ -210,8 +210,8 @@ def calibrated_the_NRE_of_a_calibrated_TRE(trained_classifier_path, seq_len):
     spline_params = fit_spline(probs=jnp.array(pred_prob_Y).squeeze(),
                                labels=jnp.array(Y), params=None, num_bins=num_bins)
 
-    spline = distrax.RationalQuadraticSpline(
-        params=spline_params, range_min=0.0, range_max=1.0)
+    spline = distrax.RationalQuadraticSpline(boundary_slopes='identity',
+                                             params=spline_params, range_min=0.0, range_max=1.0)
 
     if epsilon is None:
 
@@ -257,6 +257,8 @@ def calibrated_the_NRE_of_a_calibrated_TRE(trained_classifier_path, seq_len):
     print(seq_len)
     print(pre_cal)
     print(post_cal)
+
+# def fit_splines(trained_classifier_path, seq_len):
 
 
 def calibrate(trained_classifier_path, nr_batches, seq_len):
@@ -446,43 +448,51 @@ def calibrate(trained_classifier_path, nr_batches, seq_len):
         # serialize the list
         pickle.dump(beta_calibration_dict, f)
 
-    ### spline calibration ###
-
-    # load initial params, if available; otherwise, they will be generated randomly
-    initial_spline_params_path = os.path.join(
-        trained_classifier_path, f'spline_calibration_{seq_len-500}.npy')
-
-    spline_calibration_already_done = True
-
-    if not spline_calibration_already_done:
-
-        if os.path.isfile(initial_spline_params_path):
-            initial_spline_params = jnp.load(initial_spline_params_path)
-        else:
-            initial_spline_params = None
-
-        # fit spline
-        spline_params = fit_spline(probs=jnp.array(pred_prob_Y).squeeze(),
-                                   labels=jnp.array(Y), params=initial_spline_params)
-
-        jnp.save(file=os.path.join(trained_classifier_path,
-                 f'spline_calibration_{seq_len}.npy'), arr=spline_params)
-
-    else:
-        spline_params = jnp.load(os.path.join(trained_classifier_path,
-                                              f'spline_calibration_{seq_len}.npy'))
-
-    spline = distrax.RationalQuadraticSpline(
-        params=spline_params, range_min=0.0, range_max=1.0)
-
     linspace = np.linspace(0.0001, 0.9999, 100)
     pr = [lr.predict_proba(linspace.reshape(-1, 1))[:, 1],
-          iso.predict(linspace), bc.predict(linspace), spline.forward(linspace)]
-    methods_text = ['logistic', 'isotonic', 'beta', 'splines']
+          iso.predict(linspace), bc.predict(linspace)]  # , spline.forward(linspace)]
+    methods_text = ['logistic', 'isotonic', 'beta']  # , 'splines']
 
     # get calibrated datasets
     calibrated_pr = [lr.predict_proba(pred_prob_Y)[:, 1],
-                     iso.predict(pred_prob_Y), bc.predict(pred_prob_Y), spline.forward(pred_prob_Y.squeeze(-1))]
+                     iso.predict(pred_prob_Y), bc.predict(pred_prob_Y)]
+
+    ### spline calibration ###
+    num_bins_to_try = (2, 3, 4, 5, 6, 8, 10, 12, 15)
+
+    for num_bins_for_splines in num_bins_to_try:
+        # load initial params, if available; otherwise, they will be generated randomly
+        initial_spline_params_path = os.path.join(
+            trained_classifier_path, f'spline_calibration_{seq_len-500}_{num_bins_for_splines}_bins.npy')
+
+        spline_calibration_already_done = False
+
+        if not spline_calibration_already_done:
+
+            if os.path.isfile(initial_spline_params_path):
+                initial_spline_params = jnp.load(initial_spline_params_path)
+            else:
+                initial_spline_params = None
+
+            # fit spline
+            spline_params = fit_spline(probs=jnp.array(pred_prob_Y).squeeze(), num_bins=num_bins_for_splines,
+                                       labels=jnp.array(Y), params=initial_spline_params)
+
+            jnp.save(file=os.path.join(trained_classifier_path,
+                     f'spline_calibration_{seq_len}_{num_bins_for_splines}_bins.npy'), arr=spline_params)
+
+        else:
+            spline_params = jnp.load(os.path.join(trained_classifier_path,
+                                                  f'spline_calibration_{seq_len}_{num_bins_for_splines}_bins.npy'))
+
+        spline = distrax.RationalQuadraticSpline(
+            params=spline_params, range_min=0.0, range_max=1.0, boundary_slopes='identity')
+
+        calibrated_pr.append(spline.forward(pred_prob_Y.squeeze(-1)))
+        methods_text.append(f'splines_{num_bins_for_splines}')
+
+
+# , spline.forward(pred_prob_Y.squeeze(-1))]
 
     # We need to convert to JAX for the metrics calculation
     # Convert in chunks if needed for large datasets
@@ -494,7 +504,7 @@ def calibrate(trained_classifier_path, nr_batches, seq_len):
     metrics = []
     metrics.append(compute_metrics(log_r_jax, pred_prob_Y_jax, Y_jax))
 
-    for i in range(4):
+    for i in range(len(methods_text)):
         # Convert one calibrated result at a time
         calibrated_pr_jax = jnp.array(calibrated_pr[i])
         logit_calibrated = logit(calibrated_pr_jax)
@@ -505,11 +515,12 @@ def calibrate(trained_classifier_path, nr_batches, seq_len):
         # del logit_calibrated
 
     df = pd.DataFrame(np.array(metrics).transpose(),
-                      columns=('uncal', ' lr', 'isotonic', 'beta', 'splines'),
+                      columns=['uncal', ' lr', 'isotonic',
+                               'beta'] + methods_text[3:],
                       index=('BCE', 'S', 'B'))
 
     df.to_excel(os.path.join(trained_classifier_path,
-                f'BCE_S_B_{seq_len}.xlsx'))
+                f'BCE_S_B_{seq_len}_with_splines.xlsx'))
 
     # Optionally add the visualization code here if needed (set if False: to if True:)
 
@@ -520,7 +531,7 @@ def calibrate(trained_classifier_path, nr_batches, seq_len):
     # os.makedirs(calibration_results_path, exist_ok=True)
 
     ############ UNCALIBRATED plots ############
-    do_calibration_plots = True
+    do_calibration_plots = False
     if do_calibration_plots:
 
         hist_beta, ax = plt.subplots()
@@ -641,13 +652,13 @@ if __name__ == '__main__':
         'acf': ['04_12_12_36_45'],
         'beta': ['04_12_04_26_56'],
         'mu': ['04_12_00_32_46'],
-        'sigma': ['04_12_04_28_49'],
+        # 'sigma': ['04_12_04_28_49'],
         # 'acf':['02_26_18_30_52', '02_28_16_37_11', '03_01_09_30_39', '03_01_21_17_21', '03_02_21_06_17','03_02_06_41_57'],
         # 'beta':['02_26_15_56_48', '02_26_16_02_10', '02_26_19_29_54', '02_26_19_37_09', '02_26_23_14_03', '02_27_02_50_03'],
         # 'mu':['03_03_16_41_47', '03_03_16_45_26', '03_03_18_35_58', '03_03_21_29_04', '03_04_01_33_54', '03_04_01_46_31'],
         # 'sigma':['03_03_16_56_52', '03_03_23_18_48', '03_04_02_42_13', '03_04_07_34_58', '03_04_12_28_46', '03_04_21_43_47']
     }
-    if False:
+    if True:
         for key in folder_names:
             for value in folder_names[key]:
 
@@ -659,17 +670,17 @@ if __name__ == '__main__':
                     trained_classifier_path = os.path.join(
                         os.getcwd(), 'models', 'new_classifier', 'TRE_full_trawl', key, value, 'best_model')  # 'NRE_full_trawl '
 
-                calibrate(trained_classifier_path, nr_batches, 1000)
-                calibrate(trained_classifier_path, nr_batches, 1500)
-                calibrate(trained_classifier_path, nr_batches, 2000)
+                # calibrate(trained_classifier_path, nr_batches, 1000)
+                # calibrate(trained_classifier_path, nr_batches, 1500)
+                # calibrate(trained_classifier_path, nr_batches, 2000)
                 calibrate(trained_classifier_path, nr_batches, 2500)
-                calibrate(trained_classifier_path, nr_batches, 3000)
-                calibrate(trained_classifier_path, nr_batches, 3500)
+                # calibrate(trained_classifier_path, nr_batches, 3000)
+                # calibrate(trained_classifier_path, nr_batches, 3500)
 
     # TRE options: acf, beta, mu, sigma
 
     # calibrate
-    if True:
+    if False:
         double_trained_classifier_path = os.path.join(
             os.getcwd(), 'models', 'new_classifier', 'TRE_full_trawl', 'selected_models')
 
@@ -679,8 +690,8 @@ if __name__ == '__main__':
         #    double_trained_classifier_path, 1500)
         # calibrated_the_NRE_of_a_calibrated_TRE(
         #    double_trained_classifier_path, 1000)
-        calibrated_the_NRE_of_a_calibrated_TRE(
-            double_trained_classifier_path, 1500)
+        # calibrated_the_NRE_of_a_calibrated_TRE(
+        #    double_trained_classifier_path, 1500)
         # calibrated_the_NRE_of_a_calibrated_TRE(
         #    double_trained_classifier_path, 2000)
         # calibrated_the_NRE_of_a_calibrated_TRE(

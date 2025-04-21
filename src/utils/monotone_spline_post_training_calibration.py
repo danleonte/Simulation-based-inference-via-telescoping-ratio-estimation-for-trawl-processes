@@ -49,37 +49,37 @@ def fit_spline(probs, labels, num_bins=10, random_seed=0, params=None):
         params = optax.apply_updates(params, updates)
         return params, opt_state, loss
 
-    lr = 0.005
+    lr = 0.0025
     optimizer = optax.adam(learning_rate=lr)
     opt_state = optimizer.init(params)
 
     # Training loop
-    for step in range(251):
+    for step in range(201):
         params, opt_state, loss = update(params, opt_state, probs, labels)
         if step % 50 == 0:
             print(f"Step {step}, Loss: {loss:.5f}")
 
-    lr = lr / 5
+    # lr = lr / 5
+
+    # optimizer = optax.adam(learning_rate=lr)
+    # opt_state = optimizer.init(params)
+    # Training loop
+    # for step in range(251):
+    #    params, opt_state, loss = update(params, opt_state, probs, labels)
+    #    if step % 50 == 0:
+    #        print(f"Step {step}, Loss: {loss:.5f}")
+
+    lr = lr / 15
 
     optimizer = optax.adam(learning_rate=lr)
     opt_state = optimizer.init(params)
     # Training loop
-    for step in range(251):
+    for step in range(351):
         params, opt_state, loss = update(params, opt_state, probs, labels)
         if step % 50 == 0:
             print(f"Step {step}, Loss: {loss:.5f}")
 
     lr = lr / 10
-
-    optimizer = optax.adam(learning_rate=lr)
-    opt_state = optimizer.init(params)
-    # Training loop
-    for step in range(251):
-        params, opt_state, loss = update(params, opt_state, probs, labels)
-        if step % 50 == 0:
-            print(f"Step {step}, Loss: {loss:.5f}")
-
-    lr = lr / 5
 
     optimizer = optax.adam(learning_rate=lr)
     opt_state = optimizer.init(params)
