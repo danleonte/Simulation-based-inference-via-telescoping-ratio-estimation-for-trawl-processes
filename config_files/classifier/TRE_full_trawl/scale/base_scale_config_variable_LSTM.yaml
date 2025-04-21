@@ -37,7 +37,7 @@ model_config:
 train_config:
   n_iterations: 50001 
 val_config:
-  val_freq: 750
+  val_freq: 1000
   val_n_batches: 40
 optimizer:
   name: adam
