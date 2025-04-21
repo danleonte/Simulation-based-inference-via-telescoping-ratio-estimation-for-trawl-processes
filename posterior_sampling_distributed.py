@@ -85,7 +85,7 @@ def process_batch(batch_indices, folder_path, true_trawls, true_thetas, wrapper_
                     double_cal_params_path = os.path.join(
                         folder_path, f'overall_NRE_spline_cal_of_TRE_{seq_len}', 'double_cal_spline_params.npy')
                     double_cal_spline_params = np.load(double_cal_params_path)
-                    spline = distrax.RationalQuadraticSpline(
+                    spline = distrax.RationalQuadraticSpline(boundary_slopes='identity',
                         params=double_cal_spline_params, range_min=0.0, range_max=1.0)
 
                 @jax.jit
@@ -144,8 +144,8 @@ def main():
     end_idx = int(sys.argv[2])
     task_id = int(sys.argv[3])
     total_tasks = 128  # Total number of cores/tasks
-    seq_len = 1500
-    calibration_filename = 'spline_calibration_1500.npy'
+    seq_len = 1000
+    calibration_filename = 'spline_calibration_1000.npy'
     num_rows_to_load = 130
 
     print(

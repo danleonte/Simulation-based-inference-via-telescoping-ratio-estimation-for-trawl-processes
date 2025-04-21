@@ -7,7 +7,6 @@ tre_config:
   nlags: 35
 trawl_config:
   tau: 1.0
-  seq_len: 3000
   seq_len_bounds: [1000, 3000]
   variable_seq_len: True
   num_seq_lens: 40
@@ -36,9 +35,9 @@ model_config:
   dropout_rate: 0.105
   with_theta: True
 train_config:
-  n_iterations: 40001 
+  n_iterations: 50001 
 val_config:
-  val_freq: 500
+  val_freq: 1000
   val_n_batches: 40
 optimizer:
   name: adam
