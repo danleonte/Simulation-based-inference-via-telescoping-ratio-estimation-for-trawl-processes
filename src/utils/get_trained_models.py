@@ -21,10 +21,100 @@ from src.utils.get_model import get_model
 from src.utils.get_data_generator import get_theta_and_trawl_generator
 
 
+def model_apply_wrapper(model, params):
+
+    # Define JIT-ed apply functions
+
+    @jax.jit
+    def apply_model_with_x(x, theta):
+        """Apply model with a new x input, returning output and x_cache."""
+        return model.apply(params, x, theta)
+
+    @jax.jit
+    def apply_model_with_x_cache(theta, x_cache):
+        """Apply model with cached x representation, returning output and updated x_cache."""
+        return model.apply(params, None, theta, x_cache=x_cache)
+
+    return apply_model_with_x, apply_model_with_x_cache
+
+
 ###############################################################################
 ###################### LOAD TRAINED MODELS FOR INFERENCE ######################
 ###################### POSTERIOR SAMPLING AND CHECKS ##########################
 ###############################################################################
+
+def load_one_tre_model_only_and_prior_and_bounds(folder_path, dummy_x, trawl_process_type, tre_type):
+
+    assert dummy_x.ndim == 2  # should actually be a trawl
+    if trawl_process_type == 'sup_ig_nig_5p':
+        dummy_theta = jnp.ones((dummy_x.shape[0], 5))
+    else:
+        raise ValueError
+
+    with open(os.path.join(folder_path, 'best_model', 'config.yaml'), 'r') as file:
+        config = yaml.safe_load(file)
+        use_tre = config['tre_config']['use_tre']
+        use_summary_statistics = config['tre_config']['use_summary_statistics']
+
+    # sanity checks
+    assert use_tre == True
+    assert use_summary_statistics == False
+    assert config['trawl_config']['trawl_process_type'] == trawl_process_type
+
+    params_path = [f for f in os.listdir(
+        folder_path) if f.startswith("params") and f.endswith(".pkl")]
+    assert len(params_path) == 1
+    # Then load params, config and model
+    with open(os.path.join(folder_path, params_path[0]), 'rb') as file:
+        params = pickle.load(file)
+
+    if use_tre:
+
+        model = get_model(config, False)
+        model = VariableExtendedModel(base_model=model, trawl_process_type=trawl_process_type,
+                                      tre_type=tre_type,
+                                      use_summary_statistics=use_summary_statistics)
+
+    _ = model.init(PRNGKey(0), dummy_x, dummy_theta)
+
+    ### get the prior ###
+    acf_prior_hyperparams = config['trawl_config']['acf_prior_hyperparams']
+    eta_bounds = acf_prior_hyperparams['eta_prior_hyperparams']
+    gamma_bounds = acf_prior_hyperparams['gamma_prior_hyperparams']
+
+    marginal_distr_hyperparams = config['trawl_config']['marginal_distr_hyperparams']
+    mu_bounds = marginal_distr_hyperparams['loc_prior_hyperparams']
+    scale_bounds = marginal_distr_hyperparams['scale_prior_hyperparams']
+    beta_bounds = marginal_distr_hyperparams['beta_prior_hyperparams']
+    # gamma, eta, mu, scale , beta
+    bounds = (gamma_bounds, eta_bounds, mu_bounds, scale_bounds, beta_bounds)
+    lower_bounds = jnp.array([i[0] for i in bounds])
+    upper_bounds = jnp.array([i[1] for i in bounds])
+    priors = 1 / (upper_bounds - lower_bounds)
+
+    if tre_type == 'acf':
+        prior = priors[0] * priors[1]
+        bounds_to_return = (gamma_bounds, eta_bounds)
+    elif tre_type == 'mu':
+        prior = priors[2]
+        bounds_to_return = mu_bounds
+    elif tre_type == 'sigma':
+        prior = priors[3]
+        bounds_to_return = scale_bounds
+    elif tre_type == 'beta':
+        prior = priors[4]
+        bounds_to_return = beta_bounds
+    else:
+        raise ValueError
+
+    return model, params, prior, jnp.array(bounds_to_return)
+
+
+# load TRE component
+# presample
+# define function to evaluate it at certain values based on the sample values
+# do calibration
+# perhaps finetune
 
 
 def load_trained_models_for_posterior_inference(folder_path, dummy_x, trawl_process_type,
