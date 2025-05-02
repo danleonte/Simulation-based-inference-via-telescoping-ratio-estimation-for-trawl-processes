@@ -270,7 +270,7 @@ def OLDDDD___calibrated_the_NRE_of_a_calibrated_TRE___OLDDDDD(trained_classifier
 
 def calibrate_new(trained_classifier_path, nr_batches, seq_len):
     # Load config
-    with open(os.path.join(trained_classifier_path, "config.yaml"), 'r') as f:
+    with open(os.path.join(trained_classifier_path, 'best_model', "config.yaml"), 'r') as f:
         classifier_config = yaml.safe_load(f)
 
     dataset_path = os.path.join(os.path.dirname(os.path.dirname(
