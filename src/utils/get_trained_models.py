@@ -51,7 +51,7 @@ def load_one_tre_model_only_and_prior_and_bounds(folder_path, dummy_x, trawl_pro
     else:
         raise ValueError
 
-    with open(os.path.join(folder_path, 'best_model', 'config.yaml'), 'r') as file:
+    with open(os.path.join(folder_path, 'config.yaml'), 'r') as file:
         config = yaml.safe_load(file)
         use_tre = config['tre_config']['use_tre']
         use_summary_statistics = config['tre_config']['use_summary_statistics']
