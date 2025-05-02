@@ -269,8 +269,10 @@ def OLDDDD___calibrated_the_NRE_of_a_calibrated_TRE___OLDDDDD(trained_classifier
 
 
 def calibrate_new(trained_classifier_path, nr_batches, seq_len):
+    best_model_path = os.path.join(trained_classifier_path, 'best_model')
+
     # Load config
-    with open(os.path.join(trained_classifier_path, 'best_model', "config.yaml"), 'r') as f:
+    with open(os.path.join(best_model_path, "config.yaml"), 'r') as f:
         classifier_config = yaml.safe_load(f)
 
     dataset_path = os.path.join(os.path.dirname(os.path.dirname(
@@ -307,13 +309,12 @@ def calibrate_new(trained_classifier_path, nr_batches, seq_len):
 
     # Load model
     # model, _, _ = get_model(classifier_config)
-    model, params, _, __ = load_one_tre_model_only_and_prior_and_bounds(trained_classifier_path,
+    model, params, _, __ = load_one_tre_model_only_and_prior_and_bounds(best_model_path,
                                                                         jnp.ones(
                                                                             [1, seq_len]),
                                                                         trawl_process_type, tre_type)
 
     # save x_cache
-    best_model_path = os.path.join(trained_classifier_path, 'best_model')
     cal_x_cache_path = os.path.join(
         best_model_path, f'x_cache_{tre_type}_{seq_len}.npy')
 
