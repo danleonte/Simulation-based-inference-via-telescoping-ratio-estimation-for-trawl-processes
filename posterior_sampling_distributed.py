@@ -144,9 +144,9 @@ def main():
     end_idx = int(sys.argv[2])
     task_id = int(sys.argv[3])
     total_tasks = 128  # Total number of cores/tasks
-    seq_len = 1000
-    calibration_filename = 'spline_calibration_1000.npy'
-    num_rows_to_load = 130
+    seq_len = 2000
+    calibration_filename = 'beta_calibration_2000.pkl'
+    num_rows_to_load = 275
 
     print(
         f"DEBUG: Python received args: start_idx={start_idx}, end_idx={end_idx}, task_id={task_id}")
@@ -194,27 +194,21 @@ def main():
         # seq_len = a_classifier_config['trawl_config']['seq_len']
 
     # Load dataset
-    dataset_path = os.path.join(os.path.dirname(
-        os.path.dirname(folder_path)), f'cal_dataset_{seq_len}')
-    cal_x_path = os.path.join(dataset_path, 'cal_x.npy')
-    cal_thetas_path = os.path.join(dataset_path, 'cal_thetas.npy')
-    cal_Y_path = os.path.join(dataset_path, 'cal_Y.npy')
+    dataset_path = os.path.join(os.path.dirname(os.path.dirname(
+        os.path.dirname(folder_path))), 'cal_dataset', f'cal_dataset_{seq_len}')
+    cal_x_path = os.path.join(dataset_path, 'cal_x_joint.npy')
+    cal_thetas_path = os.path.join(dataset_path, 'cal_thetas_joint.npy')
 
     # Load first few rows of cal_x with memory mapping
     cal_x = np.load(cal_x_path, mmap_mode='r')[:num_rows_to_load]
 
-    # Also load just the first few rows of cal_Y to match
-    cal_Y = np.load(cal_Y_path)[:num_rows_to_load]
-
     # Load cal_thetas (adjust if it also needs to be limited)
     cal_thetas = np.load(cal_thetas_path)[:num_rows_to_load]
 
-    # Now create the mask using the truncated cal_Y
-    mask = cal_Y == 1
 
     # Apply the mask and reshape as before
-    true_trawls = cal_x[:, mask].reshape(-1, seq_len)
-    true_thetas = cal_thetas[:, mask].reshape(-1, cal_thetas.shape[-1])
+    true_trawls = cal_x.reshape(-1, seq_len)
+    true_thetas = cal_thetas.reshape(-1, cal_thetas.shape[-1])
 
     # Load approximate likelihood function
     _, wrapper_for_approx_likelihood_just_theta = load_trained_models(
@@ -223,7 +217,7 @@ def main():
     )
 
     del cal_x
-    del cal_Y
+    
 
     # MCMC parameters
     num_samples = 25000  # Adjust as needed
