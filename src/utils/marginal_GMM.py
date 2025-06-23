@@ -2,6 +2,8 @@ import scipy
 import numpy as np
 import statsmodels.api as sm
 from statsmodels.sandbox.regression.gmm import GMM
+# from src.utils.modified_GMM_class import GMM
+
 import matplotlib.pyplot as plt
 import jax
 import jax.numpy as jnp

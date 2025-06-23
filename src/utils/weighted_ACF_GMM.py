@@ -15,6 +15,10 @@ import pandas as pd
 from tqdm import tqdm
 import multiprocessing
 from functools import partial
+
+import warnings
+from scipy.optimize import OptimizeWarning
+warnings.filterwarnings('ignore', category=OptimizeWarning)
 # Define transformation functions to map between unconstrained and constrained space
 
 
@@ -107,7 +111,9 @@ def estimate_acf_parameters_transformed(trawl, num_lags, trawl_function_name,
         result = gmm_model.fit(
             start_params=unconstrained_initial,
             # No bounds needed since we're in unconstrained space
-            maxiter=30
+            maxiter=30,
+            optim_args={'disp': 0}  # Pass disp through optim_args
+
         )
 
         # Transform the results back to constrained space for interpretation
@@ -188,6 +194,11 @@ class TransformedACFGMM(GMM):
             return 1e6 * np.ones((len(self.endog) - self.num_lags, self.num_lags))
 
 
+# 3
+
+
+########################################################
+
 if __name__ == '__main__':
     import os
     import yaml
@@ -196,103 +207,107 @@ if __name__ == '__main__':
     from statsmodels.tsa.stattools import acf as compute_empirical_acf
 
     # Load dataset & configuration; later on double check the true_theta is the same in the dataset and in the MLE dataframe
-    # folder_path = r'/home/leonted/SBI/SBI_for_trawl_processes_and_ambit_fields/models/classifier/TRE_full_trawl/beta_calibrated'
-    folder_path = r'D:\sbi_ambit\SBI_for_trawl_processes_and_ambit_fields\models\classifier\TRE_full_trawl\beta_calibrated'
-
-    # Set up model configuration
-    use_tre = 'TRE' in folder_path
-    if not (use_tre or 'NRE' in folder_path):
-        raise ValueError("Path must contain 'TRE' or 'NRE'")
-
-    use_summary_statistics = 'summary_statistics' in folder_path
-    if not (use_summary_statistics or 'full_trawl' in folder_path):
-        raise ValueError(
-            "Path must contain 'full_trawl' or 'summary_statistics'")
-
-    if use_tre:
-        classifier_config_file_path = os.path.join(
-            folder_path, 'acf', 'config.yaml')
-    else:
-        classifier_config_file_path = os.path.join(folder_path, 'config.yaml')
-
-    with open(classifier_config_file_path, 'r') as f:
-        a_classifier_config = yaml.safe_load(f)
-        trawl_process_type = a_classifier_config['trawl_config']['trawl_process_type']
-        seq_len = a_classifier_config['trawl_config']['seq_len']
-
-    # Load dataset
-    dataset_path = os.path.join(os.path.dirname(
-        os.path.dirname(folder_path)), 'cal_dataset')
-    cal_x_path = os.path.join(dataset_path, 'cal_x.npy')
-    cal_thetas_path = os.path.join(dataset_path, 'cal_thetas.npy')
-    cal_Y_path = os.path.join(dataset_path, 'cal_Y.npy')
-
-    cal_Y = jnp.load(cal_Y_path)
-    true_trawls = jnp.load(cal_x_path)[:, cal_Y == 1].reshape(-1, seq_len)
-    true_thetas = jnp.load(cal_thetas_path)
-    true_thetas = true_thetas[:, cal_Y == 1].reshape(-1, true_thetas.shape[-1])
-    del cal_Y
-
-    results_path = os.path.join(folder_path, 'results', 'MLE_results.pkl')
-    mle_df = pd.read_pickle(results_path)
-
-    # Get parameters from config
-    num_lags = 35  # can override this
-    trawl_function_name = a_classifier_config['trawl_config']['acf']
-    acf_func = get_acf(trawl_function_name)
-
+    # folder_path = r'/home/leonted/SBI/SBI_for_trawl_processes_and_ambit_fields/models/classifier/NRE_full_trawl/uncalibrated'
+    folder_path = r'D:\sbi_ambit\SBI_for_trawl_processes_and_ambit_fields\models\new_classifier\TRE_full_trawl\selected_models'
+    seq_len = 2000
+    num_rows_to_load = 80  # how much data to load
+    num_trawls_to_use = 5000  # how much data to do GMM on
+    ###########
+    trawl_process_type = 'sup_ig_nig_5p'
+    trawl_function_name = 'sup_IG'
     # Set bounds for parameters
     lower_bound = 10.0
     upper_bound = 20.0
 
-    result_list = []
-    for index_ in tqdm(range(500)):  # tqdm(range(len(mle_df))):
+    # Get parameters from config
+    num_lags = 15  # can override this
+    acf_func = get_acf(trawl_function_name)
 
-        trawl_idx = mle_df.iloc[index_].idx
-        true_theta_from_mle = mle_df.iloc[index_].true_theta
-        true_theta = true_thetas[trawl_idx]
-        assert all(np.isclose(true_theta_from_mle, true_theta))
+    # Load dataset
+    models_path = os.path.dirname(
+        os.path.dirname(os.path.dirname(folder_path)))
+    dataset_path = os.path.join(
+        models_path, 'val_dataset', f'val_dataset_{seq_len}')
+    val_x_path = os.path.join(dataset_path, 'val_x_joint.npy')
+    val_thetas_path = os.path.join(dataset_path, 'val_thetas_joint.npy')
 
-        true_trawl = true_trawls[trawl_idx]
+    # Load first few rows of val_x with memory mapping
+    val_x = np.load(val_x_path, mmap_mode='r')[:num_rows_to_load]
+    val_thetas = np.load(val_thetas_path)[:num_rows_to_load]
+
+    val_x = val_x.reshape(-1, seq_len)
+    val_thetas = val_thetas.reshape(-1, val_thetas.shape[-1])
+
+    ########### empty lists to append results to ############
+    true_theta_list = []
+    GMM_list = []
+    # result_list = []
+
+    for index_ in tqdm(range(num_trawls_to_use)):  # tqdm(range(len(mle_df))):
+
+        # trawl_idx = mle_df.iloc[index_].idx
+        # true_theta_from_mle = mle_df.iloc[index_].true_theta
+        # true_theta = true_thetas[trawl_idx]
+        # assert all(np.isclose(true_theta_from_mle, true_theta))
+
+        # true_trawl = true_trawls[trawl_idx]
+
+        true_trawl = val_x[index_]
+        true_theta = val_thetas[index_]
 
         # Estimate parameters using transformed approach
         result_dict = estimate_acf_parameters_transformed(
             true_trawl, num_lags, trawl_function_name,
             lower_bound=lower_bound,
-            upper_bound=upper_bound
+            upper_bound=upper_bound,
+            initial_guess=true_theta[:2]
         )
-        result_list.append(result_dict)
+        # result_list.append(result_dict)
+        true_theta_list.append(true_theta)
+        if result_dict is not None:
 
-    if result_dict is not None:
-        # Extract constrained parameters
-        gmm_params = result_dict["constrained_params"]
+            GMM_list.append(result_dict['constrained_params'])
 
-        # Compute ACFs for plotting
-        H = np.arange(1, num_lags + 1)
-        theoretical_acf = acf_func(H, theta_acf)
-        empirical_acf = compute_empirical_acf(trawl, nlags=num_lags)[1:]
-        gmm_acf = acf_func(H, gmm_params)
+        else:
 
-        # Create plot
-        f, ax = plt.subplots(figsize=(10, 6))
-        ax.scatter(H, theoretical_acf, label='Theoretical')
-        ax.scatter(H, empirical_acf, label='Empirical')
-        ax.scatter(H, gmm_acf, label='GMM (Transformed)')
+            GMM_list.append(None)
 
-        # Add details about the transformation
-        ax.set_title(
-            f'ACF Comparison (Parameter Range: [{lower_bound}, {upper_bound}])')
-        ax.set_xlabel('Lag')
-        ax.set_ylabel('ACF')
+    df = pd.DataFrame({'true_theta': true_theta_list,
+                      'GMM': GMM_list})
 
-        # Add parameter values to the plot
-        unconstrained_text = f"Unconstrained parameters: [{result_dict['unconstrained_params'][0]:.3f}, {result_dict['unconstrained_params'][1]:.3f}]"
-        constrained_text = f"Constrained parameters: [{result_dict['acf_gamma']:.3f}, {result_dict['acf_eta']:.3f}]"
-        plt.figtext(0.5, 0.01, unconstrained_text +
-                    '\n' + constrained_text, ha='center')
+    df.to_pickle(f'ACF_{seq_len}_{num_lags}.pkl')
 
-        plt.legend()
-        plt.tight_layout()
-        plt.show()
-    else:
-        print("Parameter estimation failed.")
+    if False:
+        if result_dict is not None:
+            # Extract constrained parameters
+            gmm_params = result_dict["constrained_params"]
+
+            # Compute ACFs for plotting
+            H = np.arange(1, num_lags + 1)
+            theoretical_acf = acf_func(H, theta_acf)
+            empirical_acf = compute_empirical_acf(trawl, nlags=num_lags)[1:]
+            gmm_acf = acf_func(H, gmm_params)
+
+            # Create plot
+            f, ax = plt.subplots(figsize=(10, 6))
+            ax.scatter(H, theoretical_acf, label='Theoretical')
+            ax.scatter(H, empirical_acf, label='Empirical')
+            ax.scatter(H, gmm_acf, label='GMM (Transformed)')
+
+            # Add details about the transformation
+            ax.set_title(
+                f'ACF Comparison (Parameter Range: [{lower_bound}, {upper_bound}])')
+            ax.set_xlabel('Lag')
+            ax.set_ylabel('ACF')
+
+            # Add parameter values to the plot
+            unconstrained_text = f"Unconstrained parameters: [{result_dict['unconstrained_params'][0]:.3f}, {result_dict['unconstrained_params'][1]:.3f}]"
+            constrained_text = f"Constrained parameters: [{result_dict['acf_gamma']:.3f}, {result_dict['acf_eta']:.3f}]"
+            plt.figtext(0.5, 0.01, unconstrained_text +
+                        '\n' + constrained_text, ha='center')
+
+            plt.legend()
+            plt.tight_layout()
+            plt.show()
+        else:
+            print("Parameter estimation failed.")

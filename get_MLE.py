@@ -54,10 +54,12 @@ if __name__ == '__main__':
 
     # folder_path = r'/home/leonted/SBI/SBI_for_trawl_processes_and_ambit_fields/models/classifier/NRE_full_trawl/uncalibrated'
     folder_path = r'D:\sbi_ambit\SBI_for_trawl_processes_and_ambit_fields\models\new_classifier\TRE_full_trawl\selected_models'
-    seq_len = 1000
-    num_rows_to_load = 125
-    num_trawls_to_use = 500
-    calibration_filename = 'spline_calibration_1000.npy'
+    seq_len = 1500
+    num_rows_to_load = 160
+    num_trawls_to_use = 5000
+    # 'spline_calibration_1000.npy'
+    # f'beta_calibration_{seq_len}.pkl'
+    calibration_filename = 'no_calibration.pkl'
 
     # r'/home/leonted/SBI/SBI_for_trawl_processes_and_ambit_fields/models/classifier/TRE_full_trawl/beta_calibrated/'
     # Get all matching folders
@@ -88,38 +90,45 @@ if __name__ == '__main__':
         # seq_len = a_classifier_config['trawl_config']['seq_len']
 
     # Load dataset
-    dataset_path = os.path.join(os.path.dirname(
-        os.path.dirname(folder_path)), f'cal_dataset_{seq_len}')
-    cal_x_path = os.path.join(dataset_path, 'cal_x.npy')
-    cal_thetas_path = os.path.join(dataset_path, 'cal_thetas.npy')
-    cal_Y_path = os.path.join(dataset_path, 'cal_Y.npy')
+    models_path = os.path.dirname(
+        os.path.dirname(os.path.dirname(folder_path)))
+    dataset_path = os.path.join(
+        models_path, 'val_dataset', f'val_dataset_{seq_len}')
+    val_x_path = os.path.join(dataset_path, 'val_x_joint.npy')
+    val_thetas_path = os.path.join(dataset_path, 'val_thetas_joint.npy')
 
-    # Load first few rows of cal_x with memory mapping
-    cal_x = np.load(cal_x_path, mmap_mode='r')[:num_rows_to_load]
+    # Load first few rows of val_x with memory mapping
+    val_x = np.load(val_x_path, mmap_mode='r')[:num_rows_to_load]
+    val_thetas = np.load(val_thetas_path)[:num_rows_to_load]
 
-    # Also load just the first few rows of cal_Y to match
-    cal_Y = np.load(cal_Y_path)[:num_rows_to_load]
-
-    # Load cal_thetas (adjust if it also needs to be limited)
-    cal_thetas = np.load(cal_thetas_path)[:num_rows_to_load]
-
+    ################################### OLD ###################################
     # Now create the mask using the truncated cal_Y
-    mask = cal_Y == 1
+    # mask = cal_Y == 1
 
     # Apply the mask and reshape as before
-    true_trawls = cal_x[:, mask].reshape(-1, seq_len)
-    true_thetas = cal_thetas[:, mask].reshape(-1, cal_thetas.shape[-1])
+    # true_trawls = cal_x[:, mask].reshape(-1, seq_len)
+    # true_thetas = cal_thetas[:, mask].reshape(-1, cal_thetas.shape[-1])
+
+    # Load approximate likelihood function
+    # _, wrapper_for_approx_likelihood_just_theta = load_trained_models(
+    #    folder_path, true_trawls[[0], ::-1], trawl_process_type,
+    #    use_tre, use_summary_statistics, calibration_filename
+    # )
+    ###########################################################################
+
+    val_x = val_x.reshape(-1, seq_len)
+    val_thetas = val_thetas.reshape(-1, val_thetas.shape[-1])
 
     # Load approximate likelihood function
     _, wrapper_for_approx_likelihood_just_theta = load_trained_models(
-        folder_path, true_trawls[[0], ::-1], trawl_process_type,
+        folder_path, val_x[[0], ::-1], trawl_process_type,
         use_tre, use_summary_statistics, calibration_filename
     )
 
     results_list = []
     for idx in tqdm(range(num_trawls_to_use)):
 
-        results_list.append(get_MLE(true_trawls[idx], true_thetas[idx]))
+        results_list.append(get_MLE(val_x[idx], val_thetas[idx]))
 
     idx_list = []
     true_theta_list = []
@@ -129,7 +138,7 @@ if __name__ == '__main__':
     for idx in range(num_trawls_to_use):
 
         idx_list.append(idx)
-        true_theta_list.append(true_thetas[idx])
+        true_theta_list.append(val_thetas[idx])
         MLE_list.append(np.array(results_list[idx].x))
         log_likelihood_list.append(-results_list[idx].fun)
 
@@ -140,7 +149,8 @@ if __name__ == '__main__':
         'log_likelihood_list': log_likelihood_list
     })
 
-    results_path = os.path.join(folder_path, f'results_{seq_len}')
+    results_path = os.path.join(
+        folder_path, f'results_seq_len_{seq_len}_num_rows_{num_rows_to_load}')
     os.makedirs(results_path,  exist_ok=True)
     df.to_pickle(os.path.join(
         results_path, f'MLE_results_{calibration_filename[:-4]}.pkl'))

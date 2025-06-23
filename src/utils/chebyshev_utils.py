@@ -2,6 +2,8 @@ import jax.numpy as jnp
 from jax.numpy.fft import fft
 from jax.numpy.fft import ifft
 import jax
+import numpy as np
+from functools import partial
 
 
 def interpolation_points_domain(N, a, b):
@@ -99,6 +101,9 @@ def polyfit_domain(sampled, a, b):
     return coeffs
 
 
+vec_polyfit_domain = jax.jit(jax.vmap(polyfit_domain, in_axes=(0, None, None)))
+
+
 def chebval_ab_for_one_x(x, coeff, a, b):
     """
     Evaluate a Chebyshev series at one point x in domain [a,b] using coefficients.
@@ -145,6 +150,9 @@ def chebval_ab_for_one_x(x, coeff, a, b):
 # Vectorized version that works directly with domain [a,b]
 chebval_ab_jax = jax.jit(
     jax.vmap(chebval_ab_for_one_x, in_axes=(0, None, None, None)))
+
+vec_chebval_ab_for_multiple_x_per_envelope_and_multple_envelopes = jax.jit(
+    jax.vmap(chebval_ab_for_one_x, in_axes=(0, 0, None, None)))
 
 
 def chebint_ab(coeff, a, b):
@@ -289,6 +297,59 @@ def integrate_subinterval_ab(f, a, b, c, d, N):
     # Return the difference
     return results[1] - results[0]
 
+###### SAMPLING ######
+
+
+@partial(jax.jit, static_argnames=('nr_samples',))
+def sample_from_coeff(coeff, key, a, b,  nr_samples):
+
+    # np.random.uniform(0, 1, nr_samples)
+    unif_samples = jax.random.uniform(key, shape=nr_samples)
+    cdf = chebcdf(coeff, a, b)
+    def shifted(x): return cdf(x) - unif_samples
+
+    # if num_samples == 1:
+    #    samples = scipy.optimize.bisect(shifted, lower_bd, upper_bd)
+#
+    # elif num_samples > 1:
+    samples = vectorized_bisection(shifted, a, b)
+    return samples
+
+
+vec_sample_from_coeff = jax.jit(jax.vmap(
+                                sample_from_coeff, in_axes=(0, 0, None, None, None)),
+                                static_argnames=('nr_samples',))
+
+
+def chebcdf(coeff, a, b):
+
+    coeffs_int = chebint_ab(coeff, a, b)
+    endpoints = jnp.array([a, b])
+    results = chebval_ab_jax(endpoints, coeffs_int, a, b)
+    offset = results[0]
+    scale = results[1] - results[0]
+
+    return lambda x: (chebval_ab_for_one_x(x, coeffs_int, a, b) - offset) / scale
+
+
+def vectorized_bisection(func, lower, upper, max_iter=30):
+
+    # f = vectorized_grad_log_density_dictionary[distr_name]
+
+    for _iter in range(max_iter):
+
+        mid = (lower + upper) / 2
+
+        mid_sgn = jnp.sign(func(mid))
+        ub_sgn = jnp.sign(func(upper))
+        lb_sgn = jnp.sign(func(lower))
+
+        lower = jnp.where(lb_sgn == mid_sgn, mid, lower)
+        upper = jnp.where(ub_sgn == mid_sgn, mid, upper)
+
+    mid = (lower + upper) / 2
+    return mid
+
 
 # Example usage
 if __name__ == '__main__':
@@ -298,6 +359,9 @@ if __name__ == '__main__':
 
     def test_function(x):
         return - 15 * jnp.sin(x) + x**2 + jnp.exp(x/4)
+
+    def test_function2(x):
+        return 2 * jnp.sin(x) + x**2 + jnp.exp(x/4)
 
     # Original domain
     a, b = 0.0, 9.0
@@ -328,3 +392,5 @@ if __name__ == '__main__':
     plt.plot(test_values, approx_poly, label='approx', alpha=0.5, marker='o')
     plt.show()
     plt.legend()
+
+    ###### SAMPLING ######

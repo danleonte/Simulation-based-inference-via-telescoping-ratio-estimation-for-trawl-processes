@@ -169,7 +169,7 @@ def estimate_jax_parameters(trawl, num_lags=35, trawl_type='sup_IG'):
                        trawl_type=trawl_type)
 
     try:
-        result = gmm_model.fit(start_params=initial_guess, maxiter=1000)
+        result = gmm_model.fit(start_params=initial_guess)  # , maxiter=10)
         jax_mu, jax_scale, jax_beta, acf_gamma, acf_eta = result.params
         return {
             "jax_mu": jax_mu,
