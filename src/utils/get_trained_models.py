@@ -69,9 +69,10 @@ def load_one_tre_model_only_and_prior_and_bounds(folder_path, dummy_x, trawl_pro
     with open(os.path.join(folder_path, params_path[0]), 'rb') as file:
         params = pickle.load(file)
 
-    if True:  # use_tre:
+    model = get_model(config, False)
 
-        model = get_model(config, False)
+    if use_tre:  # use_tre:
+
         model = VariableExtendedModel(base_model=model, trawl_process_type=trawl_process_type,
                                       tre_type=tre_type,
                                       use_summary_statistics=use_summary_statistics)

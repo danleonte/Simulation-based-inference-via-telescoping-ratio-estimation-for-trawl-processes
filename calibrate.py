@@ -345,7 +345,8 @@ def calibrate_new(trained_classifier_path, nr_batches, seq_len):
         # dummy to get x_cache shape
         dummy_x_ = jnp.ones([1, seq_len])
         dummy_theta_ = jnp.ones([1, 5])
-        _, dummy_x_cache_batch = model.apply(params, dummy_x_, dummy_theta_)
+        _, dummy_x_cache_batch = model.apply(
+            variables=params, x=dummy_x_, theta=dummy_theta_)
 
         x_cache_shape = dummy_x_cache_batch.shape[-1]
         full_shape = (nr_batches, batch_size, x_cache_shape)
