@@ -31,7 +31,7 @@ def process_batch(batch_indices, folder_path, true_trawls, true_thetas, wrapper_
     """
     if 'no_cal' in calibration_filename:
 
-        suffix = '_uncalibrated'
+        suffix = 'no_calibration'
 
     elif ('spline' in calibration_filename) or ('beta' in calibration_filename):
 
@@ -86,7 +86,7 @@ def process_batch(batch_indices, folder_path, true_trawls, true_thetas, wrapper_
                         folder_path, f'overall_NRE_spline_cal_of_TRE_{seq_len}', 'double_cal_spline_params.npy')
                     double_cal_spline_params = np.load(double_cal_params_path)
                     spline = distrax.RationalQuadraticSpline(boundary_slopes='identity',
-                                                             params=double_cal_spline_params, range_min=0.0, range_max=1.0)
+                        params=double_cal_spline_params, range_min=0.0, range_max=1.0)
 
                 @jax.jit
                 def double_cal_approx_log_like(theta):
@@ -114,13 +114,13 @@ def process_batch(batch_indices, folder_path, true_trawls, true_thetas, wrapper_
             # Save results
             save_results(results, os.path.join(trawl_dir, "results.pkl"))
 
-            # try:
+            #try:
             #    create_and_save_plots(
             #        posterior_samples=posterior_samples,
             #        true_theta=results['true_theta'],
             #        save_dir=trawl_dir
             #    )
-            # except Exception as e:
+            #except Exception as e:
             #    print(f"Error creating plots for trawl {idx}: {str(e)}")
 
             # Save memory by clearing results
@@ -144,9 +144,9 @@ def main():
     end_idx = int(sys.argv[2])
     task_id = int(sys.argv[3])
     total_tasks = 128  # Total number of cores/tasks
-    seq_len = 2000
+    seq_len = 1000
     calibration_filename = 'no_calibration.pkl'
-    num_rows_to_load = 275
+    num_rows_to_load = 300
 
     print(
         f"DEBUG: Python received args: start_idx={start_idx}, end_idx={end_idx}, task_id={task_id}")
@@ -205,6 +205,7 @@ def main():
     # Load cal_thetas (adjust if it also needs to be limited)
     cal_thetas = np.load(cal_thetas_path)[:num_rows_to_load]
 
+
     # Apply the mask and reshape as before
     true_trawls = cal_x.reshape(-1, seq_len)
     true_thetas = cal_thetas.reshape(-1, cal_thetas.shape[-1])
@@ -216,6 +217,7 @@ def main():
     )
 
     del cal_x
+    
 
     # MCMC parameters
     num_samples = 25000  # Adjust as needed

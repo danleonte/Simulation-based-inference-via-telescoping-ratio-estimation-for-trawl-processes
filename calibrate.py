@@ -856,46 +856,46 @@ def validate_new(trained_classifier_path, nr_batches, seq_len):
     metrics.append(compute_metrics(log_r_jax, pred_prob_Y_jax, Y_jax))
 
     if True:
-        ece_false = []
-        ece_true = []
-        mce_true = []
-        mce_false = []
-        ace_true = []
-        ace_false = []
+        #ece_false = []
+        #ece_true = []
+        #mce_true = []
+        #mce_false = []
+        #ace_true = []
+        #ace_false = []
 
-        ece_false.append(ECE(bins=5, equal_intervals=False).measure(
-            np.array(pred_prob_Y_jax), np.array(Y_jax)))
-        ece_true.append(ECE(bins=20, equal_intervals=True).measure(
-            np.array(pred_prob_Y_jax), np.array(Y_jax)))
-        mce_false.append(MCE(bins=5, equal_intervals=False).measure(
-            np.array(pred_prob_Y_jax), np.array(Y_jax)))
-        mce_true.append(MCE(bins=20, equal_intervals=True).measure(
-            np.array(pred_prob_Y_jax), np.array(Y_jax)))
-        ace_false.append(ACE(bins=5, equal_intervals=False).measure(
-            np.array(pred_prob_Y_jax), np.array(Y_jax)))
-        ace_true.append(ACE(bins=20, equal_intervals=True).measure(
-            np.array(pred_prob_Y_jax), np.array(Y_jax)))
-
+        #ece_false.append(ECE(bins=5, equal_intervals=False).measure(
+        #    np.array(pred_prob_Y_jax), np.array(Y_jax)))
+        #ece_true.append(ECE(bins=20, equal_intervals=True).measure(
+        #    np.array(pred_prob_Y_jax), np.array(Y_jax)))
+        #mce_false.append(MCE(bins=5, equal_intervals=False).measure(
+        #    np.array(pred_prob_Y_jax), np.array(Y_jax)))
+        #mce_true.append(MCE(bins=20, equal_intervals=True).measure(
+        #    np.array(pred_prob_Y_jax), np.array(Y_jax)))
+        #ace_false.append(ACE(bins=5, equal_intervals=False).measure(
+        #    np.array(pred_prob_Y_jax), np.array(Y_jax)))
+        #ace_true.append(ACE(bins=20, equal_intervals=True).measure(
+        #    np.array(pred_prob_Y_jax), np.array(Y_jax)))
+  
         for i in range(len(methods_text)):
             # Convert one calibrated result at a time
             calibrated_pr_jax = jnp.array(calibrated_pr[i])
             logit_calibrated = logit(calibrated_pr_jax)
             metrics.append(compute_metrics(
                 logit_calibrated, calibrated_pr_jax, Y_jax))
-            ece_false.append(ECE(bins=5, equal_intervals=False).measure(
-                np.array(calibrated_pr_jax), np.array(Y_jax)))
-            ece_true.append(ECE(bins=20, equal_intervals=True).measure(
-                np.array(calibrated_pr_jax), np.array(Y_jax)))
+            #ece_false.append(ECE(bins=5, equal_intervals=False).measure(
+            #    np.array(calibrated_pr_jax), np.array(Y_jax)))
+            #ece_true.append(ECE(bins=20, equal_intervals=True).measure(
+            #    np.array(calibrated_pr_jax), np.array(Y_jax)))
 
-            mce_false.append(MCE(bins=5, equal_intervals=False).measure(
-                np.array(calibrated_pr_jax), np.array(Y_jax)))
-            mce_true.append(MCE(bins=20, equal_intervals=True).measure(
-                np.array(calibrated_pr_jax), np.array(Y_jax)))
+            #mce_false.append(MCE(bins=5, equal_intervals=False).measure(
+            #    np.array(calibrated_pr_jax), np.array(Y_jax)))
+            #mce_true.append(MCE(bins=20, equal_intervals=True).measure(
+            #    np.array(calibrated_pr_jax), np.array(Y_jax)))
 
-            ace_false.append(ACE(bins=5, equal_intervals=False).measure(
-                np.array(calibrated_pr_jax), np.array(Y_jax)))
-            ace_true.append(ACE(bins=20, equal_intervals=True).measure(
-                np.array(calibrated_pr_jax), np.array(Y_jax)))
+            #ace_false.append(ACE(bins=5, equal_intervals=False).measure(
+            #    np.array(calibrated_pr_jax), np.array(Y_jax)))
+            #ace_true.append(ACE(bins=20, equal_intervals=True).measure(
+            #    np.array(calibrated_pr_jax), np.array(Y_jax)))
             # Free memory
             # del calibrated_pr_jax
             # del logit_calibrated
@@ -919,9 +919,9 @@ if __name__ == '__main__':
         # 'mu': ['04_12_04_41_11','04_12_12_59_45','04_12_00_32_46','04_11_20_26_03','04_12_08_53_27','04_12_08_53_57','04_12_05_42_50','04_12_12_21_06'],
         # 'sigma': ['04_12_04_28_49','04_12_00_26_44','04_12_12_37_42','04_12_05_36_55','04_12_12_37_35','04_12_11_18_04','04_12_08_35_55','04_12_09_33_30','04_12_05_59_51',                                '04_11_20_26_03']
         'acf': ['04_12_12_36_45'],
-        # 'beta': ['04_12_04_26_56'],
-        # 'mu': ['04_12_00_32_46'],
-        # 'sigma': ['04_12_04_28_49'],
+        'beta': ['04_12_04_26_56'],
+        'mu': ['04_12_00_32_46'],
+        'sigma': ['04_12_04_28_49'],
         # 'acf':['02_26_18_30_52', '02_28_16_37_11', '03_01_09_30_39', '03_01_21_17_21', '03_02_21_06_17','03_02_06_41_57'],
         # 'beta':['02_26_15_56_48', '02_26_16_02_10', '02_26_19_29_54', '02_26_19_37_09', '02_26_23_14_03', '02_27_02_50_03'],
         # 'mu':['03_03_16_41_47', '03_03_16_45_26', '03_03_18_35_58', '03_03_21_29_04', '03_04_01_33_54', '03_04_01_46_31'],
@@ -951,10 +951,10 @@ if __name__ == '__main__':
 
     # calibrate
             if True:
-                validate_new(trained_classifier_path, nr_batches, 1000)
-                # validate_new(trained_classifier_path, nr_batches, 1500)
-                # validate_new(trained_classifier_path, nr_batches, 2000)
-                # validate_new(trained_classifier_path, nr_batches, 2500)
+                #validate_new(trained_classifier_path, nr_batches, 1000)
+                #validate_new(trained_classifier_path, nr_batches, 1500)
+                #validate_new(trained_classifier_path, nr_batches, 2000)
+                validate_new(trained_classifier_path, nr_batches, 2500)
 
         # calibrated_the_NRE_of_a_calibrated_TRE(
         #    double_trained_classifier_path, 2000)
