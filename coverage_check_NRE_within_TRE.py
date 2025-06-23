@@ -143,13 +143,14 @@ def do_marginal_sampling(theta_values_batch, x_values_batch, vec_key, bounds, tr
 if __name__ == '__main__':
 
     tre_type = 'beta'
-    trained_classifier_path = f'D:\\sbi_ambit\\SBI_for_trawl_processes_and_ambit_fields\\models\\new_classifier\\TRE_full_trawl\\selected_models\\{tre_type}'
+    trained_classifier_path = r'/home/leonted/SBI/SBI_for_trawl_processes_and_ambit_fields/models/new_classifier/TRE_full_trawl/selected_models/{tre_type}'
+    # f'D:\\sbi_ambit\\SBI_for_trawl_processes_and_ambit_fields\\models\\new_classifier\\TRE_full_trawl\\selected_models\\{tre_type}'
     seq_len = 1000
     dummy_x = jnp.ones([1, seq_len])
     trawl_process_type = 'sup_ig_nig_5p'
-    N = 63
+    N = 256
     num_samples = 5 * 10**4
-    num_rows_to_load = 16  # nr data points is 64 * num_rows_to_load
+    num_rows_to_load = 160  # nr data points is 64 * num_rows_to_load
     num_envelopes_to_build_at_once = 32
     beta_calibration_indicator = True
     assert beta_calibration_indicator
@@ -205,7 +206,8 @@ if __name__ == '__main__':
     uncal_rank_list = []
 
     for i, (batch_thetas, batch_x) in enumerate(zip(theta_batches, x_batches)):
-        print(i)
+        if i % 50 == 0:
+            print(i)
         cal_rank, uncal_rank, key = do_marginal_sampling(
             batch_thetas, batch_x, key, bounds, tre_type)
         cal_rank_list.append(cal_rank)
@@ -218,9 +220,9 @@ if __name__ == '__main__':
                                 'selected_models', 'per_classifier_coverage_check', str(tre_type))
 
     np.save(file=os.path.join(results_path,
-            'cal_ranks_{seq_len}.npy'), arr=cal_rank)
+            f'{tre_type}_cal_ranks_seq_len_{seq_len}_N_{N}.npy'), arr=cal_rank)
     np.save(file=os.path.join(results_path,
-            'uncal_ranks_{seq_len}.npy'), arr=uncal_rank)
+            f'{tre_type}_uncal_ranks_seq_len_{seq_len}_N_{N}.npy'), arr=uncal_rank)
 
     # kolmogorov_smirnov_uniform(cal_rank), kolmogorov_smirnov_uniform(uncal_rank)
     # cramer_von_mises_uniform(cal_rank), cramer_von_mises_uniform(uncal_rank)
