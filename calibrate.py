@@ -277,8 +277,15 @@ def calibrate_new(trained_classifier_path, nr_batches, seq_len):
     with open(os.path.join(best_model_path, "config.yaml"), 'r') as f:
         classifier_config = yaml.safe_load(f)
 
-    dataset_path = os.path.join(os.path.dirname(os.path.dirname(
-        os.path.dirname(os.path.dirname(trained_classifier_path)))), 'cal_dataset', f'cal_dataset_{seq_len}')
+    if 'TRE' in trained_classifier_path:
+        dataset_path = os.path.join(os.path.dirname(os.path.dirname(
+            os.path.dirname(os.path.dirname(trained_classifier_path)))), 'cal_dataset', f'cal_dataset_{seq_len}')
+
+    elif 'NRE' in trained_classifier_path:
+
+        dataset_path = os.path.join(os.path.dirname(os.path.dirname(
+            os.path.dirname(os.path.dirname(best_model_path)))), 'cal_dataset', f'cal_dataset_{seq_len}')
+
     # load validation dataset
     cal_x_path = os.path.join(dataset_path, 'cal_x_joint.npy')
     cal_thetas_path = os.path.join(dataset_path, 'cal_thetas_joint.npy')
