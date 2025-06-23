@@ -186,12 +186,15 @@ def load_trained_models_for_posterior_inference(folder_path, dummy_x, trawl_proc
 
             spline_cal = True
 
-        elif ('beta' or 'no_calibration') in calibration_file_name:
+        elif ('beta' in calibration_file_name) or ('no_calibration' in calibration_file_name):
             assert calibration_file_name[-4:] == '.pkl'
             with open(os.path.join(folder, calibration_file_name), 'rb') as file:
                 calibration_list.append(pickle.load(file))
 
             spline_cal = False
+        else:
+          print(calibration_file_name)
+          raise ValueError('wrong calibration_name')
 
         with open(os.path.join(folder, 'config.yaml'), 'r') as file:
             config_list.append(yaml.safe_load(file))

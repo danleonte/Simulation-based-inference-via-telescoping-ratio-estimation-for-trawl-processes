@@ -8,8 +8,8 @@ import gc  # Import garbage collector
 #mcmc_results_sup_ig_nig_5p_1000spline_calibration_1000double_cal
 
 # Load configuration
-calibrate_suffix = 'spline_calibration_2500'
-seq_len = 2500
+calibrate_suffix = 'no_calibration'
+seq_len = 1000
 folder_path = r'/home/leonted/SBI/SBI_for_trawl_processes_and_ambit_fields/models/new_classifier/TRE_full_trawl/selected_models/mcmc_results_sup_ig_nig_5p_' + str(seq_len) + calibrate_suffix
 double_cal = False
 if double_cal:
@@ -54,19 +54,19 @@ print(f"Successfully processed {len(ranks)} folders")
 if ranks:
     ranks = np.array(ranks)  # Convert to numpy array for vector operations
     
-    num_points = 21
+    num_points = 51
     theoretical_coverages = np.linspace(0, 1, num_points)
     empirical_coverages = []
     for alpha in theoretical_coverages:
         empirical_coverages.append(np.mean(ranks > 1 - alpha))
         
     plt.figure(figsize=(8, 6))
-    plt.plot(theoretical_coverages, empirical_coverages, 'o-', label='Empirical calibration')
-    plt.plot(theoretical_coverages, theoretical_coverages, '--', label='Perfect calibration')
+    plt.plot(theoretical_coverages, empirical_coverages, label='Empirical calibration')#'o-', label='Empirical calibration', markersize = 5)
+    plt.plot(theoretical_coverages, theoretical_coverages,'--', label='Perfect calibration') # '--', label='Perfect calibration', markersize = 5)
     plt.xlabel('Theoretical coverage')
     plt.ylabel('Empirical coverage')
     plt.title('Expected Coverage Check')
-    plt.grid(True, alpha=0.3)
+    plt.grid(True, alpha=0.2)
     plt.legend()
     
     # Save figure to parent directory

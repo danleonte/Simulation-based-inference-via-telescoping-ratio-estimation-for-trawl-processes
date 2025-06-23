@@ -31,7 +31,7 @@ def process_batch(batch_indices, folder_path, true_trawls, true_thetas, wrapper_
     """
     if 'no_cal' in calibration_filename:
 
-        suffix = '_uncalibrated'
+        suffix = 'no_calibration'
 
     elif ('spline' in calibration_filename) or ('beta' in calibration_filename):
 
@@ -144,9 +144,9 @@ def main():
     end_idx = int(sys.argv[2])
     task_id = int(sys.argv[3])
     total_tasks = 128  # Total number of cores/tasks
-    seq_len = 2000
-    calibration_filename = 'beta_calibration_2000.pkl'
-    num_rows_to_load = 275
+    seq_len = 1000
+    calibration_filename = 'no_calibration.pkl'
+    num_rows_to_load = 300
 
     print(
         f"DEBUG: Python received args: start_idx={start_idx}, end_idx={end_idx}, task_id={task_id}")
