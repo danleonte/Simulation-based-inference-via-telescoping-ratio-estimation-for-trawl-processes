@@ -52,8 +52,10 @@ def get_MLE(trawl_to_use, theta_to_use):
 
 if __name__ == '__main__':
 
-    # folder_path = r'/home/leonted/SBI/SBI_for_trawl_processes_and_ambit_fields/models/classifier/NRE_full_trawl/uncalibrated'
-    folder_path = r'D:\sbi_ambit\SBI_for_trawl_processes_and_ambit_fields\models\new_classifier\TRE_full_trawl\selected_models'
+    # folder_path = r'/home/leonted/SBI/SBI_for_trawl_processes_and_ambit_fields/models/new_classifier/NRE_full_trawl/uncalibrated'
+    folder_path = r'D:\sbi_ambit\SBI_for_trawl_processes_and_ambit_fields\models\new_classifier\NRE_full_trawl\04_12_04_25_37'
+
+    # folder_path = r'D:\sbi_ambit\SBI_for_trawl_processes_and_ambit_fields\models\new_classifier\TRE_full_trawl\selected_models'
     seq_len = 1500
     num_rows_to_load = 160
     num_trawls_to_use = 5000
@@ -82,7 +84,8 @@ if __name__ == '__main__':
         classifier_config_file_path = os.path.join(
             folder_path, 'acf', 'config.yaml')
     else:
-        classifier_config_file_path = os.path.join(folder_path, 'config.yaml')
+        classifier_config_file_path = os.path.join(
+            folder_path, 'best_model', 'config.yaml')
 
     with open(classifier_config_file_path, 'r') as f:
         a_classifier_config = yaml.safe_load(f)
@@ -121,7 +124,8 @@ if __name__ == '__main__':
 
     # Load approximate likelihood function
     _, wrapper_for_approx_likelihood_just_theta = load_trained_models(
-        folder_path, val_x[[0], ::-1], trawl_process_type,
+        os.path.join(folder_path, 'best_model'), val_x[[
+            0], ::-1], trawl_process_type,
         use_tre, use_summary_statistics, calibration_filename
     )
 
@@ -137,6 +141,9 @@ if __name__ == '__main__':
 
     for idx in range(num_trawls_to_use):
 
+        if idx % 50 == 0:
+            print(idx)
+
         idx_list.append(idx)
         true_theta_list.append(val_thetas[idx])
         MLE_list.append(np.array(results_list[idx].x))
@@ -150,7 +157,7 @@ if __name__ == '__main__':
     })
 
     results_path = os.path.join(
-        folder_path, f'results_seq_len_{seq_len}_num_rows_{num_rows_to_load}')
+        folder_path, f'use_TRE_{use_tre}_results_seq_len_{seq_len}_num_rows_{num_rows_to_load}')
     os.makedirs(results_path,  exist_ok=True)
     df.to_pickle(os.path.join(
-        results_path, f'MLE_results_{calibration_filename[:-4]}.pkl'))
+        results_path, f'use_TRE_{use_tre}_MLE_results_{calibration_filename[:-4]}.pkl'))
