@@ -56,8 +56,9 @@ def load_one_tre_model_only_and_prior_and_bounds(folder_path, dummy_x, trawl_pro
         use_tre = config['tre_config']['use_tre']
         use_summary_statistics = config['tre_config']['use_summary_statistics']
 
-    # sanity checks
-    assert use_tre == True
+    # sanity checks !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    # assert use_tre == True #used to be true before NRE calibration; check the if statement before looading the model as well!!!!!!!
+    # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     assert use_summary_statistics == False
     assert config['trawl_config']['trawl_process_type'] == trawl_process_type
 
@@ -68,7 +69,7 @@ def load_one_tre_model_only_and_prior_and_bounds(folder_path, dummy_x, trawl_pro
     with open(os.path.join(folder_path, params_path[0]), 'rb') as file:
         params = pickle.load(file)
 
-    if use_tre:
+    if True:  # use_tre:
 
         model = get_model(config, False)
         model = VariableExtendedModel(base_model=model, trawl_process_type=trawl_process_type,
@@ -91,6 +92,12 @@ def load_one_tre_model_only_and_prior_and_bounds(folder_path, dummy_x, trawl_pro
     lower_bounds = jnp.array([i[0] for i in bounds])
     upper_bounds = jnp.array([i[1] for i in bounds])
     priors = 1 / (upper_bounds - lower_bounds)
+
+    if not use_tre:
+
+        print('Loading function load_one_tre_model_only_and_prior_and_bounds with an NRE. this is only supposed to be allowed\
+              during the calibration f the NRE. might be ok even othterwise, just have not checked it.')
+        return model, params, priors, bounds
 
     if tre_type == 'acf':
         prior = priors[0] * priors[1]
@@ -193,8 +200,8 @@ def load_trained_models_for_posterior_inference(folder_path, dummy_x, trawl_proc
 
             spline_cal = False
         else:
-          print(calibration_file_name)
-          raise ValueError('wrong calibration_name')
+            print(calibration_file_name)
+            raise ValueError('wrong calibration_name')
 
         with open(os.path.join(folder, 'config.yaml'), 'r') as file:
             config_list.append(yaml.safe_load(file))
