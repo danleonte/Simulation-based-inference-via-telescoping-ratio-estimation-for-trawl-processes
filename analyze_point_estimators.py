@@ -32,7 +32,7 @@ def compare_acf_point_estimators(true_theta, infered_theta_acf, mle_or_gmm, num_
         'rMSE_acf': rMSE_acf
     }
 
-    np.save(os.path.join(results_path, mle_or_gmm + f'_acf_estimation_error_{num_lags}.npy'),
+    np.save(os.path.join(results_path, mle_or_gmm + f'_acf_estimation_error_{seq_len}_{num_lags}.npy'),
             acf_estimation_error)
 
 
@@ -58,7 +58,7 @@ def compare_marginal_point_estimators(true_theta, infered_theta, mle_or_gmm):
 
     for i in range(len(batched_true_thetas)):
 
-        num_samples = 6000
+        num_samples = 7500
         params1 = batched_true_thetas[i]
         params2 = batched_inferred_thetas[i]
         vec_key = jax.random.split(jax.random.PRNGKey(12414), len(params1))
@@ -116,7 +116,7 @@ def compare_point_estimators(true_theta, infered_theta, mle_or_gmm, num_lags):
 
     for i in range(len(batched_true_thetas)):
 
-        num_samples = 6000
+        num_samples = 7500
         params1 = batched_true_thetas[i]
         params2 = batched_inferred_thetas[i]
         vec_key = jax.random.split(jax.random.PRNGKey(12414), len(params1))
@@ -143,7 +143,7 @@ def compare_point_estimators(true_theta, infered_theta, mle_or_gmm, num_lags):
 
     np.save(os.path.join(results_path, mle_or_gmm + f'_acf_estimation_error_{seq_len}_{num_lags}.npy'),
             acf_estimation_error)
-    np.save(os.path.join(results_path, mle_or_gmm + f'_marginal_estimation_error_{seq_len}_{num_lags}.npy'),
+    np.save(os.path.join(results_path, mle_or_gmm + f'_marginal_estimation_error_{seq_len}.npy'),
             marginal_estimation_error)
     # np.load(os.path.join(results_path,'acf_estimation_error.npy'),allow_pickle=True)
 
@@ -151,51 +151,70 @@ def compare_point_estimators(true_theta, infered_theta, mle_or_gmm, num_lags):
 if __name__ == '__main__':
 
     seq_len = 2000
-    num_lags = 15
+    num_lags = 25
 
     acf_func = jax.vmap(get_acf('sup_IG'), in_axes=(None, 0))
 
-    MLE = False
-    GMM = True
-    if MLE and not GMM:
+    MLE_TRE = True
+    MLE_NRE = False
+    GMM = False
+    assert MLE_TRE + MLE_NRE + GMM == 1
 
-        folder_path = r'D:\sbi_ambit\SBI_for_trawl_processes_and_ambit_fields\models\new_classifier\TRE_full_trawl\selected_models\point_estimators\calibrated_TRE'
+    if MLE_TRE and not MLE_NRE and not GMM:
 
-        results_path = os.path.join(
-            folder_path, f'results_seq_len_{seq_len}_num_rows_160')
+        folder_path = r'D:\sbi_ambit\SBI_for_trawl_processes_and_ambit_fields\models\new_classifier\point_estimators\calibrated_TRE'
+        results_path = os.path.join(folder_path, f'TRE_{seq_len}_num_rows_160')
         os.makedirs(results_path, exist_ok=True)
 
         df = pd.read_pickle(os.path.join(
-            results_path, f'MLE_results_beta_calibration_{seq_len}.pkl'))
+            results_path, f'TRE_{seq_len}.pkl'))
         true_theta = np.array([np.array(i) for i in df.true_theta.values])
         infered_theta = np.array([np.array(i) for i in df.MLE.values])
         compare_point_estimators(true_theta, infered_theta, 'MLE', num_lags)
 
-    elif GMM and not MLE:
+    elif MLE_NRE and not MLE_TRE and not GMM:
+
+        folder_path = r'D:\sbi_ambit\SBI_for_trawl_processes_and_ambit_fields\models\new_classifier\point_estimators\NRE'
+        results_path = os.path.join(folder_path, f'NRE_{seq_len}_num_rows_160')
+        os.makedirs(results_path, exist_ok=True)
+
+        df = pd.read_pickle(os.path.join(
+            results_path, f'NRE_{seq_len}.pkl'))
+
+        true_theta = np.array([np.array(i) for i in df.true_theta.values])
+        infered_theta = np.array([np.array(i) for i in df.MLE.values])
+        compare_point_estimators(true_theta, infered_theta, 'MLE', num_lags)
+
+    elif GMM:
 
         # folder_path = r'D:\sbi_ambit\SBI_for_trawl_processes_and_ambit_fields\models\new_classifier\TRE_full_trawl\selected_models\point_estimators\GMM'
-        folder_path = r'D:\sbi_ambit\SBI_for_trawl_processes_and_ambit_fields\models\new_classifier\TRE_full_trawl\selected_models\point_estimators\GMM'
+        folder_path = r'D:\sbi_ambit\SBI_for_trawl_processes_and_ambit_fields\models\new_classifier\point_estimators\GMM'
 
         results_path = folder_path
-        # os.path.join(results_path, 'GMM_results.pkl'))
-        df = pd.read_pickle(os.path.join(
-            results_path, f'margianl_GMM_seq_len_{seq_len}_num_trawls_to_use_500.pkl'))  # f'ACF_{seq_len}_{num_lags}.pkl'))
 
-        # Replace None with NaN, then use dropna()
-        df_replaced = df.replace({None: np.nan})
-        df_clean = df_replaced.dropna()
+        ####  do marginal ####
+        df_marginal = pd.read_pickle(os.path.join(
+            results_path, f'marginal_GMM_seq_len_{seq_len}_num_trawls_to_use_500.pkl'))  # f'ACF_{seq_len}_{num_lags}.pkl'))
 
-        # Or in one line
-        df_clean = df.replace({None: np.nan}).dropna()
+        df_marginal = df_marginal.replace({None: np.nan}).dropna()
 
-        true_theta = np.array([np.array(i)
-                              for i in df_clean.true_theta.values])
-        infered_theta = np.vstack([np.array(i) for i in df_clean.GMM.values])
-        # compare_point_estimators(true_theta, infered_theta, 'GMM')
-        # compare_acf_point_estimators(
-        #    true_theta, infered_theta, 'GMM', num_lags)
+        true_marginal_theta = np.array([np.array(i)
+                                        for i in df_marginal.true_theta.values])
+        infered_marginal_theta = np.vstack(
+            [np.array(i) for i in df_marginal.GMM.values])
         compare_marginal_point_estimators(
-            true_theta, infered_theta, 'GMM')
+            true_marginal_theta, infered_marginal_theta, 'GMM')
+
+        #### do acf #####
+        df_acf = pd.read_pickle(os.path.join(
+            results_path, f'ACF_{seq_len}_{num_lags}.pkl'))
+        df_acf = df_acf.replace({None: np.nan}).dropna()
+
+        true_acf_theta = np.array([np.array(i)
+                                   for i in df_acf.true_theta.values])
+        infered_acf_theta = np.vstack([np.array(i) for i in df_acf.GMM.values])
+        compare_acf_point_estimators(
+            true_acf_theta, infered_acf_theta, 'GMM', num_lags)
 
     else:
         raise ValueError
