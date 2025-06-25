@@ -143,7 +143,7 @@ def do_marginal_sampling(theta_values_batch, x_values_batch, vec_key, bounds, tr
 if __name__ == '__main__':
 
     tre_type = 'beta'
-    trained_classifier_path = r'/home/leonted/SBI/SBI_for_trawl_processes_and_ambit_fields/models/new_classifier/TRE_full_trawl/selected_models/{tre_type}'
+    trained_classifier_path = f'/home/leonted/SBI/SBI_for_trawl_processes_and_ambit_fields/models/new_classifier/TRE_full_trawl/selected_models/{tre_type}'
     # f'D:\\sbi_ambit\\SBI_for_trawl_processes_and_ambit_fields\\models\\new_classifier\\TRE_full_trawl\\selected_models\\{tre_type}'
     seq_len = 1000
     dummy_x = jnp.ones([1, seq_len])

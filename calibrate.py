@@ -948,7 +948,7 @@ if __name__ == '__main__':
                     os.getcwd(), 'models', 'new_classifier', 'TRE_full_trawl', key, value)  # 'NRE_full_trawl '
 
             if True:
-                calibrate_new(trained_classifier_path, nr_batches, 1000)
+                calibrate_new(trained_classifier_path, nr_batches, 2000)
                 # calibrate_new(trained_classifier_path, nr_batches, 1500)
             # calibrate_new(trained_classifier_path, nr_batches, 2000)
             # calibrate_new(trained_classifier_path, nr_batches, 2500)
@@ -959,7 +959,7 @@ if __name__ == '__main__':
 
     # calibrate
             if True:
-                validate_new(trained_classifier_path, nr_batches, 1000)
+                validate_new(trained_classifier_path, nr_batches, 2000)
                 # validate_new(trained_classifier_path, nr_batches, 1500)
                 # validate_new(trained_classifier_path, nr_batches, 2000)
                 # validate_new(trained_classifier_path, nr_batches, 2500)
