@@ -54,6 +54,19 @@ def transform_to_tf_params(jax_mu, jax_scale, beta):
     return tf_mu, tf_delta, gamma, beta
 
 
+def transform_to_tf_params_with_alpha_not_gamma(jax_mu, jax_scale, beta):
+    """"returns mu, dleta, gamma, beta
+
+    NOT
+
+    mu, delta, alpha ,beta"""
+    gamma = 1 + jnp.abs(beta) / 5
+    alpha = jnp.sqrt(gamma**2 + beta**2)
+    tf_delta = jax_scale**2 * gamma**3 / alpha**2
+    tf_mu = jax_mu - beta * tf_delta / gamma
+    return tf_mu, tf_delta, alpha, beta
+
+
 def transform_to_jax_params(tf_mu, tf_delta, gamma, beta):
     """
     Transform TensorFlow parameters back to JAX parameters.

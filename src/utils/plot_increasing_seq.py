@@ -12,7 +12,7 @@ if True:
 
 from scipy.optimize import minimize
 from statsmodels.tsa.stattools import acf as compute_empirical_acf
-from src.utils.weighted_GMM_marginal import estimate_jax_parameters
+from src.utils.weighted_GMM_marginal import estimate_jax_parameters, transform_to_constrained_jax
 from src.utils.weighted_ACF_GMM import estimate_acf_parameters_transformed
 from src.utils.acf_functions import get_acf
 import numpy as np
@@ -103,7 +103,7 @@ def get_MLE(trawl_with_appropriate_length, true_theta, appropriate_wrapper):
 if __name__ == '__main__':
 
     val_x_2000, val_thetas, NRE_dict, TRE_dict = load_dataset_NRE_TRE()
-    idx_to_use = 71  # 19  # 0
+    idx_to_use = -10  # 71  # 19  # 0
     add_NRE_in_plot_1 = True
 
     #### PLOT 1: increasing seq_len with TRE / NRE #####
@@ -121,9 +121,10 @@ if __name__ == '__main__':
     NRE_acf_params = NRE_jax_params[:2]
 
     # Create figure with improved styling
-    fig = plt.figure(figsize=(18, 6))
-    gs = fig.add_gridspec(1, 3, width_ratios=[1.2, 1, 1], wspace=0.3)
-
+    # smaller size + constrained_layout
+    fig = plt.figure(figsize=(15, 5), constrained_layout=True)
+    # gs = fig.add_gridspec(1, 3, width_ratios=[1.2, 1, 1], wspace=0.3)
+    gs = fig.add_gridspec(1, 3, width_ratios=[1.2, 1, 1], wspace=0.05)
     # Define color palette
     colors = {
         'true': '#2E86AB',
@@ -132,16 +133,17 @@ if __name__ == '__main__':
         'NRE': '#C73E1D',
         'empirical': '#6A994E',
         'trawl': '#1F77B4',
-        'kde': '#6A994E'
+        # 'kde': '#6A994E'
     }
 
     # Subplot 1: Trawl Process Time Series
     ax1 = fig.add_subplot(gs[0])
+    ax1.margins(x=0.02)
     time_points = np.arange(len(trawl_plot_1))
     ax1.plot(time_points, trawl_plot_1,
              color=colors['trawl'], linewidth=0.8, alpha=0.9)
     ax1.set_xlabel('Time')  # , fontsize=12)#, fontweight='bold')
-    ax1.set_ylabel('Value')  # , fontsize=12)#, fontweight='bold')
+    ax1.set_ylabel('Value', fontsize=12)  # , fontweight='bold')
     # fontweight='bold', pad=15 fontsize=14,)
     ax1.set_title('Trawl Process Realization',  pad=15)
     ax1.grid(True, alpha=0.3)
@@ -150,39 +152,40 @@ if __name__ == '__main__':
 
     # Subplot 2: Marginal Distribution Comparison
     ax2 = fig.add_subplot(gs[1])
-    marginal_plot_x_range = np.linspace(-4, 3, 1000)
+    ax2.margins(x=0.02)
+    marginal_plot_x_range = np.linspace(-2.5, 6, 1000)
 
-    sns.kdeplot(trawl_plot_1, ax=ax2, label='kde', color=colors['kde'])
+    # sns.kdeplot(trawl_plot_1, ax=ax2, label='kde', color=colors['kde'])
 
     # True distribution
     true_tf_params = convert_3_to_4_param_nig(theta_plot_1[2:])
     true_prob = tfp_dist.NormalInverseGaussian(
         *true_tf_params, validate_args=True).prob(marginal_plot_x_range)
     ax2.plot(marginal_plot_x_range, true_prob, label='True',
-             color=colors['true'], linewidth=2.5, linestyle='--')
+             color=colors['true'], linewidth=2.25, linestyle='--')
 
     # GMM
-    marginal_jax_gmm_params = estimate_jax_parameters(
-        trawl_plot_1, theta_plot_1[2:]).params
+    marginal_jax_gmm_params = transform_to_constrained_jax(estimate_jax_parameters(
+        trawl_plot_1, theta_plot_1[2:]).params)
     marginal_tf_gmm_params = convert_3_to_4_param_nig(marginal_jax_gmm_params)
     gmm_dist = tfp_dist.NormalInverseGaussian(
         *marginal_tf_gmm_params, validate_args=True)
     gmm_prob = gmm_dist.prob(marginal_plot_x_range)
     ax2.plot(marginal_plot_x_range, gmm_prob, label='GMM',
-             color=colors['gmm'], linewidth=2)
+             color=colors['gmm'], linewidth=1.75)
 
     # TRE marginal plot
     TRE_prob = tfp_dist.NormalInverseGaussian(
         *TRE_tf_params, validate_args=True).prob(marginal_plot_x_range)
     ax2.plot(marginal_plot_x_range, TRE_prob, label='TRE',
-             color=colors['TRE'], linewidth=2)
+             color=colors['TRE'], linewidth=1.75)
 
     # NRE marginal plot
     if add_NRE_in_plot_1:
         NRE_prob = tfp_dist.NormalInverseGaussian(
-            *TRE_tf_params, validate_args=True).prob(marginal_plot_x_range)
+            *NRE_tf_params, validate_args=True).prob(marginal_plot_x_range)
         ax2.plot(marginal_plot_x_range, NRE_prob, label='NRE',
-                 color=colors['NRE'], linewidth=2)
+                 color=colors['NRE'], linewidth=1.75)
 
     # Add histogram of actual data
     ax2.hist(trawl_plot_1, bins=30, density=True, alpha=0.3,
@@ -199,6 +202,7 @@ if __name__ == '__main__':
 
     # Subplot 3: ACF Comparison
     ax3 = fig.add_subplot(gs[2])
+    ax3.margins(x=0.02)
     nlags = 30
     H = np.arange(0, nlags+1)
     acf_func = get_acf('sup_IG')
@@ -207,22 +211,22 @@ if __name__ == '__main__':
     empirical_acf = compute_empirical_acf(
         trawl_plot_1, adjusted=True, nlags=nlags,)
     ax3.plot(H, empirical_acf, 'o-', label='Empirical',
-             color=colors['empirical'], markersize=6, linewidth=1.5)
+             color=colors['empirical'], markersize=4.5, linewidth=1.5)
 
     # True ACF
     theoretical_acf = acf_func(H, theta_plot_1[:2])
     ax3.plot(H, theoretical_acf, '--', label='True',
-             color=colors['true'], linewidth=2.5)
+             color=colors['true'], linewidth=2.25)
 
     # TRE ACF
     TRE_acf = acf_func(H, TRE_acf_params)
     ax3.plot(H, TRE_acf, label='TRE',
-             color=colors['TRE'], linewidth=2)
+             color=colors['TRE'], linewidth=1.75)
 
     # NRE ACF
     NRE_acf = acf_func(H, NRE_acf_params)
     ax3.plot(H, NRE_acf, label='NRE',
-             color=colors['NRE'], linewidth=2)
+             color=colors['NRE'], linewidth=1.75)
 
     # GMM ACF
     gmm_acf_params = estimate_acf_parameters_transformed(
@@ -233,13 +237,13 @@ if __name__ == '__main__':
     )
     gmm_acf = acf_func(H, gmm_acf_params["constrained_params"])
     ax3.plot(H, gmm_acf, label='GMM',
-             color=colors['gmm'], linewidth=2)
+             color=colors['gmm'], linewidth=1.75)
 
     # Add confidence bands for empirical ACF
     # not done yet
 
     ax3.set_xlabel('Lag',)  # , fontweight='bold')  fontsize=12
-    ax3.set_ylabel('Autocorrelation')  # , fontweight='bold') , fontsize=12
+    ax3.set_ylabel('Autocorrelation',  fontsize=12)  # , fontweight='bold') ,
     ax3.set_title('Autocorrelation Function Comparison',
                   pad=15)  # fontweight='bold' fontsize=14,
     ax3.legend(loc='upper right', frameon=True, fancybox=True, shadow=True)
@@ -258,8 +262,13 @@ if __name__ == '__main__':
     # fig.text(0.5, 0.02, param_text, ha='center', fontsize=11,
     #         bbox=dict(boxstyle='round', facecolor='lightgray', alpha=0.8))
 
-    plt.tight_layout()
-    plt.show()
+    # plt.tight_layout()
+    plt.subplots_adjust(left=0.05, right=0.98, top=0.92,
+                        bottom=0.12, wspace=0.15)
 
+    plt.show()
+    plt.savefig(f'increasing_seq_{idx_to_use}.pdf',
+                bbox_inches='tight', pad_inches=0.02, dpi=900)
+    # plt.tsavefig('',)
     # TO ADD
     #### PLOT 2: seq_len = 1500 and multiple methods #####
