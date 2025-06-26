@@ -170,7 +170,7 @@ def main():
     print(f"Task {task_id}: Processing trawls {indices[0]} to {indices[-1]}")
 
     # Load configuration
-    folder_path = r'/home/leonted/SBI/SBI_for_trawl_processes_and_ambit_fields/models/new_classifier/TRE_full_trawl/selected_models'
+    folder_path = r'/home/leonted/SBI/SBI_for_trawl_processes_and_ambit_fields/models/new_classifier/NRE_full_trawl/04_12_04_25_37/best_model'#'TRE_full_trawl/selected_models'
 
     # Set up model configuration
     use_tre = 'TRE' in folder_path
@@ -194,8 +194,13 @@ def main():
         # seq_len = a_classifier_config['trawl_config']['seq_len']
 
     # Load dataset
-    dataset_path = os.path.join(os.path.dirname(os.path.dirname(
-        os.path.dirname(folder_path))), 'cal_dataset', f'cal_dataset_{seq_len}')
+    if use_tre:
+      dataset_path = os.path.join(os.path.dirname(os.path.dirname(
+          os.path.dirname(folder_path))), 'cal_dataset', f'cal_dataset_{seq_len}')
+    else:
+      dataset_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
+          os.path.dirname(folder_path)))), 'cal_dataset', f'cal_dataset_{seq_len}')
+          
     cal_x_path = os.path.join(dataset_path, 'cal_x_joint.npy')
     cal_thetas_path = os.path.join(dataset_path, 'cal_thetas_joint.npy')
 

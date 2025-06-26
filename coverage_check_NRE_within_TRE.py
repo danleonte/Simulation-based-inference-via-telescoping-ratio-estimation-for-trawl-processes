@@ -142,15 +142,15 @@ def do_marginal_sampling(theta_values_batch, x_values_batch, vec_key, bounds, tr
 
 if __name__ == '__main__':
 
-    tre_type = 'beta'
+    tre_type = 'sigma'
     trained_classifier_path = f'/home/leonted/SBI/SBI_for_trawl_processes_and_ambit_fields/models/new_classifier/TRE_full_trawl/selected_models/{tre_type}'
     # f'D:\\sbi_ambit\\SBI_for_trawl_processes_and_ambit_fields\\models\\new_classifier\\TRE_full_trawl\\selected_models\\{tre_type}'
-    seq_len = 1000
+    seq_len = 1500
     dummy_x = jnp.ones([1, seq_len])
     trawl_process_type = 'sup_ig_nig_5p'
     N = 256
-    num_samples = 5 * 10**4
-    num_rows_to_load = 160  # nr data points is 64 * num_rows_to_load
+    num_samples = 10**5
+    num_rows_to_load = 640  # nr data points is 64 * num_rows_to_load
     num_envelopes_to_build_at_once = 32
     beta_calibration_indicator = True
     assert beta_calibration_indicator
