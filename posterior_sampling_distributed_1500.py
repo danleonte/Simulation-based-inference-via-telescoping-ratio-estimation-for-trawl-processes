@@ -144,8 +144,8 @@ def main():
     end_idx = int(sys.argv[2])
     task_id = int(sys.argv[3])
     total_tasks = 128  # Total number of cores/tasks
-    seq_len = 1000
-    calibration_filename = 'beta_calibration_1000.pkl'
+    seq_len = 1500
+    calibration_filename = 'beta_calibration_1500.pkl'
     num_rows_to_load = 300
 
     print(
