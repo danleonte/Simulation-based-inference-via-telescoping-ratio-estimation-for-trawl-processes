@@ -180,13 +180,13 @@ def get_cond_prob_at_true_value(true_theta, x_cache_to_use):
 if __name__ == '__main__':
 
     tre_type = 'acf'
-    # trained_classifier_path = f'/home/leonted/SBI/SBI_for_trawl_processes_and_ambit_fields/models/new_classifier/TRE_full_trawl/selected_models/{tre_type}'
-    trained_classifier_path = f'D:\\sbi_ambit\\SBI_for_trawl_processes_and_ambit_fields\\models\\new_classifier\\TRE_full_trawl\\selected_models\\{tre_type}'
-    seq_len = 1500
+    trained_classifier_path = f'/home/leonted/SBI/SBI_for_trawl_processes_and_ambit_fields/models/new_classifier/TRE_full_trawl/selected_models/{tre_type}'
+    #trained_classifier_path = f'D:\\sbi_ambit\\SBI_for_trawl_processes_and_ambit_fields\\models\\new_classifier\\TRE_full_trawl\\selected_models\\{tre_type}'
+    seq_len = 2000
     dummy_x = jnp.ones([1, seq_len])
     trawl_process_type = 'sup_ig_nig_5p'
     N = 128
-    num_rows_to_load = 782  # nr data points is 64 * num_rows_to_load
+    num_rows_to_load = 640  # nr data points is 64 * num_rows_to_load
     # num_envelopes_to_build_at_once = 5
     bounds = (10, 20)
     a, b = bounds
@@ -195,7 +195,7 @@ if __name__ == '__main__':
     beta_calibration_indicator = True
     assert beta_calibration_indicator
 
-    apply_calibration = True
+    apply_calibration = False
 
     # for sampling of the 1st component
     key = jax.random.PRNGKey(np.random.randint(1, 100000))
