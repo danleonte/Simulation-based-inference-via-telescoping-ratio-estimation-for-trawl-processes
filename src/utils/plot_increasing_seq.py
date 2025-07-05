@@ -122,7 +122,7 @@ if __name__ == '__main__':
 
     # Create figure with improved styling
     # smaller size + constrained_layout
-    fig = plt.figure(figsize=(15, 5), constrained_layout=True)
+    fig = plt.figure(figsize=(15, 4.5), constrained_layout=True)
     # gs = fig.add_gridspec(1, 3, width_ratios=[1.2, 1, 1], wspace=0.3)
     gs = fig.add_gridspec(1, 3, width_ratios=[1.2, 1, 1], wspace=0.05)
     # Define color palette
