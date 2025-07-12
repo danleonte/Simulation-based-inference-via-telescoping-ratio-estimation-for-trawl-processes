@@ -89,11 +89,15 @@ if __name__ == '__main__':
 
     # group by length
 
-    for seq_len in (1000, 1500, 2000):  # 'acf',
+    for seq_len in (1500,):  # (1000, 1500, 2000):  # 'acf',
         f, ax = plt.subplots()
-        for tre_type in ('beta', 'mu', 'sigma'):
+        for tre_type in ('beta', 'mu', 'sigma', 'acf'):
 
+            if tre_type == 'acf':
+                N = 128
             uncal_ranks, cal_ranks = load_ranks(tre_type, seq_len, N)
+
+            N = 256
             d[(tre_type, seq_len)] = compare_uncal_cal_ranks(
                 uncal_ranks, cal_ranks)
             assert len(uncal_ranks) == len(cal_ranks)
