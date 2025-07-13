@@ -28,7 +28,8 @@ def get_classifier_metrics(seq_len):
         df.index.name = None
 
         # Then subset
-        df_list.append(df.loc[['BCE', 'S', 'B', 'ECE_t'], ['uncal', 'beta']])
+        df_list.append(
+            df.loc[['BCE', 'S', 'B', 'ECE_f'], ['uncal', 'beta']])
 
     return pd.concat(df_list, keys=tre_types, axis=1)
 

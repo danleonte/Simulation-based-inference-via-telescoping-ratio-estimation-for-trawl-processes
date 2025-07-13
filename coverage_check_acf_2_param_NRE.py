@@ -19,6 +19,7 @@ from src.model.Extended_model_nn import ExtendedModel, VariableExtendedModel
 from src.utils.chebyshev_utils import interpolation_points_domain, vec_polyfit_domain, vec_sample_from_coeff, sample_from_coeff, integrate_from_sampled, polyfit_domain, chebval_ab_for_one_x
 from src.utils.chebyshev_utils import vec_chebval_ab_for_multiple_x_per_envelope_and_multple_envelopes as vec_chebval
 import numpy as np
+from tqdm import tqdm
 import datetime
 import pickle
 import yaml
@@ -180,8 +181,8 @@ def get_cond_prob_at_true_value(true_theta, x_cache_to_use):
 if __name__ == '__main__':
 
     tre_type = 'acf'
-    trained_classifier_path = f'/home/leonted/SBI/SBI_for_trawl_processes_and_ambit_fields/models/new_classifier/TRE_full_trawl/selected_models/{tre_type}'
-    #trained_classifier_path = f'D:\\sbi_ambit\\SBI_for_trawl_processes_and_ambit_fields\\models\\new_classifier\\TRE_full_trawl\\selected_models\\{tre_type}'
+    # trained_classifier_path = f'/home/leonted/SBI/SBI_for_trawl_processes_and_ambit_fields/models/new_classifier/TRE_full_trawl/selected_models/{tre_type}'
+    trained_classifier_path = f'D:\\sbi_ambit\\SBI_for_trawl_processes_and_ambit_fields\\models\\new_classifier\\TRE_full_trawl\\selected_models\\{tre_type}'
     seq_len = 2000
     dummy_x = jnp.ones([1, seq_len])
     trawl_process_type = 'sup_ig_nig_5p'
@@ -255,9 +256,9 @@ if __name__ == '__main__':
     x_cached_shape = __.shape[-1]
 
     # for i, (batch_thetas, batch_x) in enumerate(zip(theta_batches, x_batches)):
-    for i, (theta_to_use, x_to_use) in enumerate(zip(val_thetas, val_x)):
-        if i % 50 == 0:
-            print(i)
+    for i, (theta_to_use, x_to_use) in tqdm(enumerate(zip(val_thetas, val_x)),
+                                            total=len(val_thetas),
+                                            desc="Processing"):
 
         # get x_cache
         _, x_cache_to_use = apply_model_with_x(
