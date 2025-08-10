@@ -1,4 +1,0 @@
-- add box plots to the acf and GMM pdf to the marginal plots 
-- only output acf parameters in the correct region? same for the marginal ones? might be harder to explore corners
-- this would serve as starting point for MLE
-- try to pass the inferred acf at the lags at which it was trained rather than the acf params
