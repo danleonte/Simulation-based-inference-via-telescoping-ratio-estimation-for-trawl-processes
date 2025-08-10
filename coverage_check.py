@@ -8,9 +8,11 @@ import gc  # Import garbage collector
 # mcmc_results_sup_ig_nig_5p_1000spline_calibration_1000double_cal
 
 # Load configuration
-calibrate_suffix = 'no_calibration'
+calibrate_suffix = 'beta_calibration_1000'
 seq_len = 1000
-folder_path = r'/home/leonted/SBI/SBI_for_trawl_processes_and_ambit_fields/models/new_classifier/TRE_full_trawl/selected_models/mcmc_results_sup_ig_nig_5p_' + \
+# folder_path = r'/home/leonted/SBI/SBI_for_trawl_processes_and_ambit_fields/models/new_classifier/TRE_full_trawl/selected_models/mcmc_results_sup_ig_nig_5p_' + \
+#    str(seq_len) + calibrate_suffix
+folder_path = r'/home/leonted/SBI/SBI_for_trawl_processes_and_ambit_fields/models/new_classifier/NRE_full_trawl/04_12_04_25_37/best_model/mcmc_results_sup_ig_nig_5p_' + \
     str(seq_len) + calibrate_suffix
 double_cal = False
 if double_cal:
@@ -52,7 +54,8 @@ print(f"Skipped {skipped_folders} folders that didn't contain results.pkl")
 print(f"Successfully processed {len(ranks)} folders")
 
 save_folder_path = os.path.dirname(folder_path)
-save_file_path = os.path.join(folder_path, str(seq_len) + calibrate_suffix)
+save_file_path = os.path.join(
+    save_folder_path, str(seq_len) + calibrate_suffix+'.npy')
 np.save(file=save_file_path, arr=np.array(ranks))
 # Continue only if we want to make a coverage plot
 if False:

@@ -14,6 +14,7 @@ from src.utils.get_data_generator import get_theta_and_trawl_generator
 from src.utils.reconstruct_beta_calibration import beta_calibrate_log_r
 import os
 import pickle
+from tqdm import tqdm
 import numpy as np
 from src.utils.reconstruct_beta_calibration import beta_calibrate_log_r
 from src.utils.chebyshev_utils import chebint_ab, interpolation_points_domain, integrate_from_sampled, polyfit_domain,  \
@@ -150,15 +151,15 @@ if __name__ == '__main__':
     seq_len = 1500
     trawl_process_type = 'sup_ig_nig_5p'
     N = 128
-    num_samples = 2 * 10**3
-    num_rows_to_load = 85  # nr data points is 64 * num_rows_to_load
+    num_samples = 5 * 10**3
+    num_rows_to_load = 160  # nr data points is 64 * num_rows_to_load
     batch_size_for_evaluating_x_cache = 64
     key = jax.random.PRNGKey(np.random.randint(1, 100000))
     vec_key = jax.random.PRNGKey(np.random.randint(1, 100000))
     vec_key = jax.random.split(vec_key, num_samples)
 
     dummy_x = jnp.ones([1, seq_len])
-    calibration_type = 'beta'
+    calibration_type = 'None'
 
     assert calibration_type in ('None', 'beta', 'isotonic')
 
@@ -252,9 +253,7 @@ if __name__ == '__main__':
 
     rank_list = []
 
-    for i in range(500):  # range(val_thetas.shape[0]):
-        if i % 50 == 0:
-            print(i)
+    for i in tqdm(range(val_thetas.shape[0])):
 
         true_theta = jnp.array(val_thetas[i])[jnp.newaxis, :]
 
@@ -337,3 +336,9 @@ if __name__ == '__main__':
         del true_density
         del sample_densities
         del conditional_prob
+
+    save_path = os.path.join(os.getcwd(), 'models',
+                             'new_classifier', 'coverage_check_ranks_NRE_and_TRE')
+
+    np.save(file=os.path.join(
+        save_path, f'seq_sampling_TRE_{seq_len}_{calibration_type}'), arr=rank_list)
