@@ -90,6 +90,27 @@ def model_apply_wrapper(model, params):
     return apply_model_with_x, apply_model_with_x_cache
 
 
+def predict_2d(iso_reg, X):
+    """
+    Wrapper to handle any shape input for isotonic regression.
+
+    Parameters:
+    -----------
+    iso_reg : IsotonicRegression
+        Fitted isotonic regression model
+    X : np.ndarray or jnp.ndarray
+        Input array of any shape
+
+    Returns:
+    --------
+    np.ndarray : Predictions with same shape as input
+    """
+    original_shape = X.shape
+    X_flat = np.array(X.ravel())
+    y_pred = iso_reg.predict(X_flat)
+    return jnp.array(y_pred.reshape(original_shape))
+
+
 def apply_calibration(log_r, tre_type, calibration_type):
     """inputs log_r, outputs exponential of the calibrated classifier"""
 
@@ -102,6 +123,14 @@ def apply_calibration(log_r, tre_type, calibration_type):
         log_r = beta_calibrate_log_r(
             log_r, beta_calibration_params[tre_type])
         return jnp.exp(log_r)
+
+    elif calibration_type == 'isotonic':
+
+        # exp(logit(p)) = p / (1-p)
+        # exp( logit( iso( sigma( )))) = iso( sigma( )) / (1 - iso( sigma( )))
+        intermediary = predict_2d(iso_calibration_dict[tre_type],
+                                  jax.nn.sigmoid(log_r))
+        return intermediary / (1-intermediary)
 
 
 @jax.jit  # @partial(jax.jit, static_argnames=('tre_type',))
@@ -123,7 +152,7 @@ def estimate_first_density(x_cache_to_use):
     return log_f_x_y
 
 
-@partial(jax.jit, static_argnames=('tre_type',))
+# @partial(jax.jit, static_argnames=('tre_type',))
 def get_cond_prob_at_true_value(true_theta, x_cache_to_use, tre_type):
 
     a, b = bounds_dict[tre_type][0], bounds_dict[tre_type][1]
@@ -148,10 +177,10 @@ if __name__ == '__main__':
     import seaborn as sns
 
     tre_types_list = ['acf', 'mu', 'sigma', 'beta']
-    seq_len = 1500
+    seq_len = 200
     trawl_process_type = 'sup_ig_nig_5p'
     N = 128
-    num_samples = 5 * 10**3
+    num_samples = 10**4
     num_rows_to_load = 160  # nr data points is 64 * num_rows_to_load
     batch_size_for_evaluating_x_cache = 64
     key = jax.random.PRNGKey(np.random.randint(1, 100000))
@@ -159,7 +188,7 @@ if __name__ == '__main__':
     vec_key = jax.random.split(vec_key, num_samples)
 
     dummy_x = jnp.ones([1, seq_len])
-    calibration_type = 'None'
+    calibration_type = 'beta'
 
     assert calibration_type in ('None', 'beta', 'isotonic')
 
@@ -183,13 +212,17 @@ if __name__ == '__main__':
     parameter_sweeps_dict = dict()
     if calibration_type == 'beta':
         beta_calibration_params = dict()
+
+    elif calibration_type == 'isotonic':
+        iso_calibration_dict = dict()
+
     bounds_dict = {'acf': [10., 20.], 'beta': [-5., 5.],
                    'mu': [-1., 1.], 'sigma': [0.5, 1.5]}
 
     for tre_type in tre_types_list:
 
-        # trained_classifier_path = f'/home/leonted/SBI/SBI_for_trawl_processes_and_ambit_fields/models/new_classifier/TRE_full_trawl/selected_models/{tre_type}'
-        trained_classifier_path = f'D:\\sbi_ambit\\SBI_for_trawl_processes_and_ambit_fields\\models\\new_classifier\\TRE_full_trawl\\selected_models\\{tre_type}'
+        trained_classifier_path = f'/home/leonted/SBI/SBI_for_trawl_processes_and_ambit_fields/models/new_classifier/TRE_full_trawl/selected_models/{tre_type}'
+        # trained_classifier_path = f'D:\\sbi_ambit\\SBI_for_trawl_processes_and_ambit_fields\\models\\new_classifier\\TRE_full_trawl\\selected_models\\{tre_type}'
         model, params, _, __bounds = load_one_tre_model_only_and_prior_and_bounds(
             trained_classifier_path, dummy_x, trawl_process_type, tre_type)
 
@@ -205,6 +238,11 @@ if __name__ == '__main__':
         if calibration_type == 'beta':
             with open(os.path.join(trained_classifier_path, f'beta_calibration_{seq_len}.pkl'), 'rb') as file:
                 beta_calibration_params[tre_type] = pickle.load(file)['params']
+
+        elif calibration_type == 'isotonic':
+            # Load the model
+            with open(os.path.join(trained_classifier_path, f'fitted_iso_{seq_len}_{tre_type}.pkl'), 'rb') as file:
+                iso_calibration_dict[tre_type] = pickle.load(file)
 
         # create parameter sweeps here:
         parameter_sweeps_dict[tre_type] = create_parameter_sweep_fn(
@@ -341,4 +379,4 @@ if __name__ == '__main__':
                              'new_classifier', 'coverage_check_ranks_NRE_and_TRE')
 
     np.save(file=os.path.join(
-        save_path, f'seq_sampling_TRE_{seq_len}_{calibration_type}'), arr=rank_list)
+        save_path, f'seq_sampling_TRE_{seq_len}_{calibration_type}_{N}_{num_rows_to_load}.npy'), arr=rank_list)
