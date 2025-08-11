@@ -443,6 +443,17 @@ def calibrate_new(trained_classifier_path, nr_batches, seq_len):
     iso.fit(pred_prob_Y, np.array(Y))
     bc.fit(pred_prob_Y, np.array(Y))
 
+    stop_after_iso = True
+
+    if stop_after_iso:
+        # Save the model
+        filename = os.path.join(
+            best_model_path, f"fitted_iso_{seq_len}_{tre_type}.pkl")
+        with open(filename, 'wb') as file:
+            pickle.dump(iso, file)
+
+        return None
+
     beta_calibration_dict = {'use_beta_calibration': True,
                              'params': bc.calibrator_.map_}
 
@@ -938,7 +949,7 @@ if __name__ == '__main__':
         # 'mu': ['04_12_04_41_11','04_12_12_59_45','04_12_00_32_46','04_11_20_26_03','04_12_08_53_27','04_12_08_53_57','04_12_05_42_50','04_12_12_21_06'],
         # 'sigma': ['04_12_04_28_49','04_12_00_26_44','04_12_12_37_42','04_12_05_36_55','04_12_12_37_35','04_12_11_18_04','04_12_08_35_55','04_12_09_33_30','04_12_05_59_51',                                '04_11_20_26_03']
         'acf': ['04_12_12_36_45'],
-        # 'beta': ['04_12_04_26_56'],
+        'beta': ['04_12_04_26_56'],
         'mu': ['04_12_00_32_46'],
         'sigma': ['04_12_04_28_49'],
         # 'acf':['02_26_18_30_52', '02_28_16_37_11', '03_01_09_30_39', '03_01_21_17_21', '03_02_21_06_17','03_02_06_41_57'],
@@ -960,8 +971,10 @@ if __name__ == '__main__':
 
             if True:
                 pass
-                # calibrate_new(trained_classifier_path, nr_batches, 2000)
-                # calibrate_new(trained_classifier_path, nr_batches, 1500)
+                calibrate_new(trained_classifier_path, nr_batches, 2000)
+                calibrate_new(trained_classifier_path, nr_batches, 1500)
+                calibrate_new(trained_classifier_path, nr_batches, 1000)
+
             # calibrate_new(trained_classifier_path, nr_batches, 2000)
             # calibrate_new(trained_classifier_path, nr_batches, 2500)
             # calibrate(trained_classifier_path, nr_batches, 3000)
@@ -970,7 +983,7 @@ if __name__ == '__main__':
     # TRE options: acf, beta, mu, sigma
 
     # calibrate
-            if True:
+            if False:
                 # validate_new(trained_classifier_path, nr_batches, 1000)
                 # validate_new(trained_classifier_path, nr_batches, 1500)
                 validate_new(trained_classifier_path, nr_batches, 2000)
