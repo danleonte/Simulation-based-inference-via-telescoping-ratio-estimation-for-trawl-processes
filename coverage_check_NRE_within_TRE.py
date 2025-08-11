@@ -33,6 +33,27 @@ if True:
     import matplotlib.pyplot as plt
 
 
+def predict_2d(iso_reg, X):
+    """
+    Wrapper to handle any shape input for isotonic regression.
+
+    Parameters:
+    -----------
+    iso_reg : IsotonicRegression
+        Fitted isotonic regression model
+    X : np.ndarray or jnp.ndarray
+        Input array of any shape
+
+    Returns:
+    --------
+    np.ndarray : Predictions with same shape as input
+    """
+    original_shape = X.shape
+    X_flat = np.array(X.ravel())
+    y_pred = iso_reg.predict(X_flat)
+    return jnp.array(y_pred.reshape(original_shape))
+
+
 def create_parameter_sweep_fn(apply_fn, tre_type, bounds, N):
     """
     Create a parameter sweep function with model function captured in closure.
@@ -99,8 +120,10 @@ def model_apply_wrapper(model, params):
 
 
 def do_marginal_sampling(theta_values_batch, x_values_batch, vec_key, bounds, tre_type):
+#def do_marginal_sampling(theta_values_batch, x_cache_values_batch, vec_key, bounds, tre_type):
 
     a, b = bounds
+
 
     _, x_cache_values_batch = apply_model_with_x(
         x_values_batch, theta_values_batch)
@@ -108,11 +131,22 @@ def do_marginal_sampling(theta_values_batch, x_values_batch, vec_key, bounds, tr
     # technically should multply by prior,but it s all a constant
     log_prob_envelope = evaluate_at_chebyshev_knots(
         theta_values_batch, x_cache_values_batch)
-    cal_log_prob_envelope = beta_calibrate_log_r(
-        log_prob_envelope, calibration_params['params'])
+    uncal_prob_envelope = jnp.exp(log_prob_envelope)
 
-    cal_coeff = vec_polyfit_domain(jnp.exp(cal_log_prob_envelope), a, b)
-    uncal_coeff = vec_polyfit_domain(jnp.exp(log_prob_envelope), a, b)
+    if calibration_type == 'beta':
+        cal_log_prob_envelope = beta_calibrate_log_r(
+            log_prob_envelope, calibration_params['params'])
+        cal_prob_envelope = jnp.exp(cal_log_prob_envelope)
+        del cal_log_prob_envelope
+
+    elif calibration_type == 'isotonic':
+        # intermediary = iso_regression.predict(jax.nn.sigmoid(log_prob_envelope))
+        intermediary = predict_2d(
+            iso_regression, jax.nn.sigmoid(log_prob_envelope))
+        cal_prob_envelope = intermediary / (1-intermediary)
+
+    cal_coeff = vec_polyfit_domain(cal_prob_envelope, a, b)
+    uncal_coeff = vec_polyfit_domain(uncal_prob_envelope, a, b)
 
     cal_samples = vec_sample_from_coeff(cal_coeff, vec_key, a, b, num_samples)
     uncal_samples = vec_sample_from_coeff(
@@ -143,30 +177,30 @@ def do_marginal_sampling(theta_values_batch, x_values_batch, vec_key, bounds, tr
 if __name__ == '__main__':
 
     tre_type = 'sigma'
-    trained_classifier_path = f'/home/leonted/SBI/SBI_for_trawl_processes_and_ambit_fields/models/new_classifier/TRE_full_trawl/selected_models/{tre_type}'
-    # f'D:\\sbi_ambit\\SBI_for_trawl_processes_and_ambit_fields\\models\\new_classifier\\TRE_full_trawl\\selected_models\\{tre_type}'
+    # trained_classifier_path = f'/home/leonted/SBI/SBI_for_trawl_processes_and_ambit_fields/models/new_classifier/TRE_full_trawl/selected_models/{tre_type}'
+    trained_classifier_path = f'D:\\sbi_ambit\\SBI_for_trawl_processes_and_ambit_fields\\models\\new_classifier\\TRE_full_trawl\\selected_models\\{tre_type}'
     seq_len = 1500
     dummy_x = jnp.ones([1, seq_len])
     trawl_process_type = 'sup_ig_nig_5p'
     N = 256
     num_samples = 10**5
     num_rows_to_load = 640  # nr data points is 64 * num_rows_to_load
-    num_envelopes_to_build_at_once = 32
-    beta_calibration_indicator = True
-    assert beta_calibration_indicator
+    num_envelopes_to_build_at_once = 64
+    calibration_type = 'isotonic'
+    # assert beta_calibration_indicator
 
     # get calibratiton
 
-    if beta_calibration_indicator:
+    if calibration_type == 'beta':
 
         calibratiton_file_name = f'beta_calibration_{seq_len}.pkl'
 
-    # else:
-    #
-    #    calibratiton_file_name = 'no_calibration.pkl'
+        with open(os.path.join(trained_classifier_path, calibratiton_file_name), 'rb') as file:
+            calibration_params = pickle.load(file)
 
-    with open(os.path.join(trained_classifier_path, calibratiton_file_name), 'rb') as file:
-        calibration_params = pickle.load(file)
+    elif calibration_type == 'isotonic':
+        with open(os.path.join(trained_classifier_path, f'fitted_iso_{seq_len}_{tre_type}.pkl'), 'rb') as file:
+            iso_regression = pickle.load(file)
 
     assert tre_type in trained_classifier_path
     model, params, _, bounds = load_one_tre_model_only_and_prior_and_bounds(
@@ -185,6 +219,7 @@ if __name__ == '__main__':
 
     val_x = val_x.reshape(-1, seq_len)
     val_thetas = val_thetas.reshape(-1, val_thetas.shape[-1])
+
 
     # LOAD FUNCTIONS
     apply_model_with_x, apply_model_with_x_cache = model_apply_wrapper(
@@ -206,7 +241,7 @@ if __name__ == '__main__':
     uncal_rank_list = []
 
     for i, (batch_thetas, batch_x) in enumerate(zip(theta_batches, x_batches)):
-        if i % 50 == 0:
+        if i % 15 == 0:
             print(i)
         cal_rank, uncal_rank, key = do_marginal_sampling(
             batch_thetas, batch_x, key, bounds, tre_type)
@@ -220,7 +255,7 @@ if __name__ == '__main__':
                                 'selected_models', 'per_classifier_coverage_check', str(tre_type))
 
     np.save(file=os.path.join(results_path,
-            f'{tre_type}_cal_ranks_seq_len_{seq_len}_N_{N}.npy'), arr=cal_rank)
+            f'{tre_type}_cal_ranks_cal_type_{calibration_type}_seq_len_{seq_len}_N_{N}.npy'), arr=cal_rank)
     np.save(file=os.path.join(results_path,
             f'{tre_type}_uncal_ranks_seq_len_{seq_len}_N_{N}.npy'), arr=uncal_rank)
 
