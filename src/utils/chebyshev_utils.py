@@ -75,6 +75,7 @@ def dct_via_fft(data: jnp.ndarray) -> jnp.ndarray:
     return result
 
 
+@jax.jit
 def polyfit_domain(sampled, a, b):
     """
     Compute Chebyshev coefficients for values located on Chebyshev points in [a,b].
@@ -207,6 +208,7 @@ def get_coeffs(f, a, b, N):
     return coeffs
 
 
+@jax.jit
 def integrate_from_sampled(sampled, a, b):
 
     coeffs = polyfit_domain(sampled, a, b)

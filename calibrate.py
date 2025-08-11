@@ -435,13 +435,25 @@ def calibrate_new(trained_classifier_path, nr_batches, seq_len):
 
     # perform isotonic regression, Beta and Plat scaling
     lr = LogisticRegression(C=99999999999)
-    iso = IsotonicRegression(y_min=0.0001, y_max=0.9999)
+    iso = IsotonicRegression(y_min=10**(-6), y_max=1 -
+                             10**(-6), out_of_bounds='clip')
     bc = BetaCalibration(parameters="abm")
 
     # These sklearn methods work with numpy arrays
     lr.fit(pred_prob_Y, np.array(Y))
     iso.fit(pred_prob_Y, np.array(Y))
     bc.fit(pred_prob_Y, np.array(Y))
+
+    stop_after_iso = True
+
+    if stop_after_iso:
+        # Save the model
+        filename = os.path.join(
+            best_model_path, f"fitted_iso_{seq_len}_{tre_type}.pkl")
+        with open(filename, 'wb') as file:
+            pickle.dump(iso, file)
+
+        return None
 
     beta_calibration_dict = {'use_beta_calibration': True,
                              'params': bc.calibrator_.map_}
@@ -832,13 +844,18 @@ def validate_new(trained_classifier_path, nr_batches, seq_len):
         # serialize the list
         beta_calibration_dict = pickle.load(f)
 
-    methods_text = ['beta']  # , 'splines']
+    # Load the model
+    with open(os.path.join(best_model_path, f'fitted_iso_{seq_len}_{tre_type}.pkl'), 'rb') as file:
+        iso_regression = pickle.load(file)
+
+    methods_text = ['beta', 'iso']  # , 'splines']
 
     # get calibrated datasets
     beta_cal_log_r = beta_calibrate_log_r(
         log_r, beta_calibration_dict['params']).squeeze()
 
-    calibrated_pr = [sigmoid(beta_cal_log_r).squeeze()]
+    calibrated_pr = [sigmoid(beta_cal_log_r).squeeze(
+    ), jnp.array(iso_regression.predict(pred_prob_Y))]
     # [lr.predict_proba(pred_prob_Y)[:, 1],
     # iso.predict(pred_prob_Y), bc.predict(pred_prob_Y)]
 
@@ -870,7 +887,7 @@ def validate_new(trained_classifier_path, nr_batches, seq_len):
         mce_false = []
         ace_true = []
         ace_false = []
-        num_bins_false = 5  # beta 5
+        num_bins_false = 6  # beta 5
         num_bins_true = 20  # beta 20
 
         ece_false.append(ECE(bins=num_bins_false, equal_intervals=False).measure(
@@ -938,7 +955,7 @@ if __name__ == '__main__':
         # 'mu': ['04_12_04_41_11','04_12_12_59_45','04_12_00_32_46','04_11_20_26_03','04_12_08_53_27','04_12_08_53_57','04_12_05_42_50','04_12_12_21_06'],
         # 'sigma': ['04_12_04_28_49','04_12_00_26_44','04_12_12_37_42','04_12_05_36_55','04_12_12_37_35','04_12_11_18_04','04_12_08_35_55','04_12_09_33_30','04_12_05_59_51',                                '04_11_20_26_03']
         'acf': ['04_12_12_36_45'],
-        # 'beta': ['04_12_04_26_56'],
+        'beta': ['04_12_04_26_56'],
         'mu': ['04_12_00_32_46'],
         'sigma': ['04_12_04_28_49'],
         # 'acf':['02_26_18_30_52', '02_28_16_37_11', '03_01_09_30_39', '03_01_21_17_21', '03_02_21_06_17','03_02_06_41_57'],
@@ -958,10 +975,12 @@ if __name__ == '__main__':
                 trained_classifier_path = os.path.join(
                     os.getcwd(), 'models', 'new_classifier', 'TRE_full_trawl', key, value)  # 'NRE_full_trawl '
 
-            if True:
-                pass
-                # calibrate_new(trained_classifier_path, nr_batches, 2000)
-                # calibrate_new(trained_classifier_path, nr_batches, 1500)
+            if False:
+
+                calibrate_new(trained_classifier_path, nr_batches, 2000)
+                calibrate_new(trained_classifier_path, nr_batches, 1500)
+                calibrate_new(trained_classifier_path, nr_batches, 1000)
+
             # calibrate_new(trained_classifier_path, nr_batches, 2000)
             # calibrate_new(trained_classifier_path, nr_batches, 2500)
             # calibrate(trained_classifier_path, nr_batches, 3000)
@@ -971,9 +990,9 @@ if __name__ == '__main__':
 
     # calibrate
             if True:
-                # validate_new(trained_classifier_path, nr_batches, 1000)
-                # validate_new(trained_classifier_path, nr_batches, 1500)
                 validate_new(trained_classifier_path, nr_batches, 2000)
+                validate_new(trained_classifier_path, nr_batches, 1500)
+                validate_new(trained_classifier_path, nr_batches, 1000)
                 # validate_new(trained_classifier_path, nr_batches, 2500)
 
         # calibrated_the_NRE_of_a_calibrated_TRE(
