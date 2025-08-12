@@ -177,14 +177,14 @@ def do_marginal_sampling(theta_values_batch, x_values_batch, vec_key, bounds, tr
 if __name__ == '__main__':
 
     tre_type = 'sigma'
-    # trained_classifier_path = f'/home/leonted/SBI/SBI_for_trawl_processes_and_ambit_fields/models/new_classifier/TRE_full_trawl/selected_models/{tre_type}'
-    trained_classifier_path = f'D:\\sbi_ambit\\SBI_for_trawl_processes_and_ambit_fields\\models\\new_classifier\\TRE_full_trawl\\selected_models\\{tre_type}'
+    trained_classifier_path = f'/home/leonted/SBI/SBI_for_trawl_processes_and_ambit_fields/models/new_classifier/TRE_full_trawl/selected_models/{tre_type}'
+    #trained_classifier_path = f'D:\\sbi_ambit\\SBI_for_trawl_processes_and_ambit_fields\\models\\new_classifier\\TRE_full_trawl\\selected_models\\{tre_type}'
     seq_len = 1500
     dummy_x = jnp.ones([1, seq_len])
     trawl_process_type = 'sup_ig_nig_5p'
-    N = 256
+    N = 128
     num_samples = 10**5
-    num_rows_to_load = 640  # nr data points is 64 * num_rows_to_load
+    num_rows_to_load = 160  # nr data points is 64 * num_rows_to_load
     num_envelopes_to_build_at_once = 64
     calibration_type = 'isotonic'
     # assert beta_calibration_indicator
@@ -239,10 +239,14 @@ if __name__ == '__main__':
 
     cal_rank_list = []
     uncal_rank_list = []
+    
+    from tqdm import tqdm
+    total_batches = len(theta_batches)
 
-    for i, (batch_thetas, batch_x) in enumerate(zip(theta_batches, x_batches)):
-        if i % 15 == 0:
-            print(i)
+    for i, (batch_thetas, batch_x) in enumerate(tqdm(zip(theta_batches, x_batches), 
+                                                  total=total_batches, 
+                                                  desc="Processing batches")):
+
         cal_rank, uncal_rank, key = do_marginal_sampling(
             batch_thetas, batch_x, key, bounds, tre_type)
         cal_rank_list.append(cal_rank)
