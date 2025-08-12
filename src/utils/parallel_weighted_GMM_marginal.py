@@ -17,6 +17,7 @@ import os
 import yaml
 import pandas as pd
 from tqdm import tqdm
+import warnings
 
 
 def transform_to_constrained_jax(unconstrained_params, lower=np.array([-1., 0.5, -5.]),
@@ -187,11 +188,17 @@ def estimate_jax_parameters(trawl, initial_guess=None):
                        )
 
     try:
-        result = gmm_model.fit(start_params=transform_jax_to_unconstrained(
-            initial_guess))  # , maxiter=10)
+        # Suppress scipy optimization warnings
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=scipy.optimize.OptimizeWarning)
+            warnings.filterwarnings("ignore", message=".*Desired error not necessarily achieved.*")
+            
+            result = gmm_model.fit(start_params=transform_jax_to_unconstrained(
+                initial_guess))  # , maxiter=10)
         return result
     except Exception as e:
-        print(f"Error in parameter estimation: {str(e)}")
+        # Uncomment the line below if you want to see the actual errors
+        # print(f"Error in parameter estimation: {str(e)}")
         return None
 
 
@@ -199,32 +206,32 @@ def process_single_trawl(args):
     """
     Process a single trawl for GMM estimation.
     This function needs to be at module level for multiprocessing to work.
-
+    
     Parameters:
     -----------
     args : tuple
         (index, true_trawl, true_theta)
-
+    
     Returns:
     --------
     tuple : (index, true_theta, gmm_result)
     """
     index, true_trawl, true_theta = args
-
+    
     try:
         # Estimate parameters using transformed approach
         result = estimate_jax_parameters(
             true_trawl,
             initial_guess=true_theta[2:]
         )
-
+        
         if result is not None:
             gmm_result = transform_to_constrained_jax(result.params)
         else:
             gmm_result = None
-
+            
         return index, true_theta, gmm_result
-
+    
     except Exception as e:
         print(f"Error processing trawl {index}: {str(e)}")
         return index, true_theta, None
@@ -233,7 +240,7 @@ def process_single_trawl(args):
 def parallel_gmm_estimation(val_x, val_thetas, num_trawls_to_use, n_jobs=None):
     """
     Perform GMM estimation in parallel.
-
+    
     Parameters:
     -----------
     val_x : array
@@ -244,78 +251,79 @@ def parallel_gmm_estimation(val_x, val_thetas, num_trawls_to_use, n_jobs=None):
         Number of trawls to process
     n_jobs : int, optional
         Number of parallel jobs. If None, uses all available CPUs.
-
+    
     Returns:
     --------
     tuple : (true_theta_list, GMM_list)
     """
     if n_jobs is None:
         n_jobs = multiprocessing.cpu_count()
-
+    
     print(f"Using {n_jobs} CPU cores for parallel processing")
-
+    
     # Prepare arguments for parallel processing
-    args_list = [(i, val_x[i], val_thetas[i])
-                 for i in range(num_trawls_to_use)]
-
+    args_list = [(i, val_x[i], val_thetas[i]) for i in range(num_trawls_to_use)]
+    
     true_theta_list = [None] * num_trawls_to_use
     GMM_list = [None] * num_trawls_to_use
-
+    
     # Use ProcessPoolExecutor for parallel processing
     with ProcessPoolExecutor(max_workers=n_jobs) as executor:
         # Submit all jobs
-        future_to_index = {executor.submit(process_single_trawl, args): args[0]
-                           for args in args_list}
-
+        future_to_index = {executor.submit(process_single_trawl, args): args[0] 
+                          for args in args_list}
+        
         # Process completed jobs with enhanced progress bar
         successful_count = 0
         failed_count = 0
-
-        with tqdm(total=num_trawls_to_use, desc="Processing trawls",
-                  bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}] Success: {postfix}') as pbar:
-
+        
+        with tqdm(total=num_trawls_to_use, desc="Processing trawls", 
+                 bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}] Success: {postfix}') as pbar:
+            
             for future in as_completed(future_to_index):
                 try:
                     index, true_theta, gmm_result = future.result()
                     true_theta_list[index] = true_theta
                     GMM_list[index] = gmm_result
-
+                    
                     if gmm_result is not None:
                         successful_count += 1
                     else:
                         failed_count += 1
-
+                        
                     # Update progress bar with success rate
-                    pbar.set_postfix_str(
-                        f"{successful_count}/{successful_count + failed_count}")
+                    pbar.set_postfix_str(f"{successful_count}/{successful_count + failed_count}")
                     pbar.update(1)
-
+                    
                 except Exception as e:
                     index = future_to_index[future]
                     failed_count += 1
                     print(f"Error processing trawl {index}: {str(e)}")
                     true_theta_list[index] = val_thetas[index]
                     GMM_list[index] = None
-
+                    
                     # Update progress bar with success rate
-                    pbar.set_postfix_str(
-                        f"{successful_count}/{successful_count + failed_count}")
+                    pbar.set_postfix_str(f"{successful_count}/{successful_count + failed_count}")
                     pbar.update(1)
-
+    
     return true_theta_list, GMM_list
 
 
 if __name__ == '__main__':
-
+    
+    # Suppress scipy optimization warnings globally
+    warnings.filterwarnings("ignore", category=scipy.optimize.OptimizeWarning)
+    warnings.filterwarnings("ignore", message=".*Desired error not necessarily achieved.*")
+    
     # Load dataset & configuration
-    folder_path = r'D:\sbi_ambit\SBI_for_trawl_processes_and_ambit_fields\models\new_classifier\TRE_full_trawl\selected_models'
+    folder_path = r'D:\sbi_trawls\SBI_for_trawl_processes_and_ambit_fields\models\new_classifier\TRE_full_trawl\selected_models'
     seq_len = 1000
     num_rows_to_load = 160  # how much data to load
-    num_trawls_to_use = 10**3  # how much data to do GMM on
-
+    num_trawls_to_use = 10**4  # how much data to do GMM on
+    
     # Optional: specify number of CPU cores to use (None = use all available)
     n_jobs = None  # or set to specific number like 4, 8, etc.
-
+    
     models_path = os.path.dirname(
         os.path.dirname(os.path.dirname(folder_path)))
     dataset_path = os.path.join(
@@ -332,21 +340,21 @@ if __name__ == '__main__':
 
     print(f"Loaded {len(val_x)} trawls, processing {num_trawls_to_use}")
     print(f"Available CPU cores: {multiprocessing.cpu_count()}")
-
+    
     # Perform parallel GMM estimation
     true_theta_list, GMM_list = parallel_gmm_estimation(
         val_x, val_thetas, num_trawls_to_use, n_jobs=n_jobs
     )
-
+    
     # Create DataFrame and save results
     df = pd.DataFrame({'true_theta': true_theta_list,
                       'GMM': GMM_list})
 
     output_filename = f'marginal_GMM_seq_len_{seq_len}_num_trawls_to_use_{num_trawls_to_use}_parallel.pkl'
     df.to_pickle(output_filename)
-
+    
     print(f"Results saved to {output_filename}")
-
+    
     # Print some statistics
     successful_estimations = sum(1 for x in GMM_list if x is not None)
     print(f"Successful estimations: {successful_estimations}/{num_trawls_to_use} "
