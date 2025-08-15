@@ -209,9 +209,9 @@ if __name__ == '__main__':
     # Load dataset & configuration; later on double check the true_theta is the same in the dataset and in the MLE dataframe
     # folder_path = r'/home/leonted/SBI/SBI_for_trawl_processes_and_ambit_fields/models/classifier/NRE_full_trawl/uncalibrated'
     folder_path = r'D:\sbi_ambit\SBI_for_trawl_processes_and_ambit_fields\models\new_classifier\TRE_full_trawl\selected_models'
-    seq_len = 2000
-    num_rows_to_load = 80  # how much data to load
-    num_trawls_to_use = 5000  # how much data to do GMM on
+    seq_len = 1000
+    num_rows_to_load = 160  # how much data to load
+    num_trawls_to_use = 10000  # how much data to do GMM on
     ###########
     trawl_process_type = 'sup_ig_nig_5p'
     trawl_function_name = 'sup_IG'
@@ -220,7 +220,7 @@ if __name__ == '__main__':
     upper_bound = 20.0
 
     # Get parameters from config
-    num_lags = 15  # can override this
+    num_lags = 35
     acf_func = get_acf(trawl_function_name)
 
     # Load dataset
@@ -277,37 +277,38 @@ if __name__ == '__main__':
 
     df.to_pickle(f'ACF_{seq_len}_{num_lags}.pkl')
 
-    if False:
-        if result_dict is not None:
-            # Extract constrained parameters
-            gmm_params = result_dict["constrained_params"]
+    # ############## OLD ##############
+    # if False:
+    #     if result_dict is not None:
+    #         # Extract constrained parameters
+    #         gmm_params = result_dict["constrained_params"]
 
-            # Compute ACFs for plotting
-            H = np.arange(1, num_lags + 1)
-            theoretical_acf = acf_func(H, theta_acf)
-            empirical_acf = compute_empirical_acf(trawl, nlags=num_lags)[1:]
-            gmm_acf = acf_func(H, gmm_params)
+    #         # Compute ACFs for plotting
+    #         H = np.arange(1, num_lags + 1)
+    #         theoretical_acf = acf_func(H, theta_acf)
+    #         empirical_acf = compute_empirical_acf(trawl, nlags=num_lags)[1:]
+    #         gmm_acf = acf_func(H, gmm_params)
 
-            # Create plot
-            f, ax = plt.subplots(figsize=(10, 6))
-            ax.scatter(H, theoretical_acf, label='Theoretical')
-            ax.scatter(H, empirical_acf, label='Empirical')
-            ax.scatter(H, gmm_acf, label='GMM (Transformed)')
+    #         # Create plot
+    #         f, ax = plt.subplots(figsize=(10, 6))
+    #         ax.scatter(H, theoretical_acf, label='Theoretical')
+    #         ax.scatter(H, empirical_acf, label='Empirical')
+    #         ax.scatter(H, gmm_acf, label='GMM (Transformed)')
 
-            # Add details about the transformation
-            ax.set_title(
-                f'ACF Comparison (Parameter Range: [{lower_bound}, {upper_bound}])')
-            ax.set_xlabel('Lag')
-            ax.set_ylabel('ACF')
+    #         # Add details about the transformation
+    #         ax.set_title(
+    #             f'ACF Comparison (Parameter Range: [{lower_bound}, {upper_bound}])')
+    #         ax.set_xlabel('Lag')
+    #         ax.set_ylabel('ACF')
 
-            # Add parameter values to the plot
-            unconstrained_text = f"Unconstrained parameters: [{result_dict['unconstrained_params'][0]:.3f}, {result_dict['unconstrained_params'][1]:.3f}]"
-            constrained_text = f"Constrained parameters: [{result_dict['acf_gamma']:.3f}, {result_dict['acf_eta']:.3f}]"
-            plt.figtext(0.5, 0.01, unconstrained_text +
-                        '\n' + constrained_text, ha='center')
+    #         # Add parameter values to the plot
+    #         unconstrained_text = f"Unconstrained parameters: [{result_dict['unconstrained_params'][0]:.3f}, {result_dict['unconstrained_params'][1]:.3f}]"
+    #         constrained_text = f"Constrained parameters: [{result_dict['acf_gamma']:.3f}, {result_dict['acf_eta']:.3f}]"
+    #         plt.figtext(0.5, 0.01, unconstrained_text +
+    #                     '\n' + constrained_text, ha='center')
 
-            plt.legend()
-            plt.tight_layout()
-            plt.show()
-        else:
-            print("Parameter estimation failed.")
+    #         plt.legend()
+    #         plt.tight_layout()
+    #         plt.show()
+    #     else:
+    #         print("Parameter estimation failed.")

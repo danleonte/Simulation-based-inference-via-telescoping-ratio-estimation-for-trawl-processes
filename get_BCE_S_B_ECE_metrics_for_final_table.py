@@ -12,7 +12,7 @@ from get_ecdf_statistics import load_NRE_within_TRE_ranks, compare_uncal_cal_ran
 from NRE_TRE_coverage_figures_and_ecdf_metrics import load_NRE_TRE_ranks
 
 
-def get_BCE_S_B_ECE_classifier_metrics_for_individual_NRE_within_TRE(seq_len):
+def get_BCE_S_B_ECE_classifier_metrics_for_individual_NRE_within_TRE(seq_len, calibration_type):
 
     d = {1000: 12, 1500: 8, 2000: 5}
     tre_types = ('acf', 'beta', 'mu', 'sigma')
@@ -28,7 +28,7 @@ def get_BCE_S_B_ECE_classifier_metrics_for_individual_NRE_within_TRE(seq_len):
         df = pd.read_excel(os.path.join(TRE_path, f'BCE_S_B_{seq_len}_{tre_type}_with_splines_{d[seq_len]}_{20}.xlsx'),
                            header=0).set_index('Unnamed: 0')
         df.index.name = None
-        df = df.rename(columns={'beta': 'cal'})
+        df = df.rename(columns={calibration_type: 'cal'})
 
         # Then subset
         df_list.append(
@@ -42,7 +42,8 @@ if __name__ == '__main__':
     seq_lengths = (1000, 1500, 2000)
     ecdf_metric_to_use = 'w1'
     tre_types = ('acf', 'beta', 'mu', 'sigma')
-    N = 256
+    N = 128
+    calibration_type = 'iso'
     df_list_1 = []  # posterior ecdf deviation
     df_list_2 = []  # BCE S B ECE
 
@@ -81,7 +82,7 @@ if __name__ == '__main__':
     for seq_len in seq_lengths:
         # BCE, S, B, ECE_f for NRE and TRE
         path_2 = os.path.join(os.getcwd(), 'models', 'new_classifier',
-                              f'BCE_S_B_for_NRE_and_TRE_{seq_len}.xlsx')
+                              f'BCE_S_B_for_NRE_and_TRE_{seq_len}_cal_type_{calibration_type}.xlsx')
         df_ = pd.read_excel(path_2, header=[0, 1],  index_col=0)
 
         # BCE, S, B, ECE_f for individual NRES within TRE
@@ -110,8 +111,8 @@ if __name__ == '__main__':
     df = df.reindex(metric_order, level=1)
 
     excel_save_path = os.path.join(os.getcwd(), 'models', 'new_classifier',
-                                   f'final_table_{ecdf_metric_to_use}.xlsx')
+                                   f'final_table_{ecdf_metric_to_use}_cal_type_{calibration_type}.xlsx')
     tex_save_path = os.path.join(os.getcwd(), 'models', 'new_classifier',
-                                 f'final_table_{ecdf_metric_to_use}.tex')
+                                 f'final_table_{ecdf_metric_to_use}_cal_type_{calibration_type}.tex')
     df.to_excel(excel_save_path)
     df.to_latex(tex_save_path, float_format='%.3f')

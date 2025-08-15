@@ -11,6 +11,28 @@ from src.utils.acf_functions import get_acf
 from src.utils.KL_divergence import vec_monte_carlo_kl_3_param_nig
 
 
+def convert_numpy_string_to_array(x):
+    """
+    Convert numpy string format '[1.2 3.4 5.6]' to actual numpy array
+    """
+    if pd.isna(x):
+        return np.array([])
+
+    # Convert to string and clean up
+    x = str(x).strip()
+
+    # Remove brackets
+    if x.startswith('[') and x.endswith(']'):
+        x = x[1:-1]
+
+    # Split on whitespace and convert to float
+    try:
+        values = [float(val) for val in x.split()]
+        return np.array(values)
+    except:
+        return np.array([])
+
+
 def compare_acf_point_estimators(true_theta, infered_theta_acf, mle_or_gmm, num_lags):
 
     # acf errors
@@ -151,16 +173,17 @@ def compare_point_estimators(true_theta, infered_theta, mle_or_gmm, num_lags):
 if __name__ == '__main__':
 
     seq_len = 2000
-    num_lags = 25
+    num_lags = 35
 
     acf_func = jax.vmap(get_acf('sup_IG'), in_axes=(None, 0))
 
-    MLE_TRE = True
+    MLE_TRE = False
     MLE_NRE = False
     GMM = False
-    assert MLE_TRE + MLE_NRE + GMM == 1
+    NBE = True
+    assert MLE_TRE + MLE_NRE + GMM + NBE == 1
 
-    if MLE_TRE and not MLE_NRE and not GMM:
+    if MLE_TRE and not MLE_NRE and not GMM and not NBE:
 
         folder_path = r'D:\sbi_ambit\SBI_for_trawl_processes_and_ambit_fields\models\new_classifier\point_estimators\calibrated_TRE'
         results_path = os.path.join(folder_path, f'TRE_{seq_len}_num_rows_160')
@@ -172,7 +195,7 @@ if __name__ == '__main__':
         infered_theta = np.array([np.array(i) for i in df.MLE.values])
         compare_point_estimators(true_theta, infered_theta, 'MLE', num_lags)
 
-    elif MLE_NRE and not MLE_TRE and not GMM:
+    elif MLE_NRE and not MLE_TRE and not GMM and not NBE:
 
         folder_path = r'D:\sbi_ambit\SBI_for_trawl_processes_and_ambit_fields\models\new_classifier\point_estimators\NRE'
         results_path = os.path.join(folder_path, f'NRE_{seq_len}_num_rows_160')
@@ -185,6 +208,10 @@ if __name__ == '__main__':
         infered_theta = np.array([np.array(i) for i in df.MLE.values])
         compare_point_estimators(true_theta, infered_theta, 'MLE', num_lags)
 
+    elif NBE and not MLE_NRE and not MLE_TRE and not GMM:
+
+        pass
+
     elif GMM:
 
         # folder_path = r'D:\sbi_ambit\SBI_for_trawl_processes_and_ambit_fields\models\new_classifier\TRE_full_trawl\selected_models\point_estimators\GMM'
@@ -193,10 +220,18 @@ if __name__ == '__main__':
         results_path = folder_path
 
         ####  do marginal ####
-        df_marginal = pd.read_pickle(os.path.join(
-            results_path, f'marginal_GMM_seq_len_{seq_len}_num_trawls_to_use_500.pkl'))  # f'ACF_{seq_len}_{num_lags}.pkl'))
+        df_marginal = pd.read_csv(os.path.join(
+            results_path, f'marginal_GMM_seq_len_{seq_len}_num_trawls_to_use_10000.csv'))  # f'ACF_{seq_len}_{num_lags}.pkl'))
 
         df_marginal = df_marginal.replace({None: np.nan}).dropna()
+
+        # there are problems reading the pickle saved from the cluster because of differentt
+        # numpy version. to this end, i save as a csv and then change the strings to arrays after
+        # reading
+        df_marginal['true_theta'] = df_marginal['true_theta'].apply(
+            convert_numpy_string_to_array)
+        df_marginal['GMM'] = df_marginal['GMM'].apply(
+            convert_numpy_string_to_array)
 
         true_marginal_theta = np.array([np.array(i)
                                         for i in df_marginal.true_theta.values])
@@ -205,6 +240,8 @@ if __name__ == '__main__':
         compare_marginal_point_estimators(
             true_marginal_theta, infered_marginal_theta, 'GMM')
 
+        print('only did marginal GMM, acf already done before')
+        raise ValueError
         #### do acf #####
         df_acf = pd.read_pickle(os.path.join(
             results_path, f'ACF_{seq_len}_{num_lags}.pkl'))

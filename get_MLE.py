@@ -58,7 +58,7 @@ if __name__ == '__main__':
     # folder_path = r'D:\sbi_ambit\SBI_for_trawl_processes_and_ambit_fields\models\new_classifier\TRE_full_trawl\selected_models'
     seq_len = 1500
     num_rows_to_load = 160
-    num_trawls_to_use = 5000
+    num_trawls_to_use = 10000
     # 'spline_calibration_1000.npy'
     # f'beta_calibration_{seq_len}.pkl'
     calibration_filename = 'no_calibration.pkl'

@@ -12,14 +12,14 @@ from src.utils.ecdf_distances_from_samples import check_samples, wasserstein_1_a
 import matplotlib.pyplot as plt
 
 
-def load_NRE_within_TRE_ranks(tre_type, seq_len, N):
+def load_NRE_within_TRE_ranks(tre_type, seq_len, N, cal_type):
 
     beta_path = os.path.join(os.getcwd(), 'models', 'new_classifier', 'TRE_full_trawl',
                              'selected_models', 'per_classifier_coverage_check', tre_type)
     uncal_ranks = np.load(os.path.join(
         beta_path, f'{tre_type}_uncal_ranks_seq_len_{seq_len}_N_{N}.npy'))
     cal_ranks = np.load(os.path.join(
-        beta_path, f'{tre_type}_cal_ranks_seq_len_{seq_len}_N_{N}.npy'))
+        beta_path, f'{tre_type}_cal_ranks_{cal_type}_seq_len_{seq_len}_N_{N}.npy'))
 
     return uncal_ranks, cal_ranks
 
@@ -43,7 +43,7 @@ def compare_uncal_cal_ranks(uncal_ranks, cal_ranks):
 if __name__ == '__main__':
 
     d = dict()
-    N = 256
+    N = 128
     plot_difference = True
 
     colors = {'acf': '#1f77b4', 'beta': '#ff7f0e',
