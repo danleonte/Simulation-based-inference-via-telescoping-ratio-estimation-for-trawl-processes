@@ -181,6 +181,9 @@ if __name__ == '__main__':
     MLE_NRE = False
     GMM = False
     NBE = True
+    if NBE:
+
+        nbe_type = 'sym'  # or kl, rev, sym
     assert MLE_TRE + MLE_NRE + GMM + NBE == 1
 
     if MLE_TRE and not MLE_NRE and not GMM and not NBE:
@@ -210,7 +213,29 @@ if __name__ == '__main__':
 
     elif NBE and not MLE_NRE and not MLE_TRE and not GMM:
 
-        pass
+        folder_path = fr'D:\sbi_ambit\SBI_for_trawl_processes_and_ambit_fields\models\new_classifier\point_estimators\NBE\{nbe_type}'
+        results_path = os.path.join(folder_path, f'NBE_{seq_len}_num_rows_160')
+        os.makedirs(results_path, exist_ok=True)
+
+        df_acf = pd.read_pickle(os.path.join(
+            folder_path, f'df_acf_{seq_len}.pkl'))
+        df_mar = pd.read_pickle(os.path.join(
+            folder_path, f'df_mar_{seq_len}.pkl'))
+
+        true_acf_theta = np.array([np.array(i)
+                                  for i in df_acf.true_theta.values])
+        true_mar_theta = np.array([np.array(i)
+                                  for i in df_mar.true_theta.values])
+
+        infered_mar_theta = np.vstack([np.array(i)
+                                       for i in df_mar.point_estimators])
+        infered_acf_theta = np.vstack([np.array(i)
+                                       for i in df_acf.point_estimators])
+
+        compare_marginal_point_estimators(
+            true_mar_theta, infered_mar_theta, 'NBE')
+        compare_acf_point_estimators(
+            true_acf_theta, infered_acf_theta, 'NBE', num_lags)
 
     elif GMM:
 
@@ -240,8 +265,6 @@ if __name__ == '__main__':
         compare_marginal_point_estimators(
             true_marginal_theta, infered_marginal_theta, 'GMM')
 
-        print('only did marginal GMM, acf already done before')
-        raise ValueError
         #### do acf #####
         df_acf = pd.read_pickle(os.path.join(
             results_path, f'ACF_{seq_len}_{num_lags}.pkl'))

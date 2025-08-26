@@ -203,18 +203,18 @@ class TransformedACFGMM(GMM):
 def process_single_trawl(args):
     """
     Process a single trawl sequence for parallel execution.
-    
+
     Args:
         args: tuple containing (index, val_x, val_thetas, num_lags, trawl_function_name, lower_bound, upper_bound)
-    
+
     Returns:
         tuple: (index, true_theta, GMM_result)
     """
     index_, val_x, val_thetas, num_lags, trawl_function_name, lower_bound, upper_bound = args
-    
+
     true_trawl = val_x[index_]
     true_theta = val_thetas[index_]
-    
+
     # Estimate parameters using transformed approach
     result_dict = estimate_acf_parameters_transformed(
         true_trawl, num_lags, trawl_function_name,
@@ -222,12 +222,10 @@ def process_single_trawl(args):
         upper_bound=upper_bound,
         initial_guess=true_theta[:2]
     )
-    
     if result_dict is not None:
         GMM_result = result_dict['constrained_params']
     else:
         GMM_result = None
-    
     return (index_, true_theta, GMM_result)
 
 
@@ -240,10 +238,10 @@ if __name__ == '__main__':
 
     # Load dataset & configuration; later on double check the true_theta is the same in the dataset and in the MLE dataframe
     # folder_path = r'/home/leonted/SBI/SBI_for_trawl_processes_and_ambit_fields/models/classifier/NRE_full_trawl/uncalibrated'
-    folder_path = r'D:\sbi_trawls\SBI_for_trawl_processes_and_ambit_fields\models\new_classifier\TRE_full_trawl\selected_models'
-    seq_len = 1000
-    num_rows_to_load = 160  # how much data to load
-    num_trawls_to_use = 10000  # how much data to do GMM on
+    folder_path = r'D:\sbi_ambit\SBI_for_trawl_processes_and_ambit_fields\models\new_classifier\TRE_full_trawl\selected_models'
+    seq_len = 2000
+    num_rows_to_load = 80  # how much data to load
+    num_trawls_to_use = 5000  # how much data to do GMM on
     ###########
     trawl_process_type = 'sup_ig_nig_5p'
     trawl_function_name = 'sup_IG'
@@ -271,18 +269,19 @@ if __name__ == '__main__':
     val_thetas = val_thetas.reshape(-1, val_thetas.shape[-1])
 
     ########### Parallel processing setup ############
-    
+
     # Get number of CPUs to use (all available)
-    num_cpus = multiprocessing.cpu_count()
+    num_cpus = 7  # multiprocessing.cpu_count()
     print(f"Using {num_cpus} CPUs for parallel processing")
-    
+
     # Prepare arguments for parallel processing
     # Create a list of argument tuples for each index
     process_args = [
-        (index_, val_x, val_thetas, num_lags, trawl_function_name, lower_bound, upper_bound)
+        (index_, val_x, val_thetas, num_lags,
+         trawl_function_name, lower_bound, upper_bound)
         for index_ in range(num_trawls_to_use)
     ]
-    
+
     # Use multiprocessing Pool to process in parallel
     with multiprocessing.Pool(processes=num_cpus) as pool:
         # Process all trawls in parallel with progress bar
@@ -291,20 +290,19 @@ if __name__ == '__main__':
             total=num_trawls_to_use,
             desc="Processing trawls"
         ))
-    
+
     # Sort results by index to maintain original order
     results.sort(key=lambda x: x[0])
-    
+
     # Extract results into separate lists
     true_theta_list = [r[1] for r in results]
     GMM_list = [r[2] for r in results]
-    
+
     # Create dataframe with results
     df = pd.DataFrame({'true_theta': true_theta_list,
                       'GMM': GMM_list})
 
     df.to_pickle(f'ACF_{seq_len}_{num_lags}.pkl')
-
     # ############## OLD ##############
     # if False:
     #     if result_dict is not None:

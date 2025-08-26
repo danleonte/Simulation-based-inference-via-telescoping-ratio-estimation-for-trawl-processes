@@ -16,6 +16,51 @@ if True:
 
 import optax
 import pandas as pd
+import pickle
+
+
+def predict_2d(iso_reg, X):
+    """
+    Wrapper to handle any shape input for isotonic regression.
+
+    Parameters:
+    -----------
+    iso_reg : IsotonicRegression
+        Fitted isotonic regression model
+    X : np.ndarray or jnp.ndarray
+        Input array of any shape
+
+    Returns:
+    --------
+    np.ndarray : Predictions with same shape as input
+    """
+    original_shape = X.shape
+    X_flat = np.array(X.ravel())
+    y_pred = iso_reg.predict(X_flat)
+    return jnp.array(y_pred.reshape(original_shape))
+
+
+def apply_log_calibration(log_r, tre_type, calibration_type):
+    """inputs log_r, outputs exponential of the calibrated classifier"""
+
+    if calibration_type == 'None':
+
+        return log_r
+
+    elif calibration_type == 'beta':
+
+        log_r = beta_calibrate_log_r(
+            log_r, beta_calibration_params[tre_type])
+
+        return log_r
+
+    elif calibration_type == 'isotonic':
+
+        # exp(logit(p)) = p / (1-p)
+        # exp( logit( iso( sigma( )))) = iso( sigma( )) / (1 - iso( sigma( )))
+        intermediary = predict_2d(iso_calibration_dict[tre_type],
+                                  jax.nn.sigmoid(log_r))
+        return jnp.log(intermediary / (1-intermediary))
 
 
 def compute_metrics(log_r, Y):
@@ -42,7 +87,7 @@ def compute_metrics(log_r, Y):
     return bce_loss, S, B  # , accuracy
 
 
-def load_log_r_Y_TRE(seq_len, calibration):
+def load_log_r_Y_TRE(seq_len, calibration_type):
     base_path = os.path.join(os.path.dirname(os.path.dirname(os.getcwd())),
                              'models', 'new_classifier', 'TRE_full_trawl'
                              )
@@ -64,12 +109,15 @@ def load_log_r_Y_TRE(seq_len, calibration):
         Y_path = os.path.join(best_model_path, f'Y_{seq_len}_{tre_type}.npy')
         log_r_to_add = jnp.load(log_r_path).squeeze()
 
-        if calibration:
-            calibration_file_path = os.path.join(os.path.dirname(
-                best_model_path), f'beta_calibration_{seq_len}_{tre_type}.pkl')
-            cal_params = jnp.load(calibration_file_path, allow_pickle=True)
-            log_r_to_add = beta_calibrate_log_r(
-                log_r_to_add, cal_params['params'])
+        # if calibration:
+        #    calibration_file_path = os.path.join(os.path.dirname(
+        #        best_model_path), f'beta_calibration_{seq_len}_{tre_type}.pkl')
+        #    cal_params = jnp.load(calibration_file_path, allow_pickle=True)
+        #    log_r_to_add = beta_calibrate_log_r(
+        #        log_r_to_add, cal_params['params'])
+
+        log_r_to_add = apply_log_calibration(
+            log_r_to_add, tre_type, calibration_type)
 
         log_r += log_r_to_add
 
@@ -83,6 +131,7 @@ def load_log_r_Y_TRE(seq_len, calibration):
 
 
 def load_NRE_BCE_S_B(seq_len):
+    """only returns beta-calibratetd values, not isotonic regression."""
     base_path = os.path.join(os.path.dirname(os.path.dirname(os.getcwd())),
                              'models', 'new_classifier', 'NRE_full_trawl',
                              '04_12_04_25_37', 'best_model', 'val_data_results')
@@ -96,7 +145,7 @@ def load_NRE_BCE_S_B(seq_len):
     return df_NRE
 
 
-def final_metrics_NRE_and_TRE_validation(seq_len):
+def final_metrics_NRE_and_TRE_validation(seq_len, calibration_type):
     """this will read the validaton NRE_metrics, produce the TRE metrics,
     because we validated each of the individual NREs within TREs but not
     the TRE: BCE, S, B. The  
@@ -108,8 +157,8 @@ def final_metrics_NRE_and_TRE_validation(seq_len):
     df_NRE = load_NRE_BCE_S_B(seq_len)
 
     # load TRE BCE,S,B,mertics
-    uncal_log_r_TRE, Y_TRE = load_log_r_Y_TRE(seq_len, False)
-    cal_log_r_TRE, _ = load_log_r_Y_TRE(seq_len, True)
+    uncal_log_r_TRE, Y_TRE = load_log_r_Y_TRE(seq_len, 'None')
+    cal_log_r_TRE, _ = load_log_r_Y_TRE(seq_len, calibration_type)
 
     uncal_TRE = jnp.array(compute_metrics(uncal_log_r_TRE, Y_TRE))
     cal_TRE = jnp.array(compute_metrics(cal_log_r_TRE, Y_TRE))
@@ -123,11 +172,27 @@ def final_metrics_NRE_and_TRE_validation(seq_len):
 
 if __name__ == '__main__':
 
-    base_path_to_save_to = os.path.join(os.path.dirname(
-        os.path.dirname(os.getcwd())), 'models', 'new_classifier')
-
     for seq_len in (1000, 1500, 2000):
+        calibration_type = 'isotonic'
 
-        df = final_metrics_NRE_and_TRE_validation(seq_len)
-        file_name = f'BCE_S_B_for_NRE_and_TRE_{seq_len}.xlsx'
+        base_path_to_save_to = os.path.join(os.path.dirname(
+            os.path.dirname(os.getcwd())), 'models', 'new_classifier')
+
+        # load calibrations files
+        beta_calibration_params = dict()
+        iso_calibration_dict = dict()
+
+        for tre_type in ('acf', 'beta', 'mu', 'sigma'):
+
+            trained_classifier_path = os.path.join(
+                base_path_to_save_to, 'TRE_full_trawl', 'selected_models', tre_type)
+
+            with open(os.path.join(trained_classifier_path, f'beta_calibration_{seq_len}.pkl'), 'rb') as file:
+                beta_calibration_params[tre_type] = pickle.load(file)['params']
+
+            with open(os.path.join(trained_classifier_path, f'fitted_iso_{seq_len}_{tre_type}.pkl'), 'rb') as file:
+                iso_calibration_dict[tre_type] = pickle.load(file)
+
+        df = final_metrics_NRE_and_TRE_validation(seq_len, calibration_type)
+        file_name = f'BCE_S_B_for_NRE_and_TRE_{seq_len}_{calibration_type}.xlsx'
         df.to_excel(os.path.join(base_path_to_save_to, file_name))

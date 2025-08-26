@@ -103,7 +103,7 @@ def get_MLE(trawl_with_appropriate_length, true_theta, appropriate_wrapper):
 if __name__ == '__main__':
 
     val_x_2000, val_thetas, NRE_dict, TRE_dict = load_dataset_NRE_TRE()
-    idx_to_use = -10  # 71  # 19  # 0
+    idx_to_use = 5  # 71  # 19  # 0
     add_NRE_in_plot_1 = True
 
     #### PLOT 1: increasing seq_len with TRE / NRE #####
@@ -142,10 +142,10 @@ if __name__ == '__main__':
     time_points = np.arange(len(trawl_plot_1))
     ax1.plot(time_points, trawl_plot_1,
              color=colors['trawl'], linewidth=0.8, alpha=0.9)
-    ax1.set_xlabel('Time')  # , fontsize=12)#, fontweight='bold')
-    ax1.set_ylabel('Value', fontsize=12)  # , fontweight='bold')
+    ax1.set_xlabel('Time', fontsize=15)  # , fontweight='bold')
+    ax1.set_ylabel('Value', fontsize=15)  # , fontweight='bold')
     # fontweight='bold', pad=15 fontsize=14,)
-    ax1.set_title('Trawl Process Realization',  pad=15)
+    ax1.set_title('Trawl Process Realization',  pad=15, fontsize=16)
     ax1.grid(True, alpha=0.3)
     ax1.spines['top'].set_visible(False)
     ax1.spines['right'].set_visible(False)
@@ -164,16 +164,6 @@ if __name__ == '__main__':
     ax2.plot(marginal_plot_x_range, true_prob, label='True',
              color=colors['true'], linewidth=2.25, linestyle='--')
 
-    # GMM
-    marginal_jax_gmm_params = transform_to_constrained_jax(estimate_jax_parameters(
-        trawl_plot_1, theta_plot_1[2:]).params)
-    marginal_tf_gmm_params = convert_3_to_4_param_nig(marginal_jax_gmm_params)
-    gmm_dist = tfp_dist.NormalInverseGaussian(
-        *marginal_tf_gmm_params, validate_args=True)
-    gmm_prob = gmm_dist.prob(marginal_plot_x_range)
-    ax2.plot(marginal_plot_x_range, gmm_prob, label='GMM',
-             color=colors['gmm'], linewidth=1.75)
-
     # TRE marginal plot
     TRE_prob = tfp_dist.NormalInverseGaussian(
         *TRE_tf_params, validate_args=True).prob(marginal_plot_x_range)
@@ -187,15 +177,26 @@ if __name__ == '__main__':
         ax2.plot(marginal_plot_x_range, NRE_prob, label='NRE',
                  color=colors['NRE'], linewidth=1.75)
 
+    # GMM
+    marginal_jax_gmm_params = transform_to_constrained_jax(estimate_jax_parameters(
+        trawl_plot_1, theta_plot_1[2:]).params)
+    marginal_tf_gmm_params = convert_3_to_4_param_nig(marginal_jax_gmm_params)
+    gmm_dist = tfp_dist.NormalInverseGaussian(
+        *marginal_tf_gmm_params, validate_args=True)
+    gmm_prob = gmm_dist.prob(marginal_plot_x_range)
+    ax2.plot(marginal_plot_x_range, gmm_prob, label='GMM',
+             color=colors['gmm'], linewidth=1.75)
+
     # Add histogram of actual data
     ax2.hist(trawl_plot_1, bins=30, density=True, alpha=0.3,
              color='gray', edgecolor='black', linewidth=0.5)
 
-    ax2.set_xlabel('Value', fontsize=12)  # , fontweight='bold')
-    ax2.set_ylabel('Probability Density', fontsize=12)  # , fontweight='bold')
+    ax2.set_xlabel('Value', fontsize=15)  # , fontweight='bold')
+    ax2.set_ylabel('Probability Density', fontsize=15)  # , fontweight='bold')
     # fontweight='bold' fontsize=14,
-    ax2.set_title('Marginal Distribution Comparison',  pad=15)
-    ax2.legend(loc='upper right', frameon=True, fancybox=True, shadow=True)
+    ax2.set_title('Marginal Distribution Comparison',  pad=15, fontsize=16)
+    ax2.legend(loc='upper right', frameon=True,
+               fancybox=True, shadow=True, fontsize=15)
     ax2.grid(True, alpha=0.3)
     ax2.spines['top'].set_visible(False)
     ax2.spines['right'].set_visible(False)
@@ -206,12 +207,6 @@ if __name__ == '__main__':
     nlags = 30
     H = np.arange(0, nlags+1)
     acf_func = get_acf('sup_IG')
-
-    # Empirical ACF
-    empirical_acf = compute_empirical_acf(
-        trawl_plot_1, adjusted=True, nlags=nlags,)
-    ax3.plot(H, empirical_acf, 'o-', label='Empirical',
-             color=colors['empirical'], markersize=4.5, linewidth=1.5)
 
     # True ACF
     theoretical_acf = acf_func(H, theta_plot_1[:2])
@@ -239,18 +234,34 @@ if __name__ == '__main__':
     ax3.plot(H, gmm_acf, label='GMM',
              color=colors['gmm'], linewidth=1.75)
 
+    # Empirical ACF
+    empirical_acf = compute_empirical_acf(
+        trawl_plot_1, adjusted=True, nlags=nlags,)
+    ax3.plot(H, empirical_acf, 'o-', label='Empirical',
+             color=colors['empirical'], markersize=4.5, linewidth=1.5)
+
     # Add confidence bands for empirical ACF
     # not done yet
 
-    ax3.set_xlabel('Lag',)  # , fontweight='bold')  fontsize=12
-    ax3.set_ylabel('Autocorrelation',  fontsize=12)  # , fontweight='bold') ,
-    ax3.set_title('Autocorrelation Function Comparison',
+    ax3.set_xlabel('Lag', fontsize=15)  # , fontweight='bold')  fontsize=12
+    ax3.set_ylabel('Autocorrelation',  fontsize=15)  # , fontweight='bold') ,
+    ax3.set_title('Autocorrelation Function Comparison', fontsize=16,
                   pad=15)  # fontweight='bold' fontsize=14,
-    ax3.legend(loc='upper right', frameon=True, fancybox=True, shadow=True)
+    ax3.legend(loc='upper right', frameon=True,
+               fancybox=True, shadow=True, fontsize=15)
     ax3.grid(True, alpha=0.3)
     ax3.spines['top'].set_visible(False)
     ax3.spines['right'].set_visible(False)
     ax3.set_ylim(-0.1, 1.05)
+
+    # For subplot 1 (ax1)
+    ax1.tick_params(axis='both', which='major', labelsize=14)
+
+    # For subplot 2 (ax2)
+    ax2.tick_params(axis='both', which='major', labelsize=14)
+
+    # For subplot 3 (ax3)
+    ax3.tick_params(axis='both', which='major', labelsize=14)
 
     # Add overall title
     # fig.suptitle(f'Trawl Process Analysis (Sequence Length: 1500)',

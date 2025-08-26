@@ -860,7 +860,7 @@ def validate_new(trained_classifier_path, nr_batches, seq_len):
     # iso.predict(pred_prob_Y), bc.predict(pred_prob_Y)]
 
     ### spline calibration ###
-    num_bins_to_try = (2, 3, 4, 5, 6, 8, 10, 12)
+    num_bins_to_try = (4, 8, 10, 12)  # (2, 3, 4, 5, 6, 8, 10, 12)
 
     for num_bins_for_splines in num_bins_to_try:
 
@@ -887,7 +887,14 @@ def validate_new(trained_classifier_path, nr_batches, seq_len):
         mce_false = []
         ace_true = []
         ace_false = []
-        num_bins_false = 6  # beta 5
+        # to ensure we don't get numerical errors
+        if seq_len == 2000:
+            num_bins_false = 5
+        elif seq_len == 1500:
+            num_bins_false = 5
+        elif seq_len == 1000:
+            num_bins_false = 5  # beta 5
+
         num_bins_true = 20  # beta 20
 
         ece_false.append(ECE(bins=num_bins_false, equal_intervals=False).measure(
@@ -976,10 +983,10 @@ if __name__ == '__main__':
                     os.getcwd(), 'models', 'new_classifier', 'TRE_full_trawl', key, value)  # 'NRE_full_trawl '
 
             if False:
-
-                calibrate_new(trained_classifier_path, nr_batches, 2000)
-                calibrate_new(trained_classifier_path, nr_batches, 1500)
-                calibrate_new(trained_classifier_path, nr_batches, 1000)
+                pass
+                # calibrate_new(trained_classifier_path, nr_batches, 2000)
+                # calibrate_new(trained_classifier_path, nr_batches, 1500)
+                # calibrate_new(trained_classifier_path, nr_batches, 1000)
 
             # calibrate_new(trained_classifier_path, nr_batches, 2000)
             # calibrate_new(trained_classifier_path, nr_batches, 2500)
@@ -991,8 +998,8 @@ if __name__ == '__main__':
     # calibrate
             if True:
                 validate_new(trained_classifier_path, nr_batches, 2000)
-                validate_new(trained_classifier_path, nr_batches, 1500)
-                validate_new(trained_classifier_path, nr_batches, 1000)
+                # validate_new(trained_classifier_path, nr_batches, 1500)
+                # validate_new(trained_classifier_path, nr_batches, 1000)
                 # validate_new(trained_classifier_path, nr_batches, 2500)
 
         # calibrated_the_NRE_of_a_calibrated_TRE(
