@@ -111,7 +111,7 @@ def estimate_acf_parameters_transformed(trawl, num_lags, trawl_function_name,
         result = gmm_model.fit(
             start_params=unconstrained_initial,
             # No bounds needed since we're in unconstrained space
-            maxiter=30,
+            maxiter=35,
             optim_args={'disp': 0}  # Pass disp through optim_args
 
         )
@@ -222,12 +222,10 @@ def process_single_trawl(args):
         upper_bound=upper_bound,
         initial_guess=true_theta[:2]
     )
-
     if result_dict is not None:
         GMM_result = result_dict['constrained_params']
     else:
         GMM_result = None
-
     return (index_, true_theta, GMM_result)
 
 
