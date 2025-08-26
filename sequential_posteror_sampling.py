@@ -23,7 +23,7 @@ from src.utils.chebyshev_utils import chebint_ab, interpolation_points_domain, i
     vec_integrate_from_samples
 
 
-def create_parameter_sweep_fn(tre_type, N):
+def create_parameter_sweep_fn(tre_type, apply_fn_dict, bounds_dict, N):
     """
     Create a parameter sweep function with model function captured in closure.
 
@@ -111,7 +111,7 @@ def predict_2d(iso_reg, X):
     return jnp.array(y_pred.reshape(original_shape))
 
 
-def apply_calibration(log_r, tre_type, calibration_type):
+def apply_calibration(log_r, tre_type, calibration_type, calibration_dict):
     """inputs log_r, outputs exponential of the calibrated classifier"""
 
     if calibration_type == 'None':
@@ -121,39 +121,42 @@ def apply_calibration(log_r, tre_type, calibration_type):
     elif calibration_type == 'beta':
 
         log_r = beta_calibrate_log_r(
-            log_r, beta_calibration_params[tre_type])
+            log_r, calibration_dict[tre_type])
         return jnp.exp(log_r)
 
     elif calibration_type == 'isotonic':
 
         # exp(logit(p)) = p / (1-p)
         # exp( logit( iso( sigma( )))) = iso( sigma( )) / (1 - iso( sigma( )))
-        intermediary = predict_2d(iso_calibration_dict[tre_type],
+        intermediary = predict_2d(calibration_dict[tre_type],
                                   jax.nn.sigmoid(log_r))
         return intermediary / (1-intermediary)
 
-
-@jax.jit  # @partial(jax.jit, static_argnames=('tre_type',))
-def estimate_first_density(x_cache_to_use):
-
-    tre_type = 'acf'
-    evaluate_at_chebyshev_knots = parameter_sweeps_dict[tre_type]
-    bounds = bounds_dict[tre_type]
-    x_cached_shape = x_cache_to_use.shape[-1]
-
-    thetas = jnp.zeros((N, 5))
-    thetas = thetas.at[:, 0].set(
-        interpolation_points_domain(N, bounds[0], bounds[1]))
-    x_cache_to_use_expanded = jnp.broadcast_to(
-        x_cache_to_use, (N, x_cached_shape))  # x_cache_size
-
-    log_f_x_y = evaluate_at_chebyshev_knots(thetas, x_cache_to_use_expanded)
-
-    return log_f_x_y
+def estimate_first_density_enclosure(tre_type, parameter_sweeps_dict, bounds_dict, N):
+    
+    @jax.jit  # @partial(jax.jit, static_argnames=('tre_type',))
+    def estimate_first_density(x_cache_to_use):
+    
+        tre_type = 'acf'
+        evaluate_at_chebyshev_knots = parameter_sweeps_dict[tre_type]
+        bounds = bounds_dict[tre_type]
+        x_cached_shape = x_cache_to_use.shape[-1]
+    
+        thetas = jnp.zeros((N, 5))
+        thetas = thetas.at[:, 0].set(
+            interpolation_points_domain(N, bounds[0], bounds[1]))
+        x_cache_to_use_expanded = jnp.broadcast_to(
+            x_cache_to_use, (N, x_cached_shape))  # x_cache_size
+    
+        log_f_x_y = evaluate_at_chebyshev_knots(thetas, x_cache_to_use_expanded)
+    
+        return log_f_x_y
+    
+    return estimate_first_density
 
 
 # @partial(jax.jit, static_argnames=('tre_type',))
-def get_cond_prob_at_true_value(true_theta, x_cache_to_use, tre_type):
+def get_cond_prob_at_true_value(true_theta, x_cache_to_use, tre_type, parameter_sweeps_dict, bounds_dict, calibration_type, calibration_dict):
 
     a, b = bounds_dict[tre_type][0], bounds_dict[tre_type][1]
     param_idx = {'beta': -1, 'sigma': -2, 'mu': -3, 'acf': -4}[tre_type]
@@ -162,7 +165,7 @@ def get_cond_prob_at_true_value(true_theta, x_cache_to_use, tre_type):
         true_theta, x_cache_to_use[jnp.newaxis, :])
 
     prob_at_cheb_knots = apply_calibration(
-        log_prob_at_cheb_knots, tre_type, calibration_type)
+        log_prob_at_cheb_knots, tre_type, calibration_type,calibration_dict) 
 
     coeff = polyfit_domain(prob_at_cheb_knots, a, b)
     true_conditional_prob = chebval_ab_for_one_x(
@@ -177,7 +180,7 @@ if __name__ == '__main__':
     import seaborn as sns
 
     tre_types_list = ['acf', 'mu', 'sigma', 'beta']
-    seq_len = 200
+    seq_len = 1000
     trawl_process_type = 'sup_ig_nig_5p'
     N = 128
     num_samples = 10**4
@@ -210,19 +213,22 @@ if __name__ == '__main__':
     apply_fn_dict = dict()
     appl_fn_to_get_x_cache_dict = dict()
     parameter_sweeps_dict = dict()
-    if calibration_type == 'beta':
-        beta_calibration_params = dict()
-
-    elif calibration_type == 'isotonic':
-        iso_calibration_dict = dict()
+    #if calibration_type == 'beta':
+    #    beta_calibration_params = dict()
+#
+    #elif calibration_type == 'isotonic':
+    #    iso_calibration_dict = dict()
+    calibration_dict = dict()
 
     bounds_dict = {'acf': [10., 20.], 'beta': [-5., 5.],
                    'mu': [-1., 1.], 'sigma': [0.5, 1.5]}
+    
+
 
     for tre_type in tre_types_list:
 
-        trained_classifier_path = f'/home/leonted/SBI/SBI_for_trawl_processes_and_ambit_fields/models/new_classifier/TRE_full_trawl/selected_models/{tre_type}'
-        # trained_classifier_path = f'D:\\sbi_ambit\\SBI_for_trawl_processes_and_ambit_fields\\models\\new_classifier\\TRE_full_trawl\\selected_models\\{tre_type}'
+        # trained_classifier_path = f'/home/leonted/SBI/SBI_for_trawl_processes_and_ambit_fields/models/new_classifier/TRE_full_trawl/selected_models/{tre_type}'
+        trained_classifier_path = f'D:\\sbi_trawls\\SBI_for_trawl_processes_and_ambit_fields\\models\\new_classifier\\TRE_full_trawl\\selected_models\\{tre_type}'
         model, params, _, __bounds = load_one_tre_model_only_and_prior_and_bounds(
             trained_classifier_path, dummy_x, trawl_process_type, tre_type)
 
@@ -237,16 +243,19 @@ if __name__ == '__main__':
         # load calibratitons params
         if calibration_type == 'beta':
             with open(os.path.join(trained_classifier_path, f'beta_calibration_{seq_len}.pkl'), 'rb') as file:
-                beta_calibration_params[tre_type] = pickle.load(file)['params']
+                #beta_calibration_params[tre_type] = pickle.load(file)['params']
+                calibration_dict[tre_type] = pickle.load(file)['params']
 
         elif calibration_type == 'isotonic':
             # Load the model
             with open(os.path.join(trained_classifier_path, f'fitted_iso_{seq_len}_{tre_type}.pkl'), 'rb') as file:
-                iso_calibration_dict[tre_type] = pickle.load(file)
+                #iso_calibration_dict[tre_type] = pickle.load(file)
+                calibration_dict[tre_type] = pickle.load(file)
+
 
         # create parameter sweeps here:
         parameter_sweeps_dict[tre_type] = create_parameter_sweep_fn(
-            tre_type, N+1)  # +1 just to make sure we do not confuse the first two acf components
+            tre_type, apply_fn_dict, bounds_dict, N+1)  # +1 just to make sure we do not confuse the first two acf components
 
         # Load x_cache or precmpue it and save it
         val_x_cache_path = os.path.join(
@@ -279,10 +288,18 @@ if __name__ == '__main__':
 
     # to use with acf  ### ignore for now
 
-    def acf_integrate_partial(samples):
-        return integrate_from_sampled(samples, a=bounds_dict['acf'][0], b=bounds_dict['acf'][1])
-    vec_integrate_2nd_component_acf_from_sampled = jax.jit(
-        jax.vmap(acf_integrate_partial))
+    def acf_integrate_partial_enclosure(bounds_dict):
+        
+        def acf_integrate_partial(samples):
+            return integrate_from_sampled(samples, a=bounds_dict['acf'][0], b=bounds_dict['acf'][1])
+        vec_integrate_2nd_component_acf_from_sampled = jax.jit(
+            jax.vmap(acf_integrate_partial))
+        
+        return acf_integrate_partial, vec_integrate_2nd_component_acf_from_sampled
+    
+    #added enclosures so i can call these functions from a different script, for the application
+    estimate_first_density = estimate_first_density_enclosure(tre_type, parameter_sweeps_dict, bounds_dict, N)
+    acf_integrate_partial, vec_integrate_2nd_component_acf_from_sampled  = acf_integrate_partial_enclosure(bounds_dict)
 
     #########################
 
@@ -303,7 +320,7 @@ if __name__ == '__main__':
         two_d_log_prob = estimate_first_density(true_x_cache)
         # calibrate 2d grid probabilities
         two_d_prob = apply_calibration(
-            two_d_log_prob, tre_type, calibration_type)
+            two_d_log_prob, tre_type, calibration_type, calibration_dict) 
         # get 1d prob for the first component
         f_x = vec_integrate_2nd_component_acf_from_sampled(
             two_d_prob)  # vec_integrate_from_sampled(two_d_prob)
@@ -340,7 +357,7 @@ if __name__ == '__main__':
                 thetas_, x_cache_to_use_expanded)
 
             conditional_prob_at_cheb_knots = apply_calibration(
-                log_conditional_prob_at_cheb_knots, tre_type, calibration_type)
+                log_conditional_prob_at_cheb_knots, tre_type, calibration_type, calibration_dict) 
 
             conditional_density_cheb_coeff = vec_polyfit_domain(
                 conditional_prob_at_cheb_knots, bounds_dict[tre_type][0], bounds_dict[tre_type][1])
@@ -358,7 +375,7 @@ if __name__ == '__main__':
                                                                                                 bounds_dict[tre_type][0], bounds_dict[tre_type][1]).squeeze() / normalizing_constants
             # get true conditional probability
             true_conditional_density = get_cond_prob_at_true_value(
-                true_theta, x_cache_to_use, tre_type)
+                true_theta, x_cache_to_use, tre_type, parameter_sweeps_dict, bounds_dict, calibration_type, calibration_dict)
 
             sample_densities *= conditional_prob
             true_density *= true_conditional_density

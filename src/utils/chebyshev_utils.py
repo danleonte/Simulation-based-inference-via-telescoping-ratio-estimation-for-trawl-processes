@@ -338,7 +338,7 @@ def chebcdf(coeff, a, b):
     return lambda x: (chebval_ab_for_one_x(x, coeffs_int, a, b) - offset) / scale
 
 
-def vectorized_bisection(func, lower, upper, max_iter=40):
+def vectorized_bisection(func, lower, upper, max_iter=52):
 
     # f = vectorized_grad_log_density_dictionary[distr_name]
 
