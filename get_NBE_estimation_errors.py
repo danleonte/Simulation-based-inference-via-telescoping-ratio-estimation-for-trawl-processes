@@ -18,14 +18,17 @@ from functools import partial
 from jax.random import PRNGKey
 from src.utils.get_model import get_model
 from src.utils.acf_functions import get_acf
+import pandas as pd
+
+nbe_type = 'sym'  # refers to the type of trained marginal NBE; can be either
+# direct, kl, rev or sym; the ACF NBE is the same
 
 
 acf_model_path = os.path.join(
     'models', '_other_stuff', 'summary_statistics', 'learn_acf', 'best_model')
 marginal_model_path = os.path.join(
-    'models', '_other_stuff', 'summary_statistics', 'learn_marginal', 'best_model_direct')
+    'models', '_other_stuff', 'summary_statistics', 'learn_marginal', f'best_model_{nbe_type}')
 
-prefix = 'direct' if 'direct' in marginal_model_path else 'kl'
 
 # load config files
 with open(os.path.join(acf_model_path, 'config.yaml'), 'r') as f:
@@ -66,6 +69,8 @@ def normalize_data(x):
 
 if __name__ == '__main__':
 
+    NBE_path = os.path.join(
+        os.getcwd(), 'models', 'new_classifier', 'point_estimators', 'NBE', nbe_type)
     acf_func = jax.vmap(get_acf('sup_IG'), in_axes=(None, 0))
     num_rows_to_load = 160
     num_lags = 35
@@ -88,26 +93,30 @@ if __name__ == '__main__':
         val_x = val_x.reshape(-1, val_x.shape[-1])
         val_thetas = val_thetas.reshape(-1, val_thetas.shape[-1])
 
-        if not os.path.exists(f'{prefix}_infered_marginal_{seq_len}.npy'):
+        mar_path = os.path.join(
+            NBE_path, f'{nbe_type}_infered_marginal_{seq_len}.npy')
+        if not os.path.exists(mar_path):
             infered_marginal = apply_marginal_model(val_x)
             infered_marginal = infered_marginal.at[:, 1].set(
                 jnp.exp(infered_marginal[:, 1]))
             np.save(
-                file=f'{prefix}_infered_marginal_{seq_len}.npy', arr=infered_marginal)
+                file=mar_path, arr=infered_marginal)
 
         else:
 
             infered_marginal = np.load(
-                f'{prefix}_infered_marginal_{seq_len}.npy')
+                mar_path)
 
-        if not os.path.exists(f'infered_theta_acf_{seq_len}.npy'):
+        acf_path = os.path.join(NBE_path, f'infered_theta_acf_{seq_len}.npy')
+
+        if not os.path.exists(acf_path):
             val_x = normalize_data(val_x)
             infered_theta_acf = jnp.exp(apply_acf_model(val_x))
             np.save(
-                file=f'infered_theta_acf_{seq_len}.npy', arr=infered_theta_acf)
+                file=acf_path, arr=infered_theta_acf)
 
         else:
-            infered_theta_acf = np.load(f'infered_theta_acf_{seq_len}.npy')
+            infered_theta_acf = np.load(acf_path)
 
         index_mar = (
             (infered_marginal[:, 0] >= -1) & (infered_marginal[:, 0] <= 1) &
@@ -115,28 +124,37 @@ if __name__ == '__main__':
             (infered_marginal[:, 2] >= -5) & (infered_marginal[:, 2] <= 5)
         )
 
-        print('Starting KL divergence calculations')
-
-        MAE_m[seq_len] = jnp.mean(
-            jnp.abs(val_thetas[:, 2:] - infered_marginal)[index_mar], axis=0)
-        MSE_m[seq_len] = jnp.mean(
-            (val_thetas[:, 2:] - infered_marginal)[index_mar]**2, axis=0)**0.5
-
-        H = np.arange(1, num_lags + 1)
-        theoretical_acf = acf_func(H, val_thetas[:, :2])
-        infered_acf = acf_func(H, infered_theta_acf)  # infered_theta[:, :2])
-        acf_differences = np.abs(theoretical_acf - infered_acf)
-
         index_acf = (infered_theta_acf < 20) & (infered_theta_acf > 10)
         index_acf = index_acf.all(axis=1)
-        L1_acf[seq_len] = np.mean(acf_differences[index_acf])
-        L2_acf[seq_len] = np.mean(
-            np.sqrt(np.mean(acf_differences[index_acf]**2, axis=1)))
 
-        del val_x
-        del val_thetas
+        df_mar = pd.DataFrame({'true_theta': list(val_thetas[index_mar]),  # exclude outputs that are out of range
+                               'point_estimators':  list(infered_marginal[index_mar])
+                               })
 
-    NBE_acf_loss = dict()
-    NBE_mar_loss = dict()
+        df_acf = pd.DataFrame({'true_theta': list(val_thetas[index_acf]),  # exclude outputs that are out of range
+                               'point_estimators':  list(infered_theta_acf[index_acf])
+                               })
 
-    for seq_len in (1000, 1500, 2000):
+        df_mar.to_pickle(os.path.join(NBE_path, f'df_mar_{seq_len}.pkl'))
+        df_acf.to_pickle(os.path.join(NBE_path, f'df_acf_{seq_len}.pkl'))
+
+        if False:
+            print('Starting KL divergence calculations')
+
+            MAE_m[seq_len] = jnp.mean(
+                jnp.abs(val_thetas[:, 2:] - infered_marginal)[index_mar], axis=0)
+            MSE_m[seq_len] = jnp.mean(
+                (val_thetas[:, 2:] - infered_marginal)[index_mar]**2, axis=0)**0.5
+
+            H = np.arange(1, num_lags + 1)
+            theoretical_acf = acf_func(H, val_thetas[:, :2])
+            # infered_theta[:, :2])
+            infered_acf = acf_func(H, infered_theta_acf)
+            acf_differences = np.abs(theoretical_acf - infered_acf)
+
+            L1_acf[seq_len] = np.mean(acf_differences[index_acf])
+            L2_acf[seq_len] = np.mean(
+                np.sqrt(np.mean(acf_differences[index_acf]**2, axis=1)))
+
+            del val_x
+            del val_thetas

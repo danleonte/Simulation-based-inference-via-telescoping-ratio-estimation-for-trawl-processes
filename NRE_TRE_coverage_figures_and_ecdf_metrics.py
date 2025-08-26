@@ -12,15 +12,22 @@ import os
 from get_ecdf_statistics import summarize_ecdf_metrics, compare_uncal_cal_ranks
 
 
-def load_NRE_TRE_ranks(classifier_type, seq_len):
+def load_uncal_and_beta_cal_NRE_TRE_ranks(classifier_type, seq_len):
 
     base = os.path.join(os.getcwd(), 'models', 'new_classifier',
                         'coverage_check_ranks_NRE_and_TRE')
 
-    uncal_ranks = np.load(os.path.join(
-        base, f'{classifier_type}_{seq_len}no_calibration.npy'))
-    cal_ranks = np.load(os.path.join(
-        base, f'{classifier_type}_{seq_len}beta_calibration.npy'))
+    if classifier_type == 'NRE':
+        uncal_ranks = np.load(os.path.join(
+            base, f'{classifier_type}_{seq_len}no_calibration.npy'))
+        cal_ranks = np.load(os.path.join(
+            base, f'{classifier_type}_{seq_len}beta_calibration.npy'))
+
+    elif classifier_type == 'TRE':
+        uncal_ranks = np.load(os.path.join(
+            base, f'seq_sampling_{classifier_type}_{seq_len}_None_128_160.npy'))
+        cal_ranks = np.load(os.path.join(
+            base, f'seq_sampling_{classifier_type}_{seq_len}_beta_128_160.npy'))
 
     return uncal_ranks, cal_ranks
 
@@ -45,7 +52,7 @@ if __name__ == '__main__':
         ax = axes[i]
 
         for classifier_type in ('NRE', 'TRE'):
-            uncal_ranks, cal_ranks = load_NRE_TRE_ranks(
+            uncal_ranks, cal_ranks = load_uncal_and_beta_cal_NRE_TRE_ranks(
                 classifier_type, seq_len)
             d[(classifier_type, seq_len)] = compare_uncal_cal_ranks(
                 uncal_ranks, cal_ranks)
@@ -95,20 +102,20 @@ if __name__ == '__main__':
                 color='black', alpha=0.4, linewidth=1, linestyle=':')
 
         # Styling improvements
-        ax.set_title(rf'$k$={seq_len}', fontsize=12, pad=10)
+        ax.set_title(rf'$k$={seq_len}', fontsize=13, pad=10)
 
         # Only add x-label to the middle plot
         if i == 1:  # Middle subplot (index 1)
-            ax.set_xlabel(r'Theoretical coverage level $\alpha$', fontsize=11)
+            ax.set_xlabel(r'Theoretical coverage level $\alpha$', fontsize=13)
 
         # Only add y-label to the leftmost plot
         if i == 0:
             ax.set_ylabel(
-                r'Coverage deviation $\mathcal{C}_{\alpha} - \alpha$', fontsize=11)
+                r'Coverage deviation $\mathcal{C}_{\alpha} - \alpha$', fontsize=13)
 
         # Add subtle grid
         ax.grid(True, alpha=0.2, linestyle='-', linewidth=0.5)
-        ax.tick_params(axis='both', which='major', labelsize=9)
+        ax.tick_params(axis='both', which='major', labelsize=13)
 
     # Create a custom legend on the rightmost subplot with proper line styles
     labels = ['NRE uncalibrated', 'NRE calibrated',
@@ -118,7 +125,7 @@ if __name__ == '__main__':
                     frameon=True,
                     fancybox=True,
                     shadow=True,
-                    fontsize=9,
+                    fontsize=12,
                     framealpha=0.95,
                     handlelength=3.0,  # Make legend lines longer to show dash pattern
                     handletextpad=0.8)  # Add some space between line and text

@@ -199,6 +199,38 @@ class TransformedACFGMM(GMM):
 
 ########################################################
 
+# Worker function for parallel processing
+def process_single_trawl(args):
+    """
+    Process a single trawl sequence for parallel execution.
+
+    Args:
+        args: tuple containing (index, val_x, val_thetas, num_lags, trawl_function_name, lower_bound, upper_bound)
+
+    Returns:
+        tuple: (index, true_theta, GMM_result)
+    """
+    index_, val_x, val_thetas, num_lags, trawl_function_name, lower_bound, upper_bound = args
+
+    true_trawl = val_x[index_]
+    true_theta = val_thetas[index_]
+
+    # Estimate parameters using transformed approach
+    result_dict = estimate_acf_parameters_transformed(
+        true_trawl, num_lags, trawl_function_name,
+        lower_bound=lower_bound,
+        upper_bound=upper_bound,
+        initial_guess=true_theta[:2]
+    )
+
+    if result_dict is not None:
+        GMM_result = result_dict['constrained_params']
+    else:
+        GMM_result = None
+
+    return (index_, true_theta, GMM_result)
+
+
 if __name__ == '__main__':
     import os
     import yaml
@@ -209,9 +241,9 @@ if __name__ == '__main__':
     # Load dataset & configuration; later on double check the true_theta is the same in the dataset and in the MLE dataframe
     # folder_path = r'/home/leonted/SBI/SBI_for_trawl_processes_and_ambit_fields/models/classifier/NRE_full_trawl/uncalibrated'
     folder_path = r'D:\sbi_ambit\SBI_for_trawl_processes_and_ambit_fields\models\new_classifier\TRE_full_trawl\selected_models'
-    seq_len = 1000
-    num_rows_to_load = 160  # how much data to load
-    num_trawls_to_use = 10000  # how much data to do GMM on
+    seq_len = 2000
+    num_rows_to_load = 80  # how much data to load
+    num_trawls_to_use = 5000  # how much data to do GMM on
     ###########
     trawl_process_type = 'sup_ig_nig_5p'
     trawl_function_name = 'sup_IG'
@@ -238,45 +270,41 @@ if __name__ == '__main__':
     val_x = val_x.reshape(-1, seq_len)
     val_thetas = val_thetas.reshape(-1, val_thetas.shape[-1])
 
-    ########### empty lists to append results to ############
-    true_theta_list = []
-    GMM_list = []
-    # result_list = []
+    ########### Parallel processing setup ############
 
-    for index_ in tqdm(range(num_trawls_to_use)):  # tqdm(range(len(mle_df))):
+    # Get number of CPUs to use (all available)
+    num_cpus = 7  # multiprocessing.cpu_count()
+    print(f"Using {num_cpus} CPUs for parallel processing")
 
-        # trawl_idx = mle_df.iloc[index_].idx
-        # true_theta_from_mle = mle_df.iloc[index_].true_theta
-        # true_theta = true_thetas[trawl_idx]
-        # assert all(np.isclose(true_theta_from_mle, true_theta))
+    # Prepare arguments for parallel processing
+    # Create a list of argument tuples for each index
+    process_args = [
+        (index_, val_x, val_thetas, num_lags,
+         trawl_function_name, lower_bound, upper_bound)
+        for index_ in range(num_trawls_to_use)
+    ]
 
-        # true_trawl = true_trawls[trawl_idx]
+    # Use multiprocessing Pool to process in parallel
+    with multiprocessing.Pool(processes=num_cpus) as pool:
+        # Process all trawls in parallel with progress bar
+        results = list(tqdm(
+            pool.imap(process_single_trawl, process_args),
+            total=num_trawls_to_use,
+            desc="Processing trawls"
+        ))
 
-        true_trawl = val_x[index_]
-        true_theta = val_thetas[index_]
+    # Sort results by index to maintain original order
+    results.sort(key=lambda x: x[0])
 
-        # Estimate parameters using transformed approach
-        result_dict = estimate_acf_parameters_transformed(
-            true_trawl, num_lags, trawl_function_name,
-            lower_bound=lower_bound,
-            upper_bound=upper_bound,
-            initial_guess=true_theta[:2]
-        )
-        # result_list.append(result_dict)
-        true_theta_list.append(true_theta)
-        if result_dict is not None:
+    # Extract results into separate lists
+    true_theta_list = [r[1] for r in results]
+    GMM_list = [r[2] for r in results]
 
-            GMM_list.append(result_dict['constrained_params'])
-
-        else:
-
-            GMM_list.append(None)
-
+    # Create dataframe with results
     df = pd.DataFrame({'true_theta': true_theta_list,
                       'GMM': GMM_list})
 
     df.to_pickle(f'ACF_{seq_len}_{num_lags}.pkl')
-
     # ############## OLD ##############
     # if False:
     #     if result_dict is not None:

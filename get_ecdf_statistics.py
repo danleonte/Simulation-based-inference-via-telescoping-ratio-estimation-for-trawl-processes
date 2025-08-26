@@ -50,6 +50,7 @@ if __name__ == '__main__':
               'mu': '#2ca02c', 'sigma': '#d62728'}
 
     seq_lengths = [1000, 1500, 2000]
+    calibration_type = 'beta'
 
     # Create figure with 3 subplots
     fig, axes = plt.subplots(1, 3, figsize=(15, 4.5), sharey=True,
@@ -64,7 +65,7 @@ if __name__ == '__main__':
 
         for tre_type in ('acf', 'beta', 'mu', 'sigma'):
             uncal_ranks, cal_ranks = load_NRE_within_TRE_ranks(
-                tre_type, seq_len, N)
+                tre_type, seq_len, N, calibration_type)
 
             d[(tre_type, seq_len)] = compare_uncal_cal_ranks(
                 uncal_ranks, cal_ranks)
@@ -106,20 +107,20 @@ if __name__ == '__main__':
                 color='black', alpha=0.4, linewidth=1, linestyle=':')
 
         # Improve the plot styling
-        ax.set_title(rf'$k$={seq_len}', fontsize=12, pad=10)
+        ax.set_title(rf'$k$={seq_len}', fontsize=13, pad=10)
 
         # Only add x-label to the middle plot
         if i == 1:
-            ax.set_xlabel(r'Theoretical coverage level $\alpha$', fontsize=11)
+            ax.set_xlabel(r'Theoretical coverage level $\alpha$', fontsize=13)
 
         # Only add y-label to the leftmost plot
         if i == 0:
             ax.set_ylabel(
-                r'Coverage deviation $\mathcal{C}_{\alpha} - \alpha$', fontsize=11)
+                r'Coverage deviation $\mathcal{C}_{\alpha} - \alpha$', fontsize=13)
 
         # Add subtle grid
         ax.grid(True, alpha=0.2, linestyle='-', linewidth=0.5)
-        ax.tick_params(axis='both', which='major', labelsize=9)
+        ax.tick_params(axis='both', which='major', labelsize=13)
 
     legend_elements = legend_elements_uncal + legend_elements_cal
     labels = [
@@ -132,7 +133,7 @@ if __name__ == '__main__':
                     frameon=True,
                     fancybox=True,
                     shadow=True,
-                    fontsize=8,
+                    fontsize=12,
                     framealpha=0.95,
                     handlelength=2.5,
                     handletextpad=0.6,
