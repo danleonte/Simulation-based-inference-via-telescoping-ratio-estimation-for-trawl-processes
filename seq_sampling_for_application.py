@@ -29,11 +29,11 @@ if __name__ == '__main__':
     import pandas as pd 
 
     tre_types_list = ['acf', 'mu', 'sigma', 'beta']
-    seq_len = 1500
+    seq_len = 1000
     trawl_process_type = 'sup_ig_nig_5p'
     N = 128
-    num_samples = 10**3
-    batch_size_for_evaluating_x_cache = 22
+    num_samples = 5 * 10**3
+    batch_size_for_evaluating_x_cache = 1
     key = jax.random.PRNGKey(np.random.randint(1, 100000))
     vec_key = jax.random.PRNGKey(np.random.randint(1, 100000))
     vec_key = jax.random.split(vec_key, num_samples)
@@ -44,23 +44,32 @@ if __name__ == '__main__':
     assert calibration_type in ('None', 'beta', 'isotonic')
 
     ### load data ###
-    lead_to_use   = 0 
-    chanel_to_use = 'T3'
-    window_size = seq_len ############# do not redefine window_size to be different
-    step_size = 100
-    dataset_path = os.path.join(os.path.dirname(os.getcwd()), 'data') 
-    data = pd.read_csv(os.path.join(dataset_path, 'application_data.csv'))
-    data = data[data.Lead== lead_to_use][chanel_to_use]
+    #lead_to_use   = 0 
+    #chanel_to_use = 'T3'
+    #window_size = seq_len ############# do not redefine window_size to be different
+    #step_size = 100
+    #dataset_path = os.path.join(os.path.dirname(os.getcwd()), 'data') 
+    #data = pd.read_csv(os.path.join(dataset_path, 'application_data.csv'))
+    #data = data[data.Lead== lead_to_use][chanel_to_use]
     
-    data_length = len(data)
-    last_valid_start = data_length - window_size
+    window_size = seq_len
+    step_size = 168
+    dataset_path = os.path.join(os.path.dirname(os.getcwd()), 'data') 
+    data = pd.read_csv(os.path.join(dataset_path, 'd_h_temp_data_1999-01-01_2019-01-01_deseazonalized_both.csv'))
+                                    #'VIX_25_y.csv'))['resid']#'normalized_temperature_data1.csv'))
+    
+    first_end = 2000
+    ends = np.arange(first_end, len(data), step_size)
+    starts = ends - seq_len 
+    #last_end = ((len(data) - 2000)) // step_size * step_size
+    #ends  = np.arange()
     
     x = []
     
-    for start in range(0, last_valid_start + 1, step_size):
-        x.append(data.iloc[start:start+window_size])
+    for start, end in zip(starts, ends):
+        x.append(data['AIR_TEMPERATURE'].iloc[start:end].values)
         
-    x = jnp.array(x)
+    x = jnp.array(x).squeeze()
 
     ### load models and precompute x_cache ###
     models_dict = dict()
@@ -244,7 +253,21 @@ if __name__ == '__main__':
         del sample_densities
         del conditional_prob
         
-    result_samples_array = []
+    result_samples_array = np.array(result_sample_list)
+    
+    means, stds = np.mean(x,axis=1, keepdims = True), np.std(x,axis=1, keepdims = True)
+    # undo the transformation (x-mu) / std = y -> x = std * y +  mu
+    
+    result_samples_array[:,:,2] = result_samples_array[:,:,2] * stds
+    result_samples_array[:,:,2] = result_samples_array[:,:,2] + means
+    result_samples_array[:,:,3] = result_samples_array[:,:,3] * stds
+    
+    argmax_list = [int(np.argmax(i)) for i in result_sample_MAP]
+    results_MAP = [result_samples_array[index][argmax_list[index]] for index in range(len(result_sample_list))]
+    
+    np.save(os.path.join(dataset_path,f'results_{seq_len}.npy'), result_samples_array)
+    np.save(os.path.join(dataset_path,f'results_MAP_{seq_len}.npy'), results_MAP)
+
     #to be careful to only modify the mu and sigma columns
     #for i in range(result_sample_list):
         
