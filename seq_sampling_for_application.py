@@ -15,7 +15,7 @@ from src.utils.chebyshev_utils import chebint_ab, interpolation_points_domain, i
     vec_polyfit_domain, sample_from_coeff, chebval_ab_jax, vec_sample_from_coeff,\
     chebval_ab_for_one_x, vec_chebval_ab_for_multiple_x_per_envelope_and_multple_envelopes,\
     vec_integrate_from_samples
-    
+import statsmodels as sm
 
 from sequential_posteror_sampling import create_parameter_sweep_fn, model_apply_wrapper, predict_2d, \
     apply_calibration, estimate_first_density_enclosure, get_cond_prob_at_true_value
@@ -29,7 +29,7 @@ if __name__ == '__main__':
     import pandas as pd 
 
     tre_types_list = ['acf', 'mu', 'sigma', 'beta']
-    seq_len = 1000
+    seq_len = 1500
     trawl_process_type = 'sup_ig_nig_5p'
     N = 128
     num_samples = 5 * 10**3
@@ -53,21 +53,26 @@ if __name__ == '__main__':
     #data = data[data.Lead== lead_to_use][chanel_to_use]
     
     window_size = seq_len
-    step_size = 168
-    dataset_path = os.path.join(os.path.dirname(os.getcwd()), 'data') 
-    data = pd.read_csv(os.path.join(dataset_path, 'd_h_temp_data_1999-01-01_2019-01-01_deseazonalized_both.csv'))
+    step_size = 250
+    dataset_path = os.path.join(os.path.dirname(os.getcwd()), 'data','RV_panel','symbols','.IBEX')#, ''normalized_temperature_data1.csv'') #'energy')#,'des_and_detrended') 
+    data = pd.read_excel(os.path.join(dataset_path, '.IBEX.xlsx')).medrv #'VIX_25_y.csv'))['resid']#'des_and_detrended_2013-01-01_2017-12-12.csv'))
                                     #'VIX_25_y.csv'))['resid']#'normalized_temperature_data1.csv'))
+        
+    data = data.apply(np.log)
     
-    first_end = 2000
+    first_end = seq_len
     ends = np.arange(first_end, len(data), step_size)
     starts = ends - seq_len 
     #last_end = ((len(data) - 2000)) // step_size * step_size
     #ends  = np.arange()
+    window_indices = [0,8,16]
     
     x = []
     
     for start, end in zip(starts, ends):
-        x.append(data['AIR_TEMPERATURE'].iloc[start:end].values)
+        x_to_add = data.iloc[start:end].values
+        x_to_add[np.isnan(x_to_add)] = x_to_add.mean()
+        x.append(x_to_add)#data['T3'].iloc[start:end].values)
         
     x = jnp.array(x).squeeze()
 
@@ -85,6 +90,8 @@ if __name__ == '__main__':
 
     bounds_dict = {'acf': [10., 20.], 'beta': [-5., 5.],
                    'mu': [-1., 1.], 'sigma': [0.5, 1.5]}
+    
+    #x = jnp.array(data.x)[jnp.newaxis,:]
     
 
 
@@ -267,6 +274,13 @@ if __name__ == '__main__':
     
     np.save(os.path.join(dataset_path,f'results_{seq_len}.npy'), result_samples_array)
     np.save(os.path.join(dataset_path,f'results_MAP_{seq_len}.npy'), results_MAP)
+    np.save(os.path.join(dataset_path,f'result_samples_array_{seq_len}.npy'),result_samples_array)
+    
+    # Instead of just saving a single array:
+    results_dict = {seq_len: result_samples_array}
+    
+    # Save to disk
+    np.save(os.path.join(dataset_path, f'results_dict.npy'), results_dict, allow_pickle=True)
 
     #to be careful to only modify the mu and sigma columns
     #for i in range(result_sample_list):
@@ -283,3 +297,162 @@ if __name__ == '__main__':
     #result_sample_MAP = jnp.stack(result_sample_MAP)
     #result_sample_MAP = [result_sample_MAP[i][jnp.argmax(result_sample_MAP,axis=1)[i]] for i in range(result_sample_MAP.shape[0])]
         
+import matplotlib.pyplot as plt
+
+@jax.jit
+def corr_sup_ig_envelope(h, params):
+    gamma, eta = params
+    return jnp.exp(eta * (1 - jnp.sqrt(1 + 2*h/gamma**2)))
+
+
+def plot_posterior_acf_for_window(x_window, param_samples, nlags=10, ci_level=95, window_id=None):
+    """
+    Plot empirical vs posterior ACF for one time series window.
+
+    Parameters
+    ----------
+    x_window : array, shape [seq_len]
+        The original time series segment.
+    param_samples : array, shape [num_samples, 2]
+        Posterior samples of ACF parameters (gamma, eta).
+    nlags : int
+        Number of lags to compute.
+    ci_level : int
+        Credible interval level (default 95).
+    window_id : int or None
+        Identifier for labeling the plot.
+    """
+
+    h = jnp.arange(1, nlags+1, 1)
+
+    # Compute empirical ACF
+    empirical_acf = sm.tsa.stattools.acf(np.array(x_window), nlags=nlags)[1:]
+
+    # Compute posterior ACFs
+    acf_curves = jax.vmap(lambda pars: corr_sup_ig_envelope(h, pars))(param_samples)
+    acf_curves = np.array(acf_curves)   # [num_samples, nlags]
+
+    # Summaries
+    posterior_mean = np.mean(acf_curves, axis=0)
+    posterior_median = np.median(acf_curves, axis=0)
+    lower = np.percentile(acf_curves, (100-ci_level)/2, axis=0)
+    upper = np.percentile(acf_curves, 100-(100-ci_level)/2, axis=0)
+
+    # Plot
+    plt.figure(figsize=(8,5))
+    plt.plot(h, empirical_acf, c="black", label="Empirical ACF")
+    plt.plot(h, posterior_mean, c="tab:blue", label="Posterior mean ACF")
+    plt.plot(h, posterior_median, c="tab:orange", label="Posterior median ACF")
+    plt.fill_between(h, lower, upper, alpha=0.3, color="tab:blue", label=f"{ci_level}% CI")
+    plt.title(f"Posterior ACF vs Empirical ACF (window {window_id})")
+    plt.xlabel("Lag")
+    plt.ylabel("ACF")
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_multiple_windows(results_dict, seq_len, window_indices, nlags=20, x_series=None):
+    """
+    Plot empirical ACF vs posterior mean ACF for given windows of a given seq_len.
+    
+    results_dict : dict {seq_len: array}
+        Posterior samples keyed by sequence length.
+    seq_len : int
+        The sequence length used for inference.
+    window_indices : list of int
+        Which windows to plot.
+    nlags : int
+        Number of lags for ACF.
+    x_series : dict {seq_len: list of arrays}, optional
+        Original data windows, if you want to overlay empirical ACFs.
+    """
+    result_samples_array = results_dict[seq_len]   # pick correct inference results
+    h = jnp.arange(1, nlags+1, 1)
+
+    plt.figure(figsize=(10,6))
+
+    for idx in window_indices:
+        param_samples = result_samples_array[idx, :, :2]  # gamma, eta
+
+        # Posterior ACFs
+        acf_curves = jax.vmap(lambda pars: corr_sup_ig_envelope(h, pars))(param_samples)
+        acf_curves = np.array(acf_curves)
+
+        posterior_mean = np.mean(acf_curves, axis=0)
+        posterior_median = np.median(acf_curves, axis=0)
+
+        # Posterior lines
+        plt.plot(h, posterior_mean, label=f"Seq {seq_len}, Win {idx} mean", linestyle="-")
+        plt.plot(h, posterior_median, label=f"Seq {seq_len}, Win {idx} median", linestyle="--")
+
+        # Optional: empirical ACF
+        if x_series is not None:
+            x_win = x_series[seq_len][idx]
+            emp_acf = sm.tsa.stattools.acf(x_win, nlags=nlags, fft=True)[1:]  # skip lag 0
+            plt.plot(h, emp_acf, "o", alpha=0.5, label=f"Seq {seq_len}, Win {idx} empirical")
+
+    plt.title(f"Empirical vs Posterior ACFs (seq_len={seq_len})")
+    plt.xlabel("Lag")
+    plt.ylabel("ACF")
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
+
+
+plot_multiple_windows(
+    results_dict=results_dict,
+    seq_len=seq_len,
+    window_indices=window_indices,
+    nlags=20,
+    x_series={seq_len: [arr for arr in np.array(x)]},  # optional: if None, no empirical ACF is shown
+)
+
+def plot_mean_median_acf_comparison(results_dict, seq_len, window_indices, nlags=20):
+    """
+    Compare posterior mean and median ACFs across multiple windows for a given seq_len.
+    """
+    result_samples_array = results_dict[seq_len]  # select correct inference results
+    h = jnp.arange(1, nlags+1, 1)
+
+    plt.figure(figsize=(10,6))
+
+    for idx in window_indices:
+        param_samples = result_samples_array[idx, :, :2]  # gamma, eta
+
+        # Compute posterior ACFs
+        acf_curves = jax.vmap(lambda pars: corr_sup_ig_envelope(h, pars))(param_samples)
+        acf_curves = np.array(acf_curves)   # [num_samples, nlags]
+
+        posterior_mean = np.mean(acf_curves, axis=0)
+        posterior_median = np.median(acf_curves, axis=0)
+
+        plt.plot(h, posterior_mean, label=f"Seq {seq_len}, Win {idx} mean", linestyle="-")
+        plt.plot(h, posterior_median, label=f"Seq {seq_len}, Win {idx} median", linestyle="--")
+
+    plt.title(f"Posterior Mean & Median ACFs (seq_len={seq_len})")
+    plt.xlabel("Lag")
+    plt.ylabel("ACF")
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
+
+
+plot_mean_median_acf_comparison(
+    results_dict=results_dict,
+    seq_len=seq_len,
+    window_indices=window_indices,
+    nlags=20
+)
+def summarize_posterior_params(results_dict, seq_len, window_indices):
+    result_samples_array = results_dict[seq_len]
+    for idx in window_indices:
+        params = result_samples_array[idx, :, :2]
+        gamma_median, eta_median = np.median(params, axis=0)
+        gamma_mean, eta_mean = np.mean(params, axis=0)
+        print(f"Seq {seq_len}, Window {idx}: "
+              f"gamma median={gamma_median:.3f}, mean={gamma_mean:.3f}; "
+              f"eta median={eta_median:.3f}, mean={eta_mean:.3f}")
+
+        
+summarize_posterior_params(results_dict, seq_len, window_indices=window_indices)

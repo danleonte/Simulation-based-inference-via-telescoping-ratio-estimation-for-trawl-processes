@@ -44,7 +44,7 @@ def plot_marginal_variable_with_confidence_regions(samples_dict, marginal_variab
         
         # plot CI bounds as lines with mean width in label
         ax.plot(x_indices, low, lw=1, #ls="--", 
-                label=f"{seq_len}, width={mean_ci_width}", 
+                label=f'{seq_len}', 
                 color = colors[seq_len])
         ax.plot(x_indices, up,  lw=1, #ls="--", 
                 color = colors[seq_len])
@@ -64,11 +64,11 @@ def plot_marginal_variable_with_confidence_regions(samples_dict, marginal_variab
     
     # Adjust legend position based on variable for CI plots
     if marginal_variable_to_use == 'mu':
-        ax.legend(loc='lower center', bbox_to_anchor=(0.65, 0.01))
+        ax.legend(loc='lower right', bbox_to_anchor=(0.985, 0.))
     elif marginal_variable_to_use == 'beta':
-        ax.legend(loc='upper right', bbox_to_anchor=(1.01, 1.01))
+        ax.legend(loc='lower right')
     else:  # sigma
-        ax.legend(loc='upper right', bbox_to_anchor=(1.01, 1.01))
+        ax.legend(loc='upper right', bbox_to_anchor=(0.925, 1.01))
     ax.set_title(tex_mapping[marginal_variable_to_use], fontsize=14)
     
 def plot_MLE(MAP_dict, marginal_variable_to_use, step_size, ax):
@@ -106,9 +106,7 @@ def plot_MLE(MAP_dict, marginal_variable_to_use, step_size, ax):
     ax.set_xticks(tick_indices)
     # Format dates to show only the date part
     date_labels = [pd.to_datetime(dates.iloc[i]).strftime('%Y-%m-%d') for i in tick_indices]
-    # Subtract one day from the first date label
-    first_date = pd.to_datetime(dates.iloc[tick_indices[0]]) - pd.Timedelta(days=1)
-    date_labels[0] = first_date.strftime('%Y-%m-%d')    
+   
     
     
     
@@ -116,11 +114,11 @@ def plot_MLE(MAP_dict, marginal_variable_to_use, step_size, ax):
     
     # Adjust legend position based on variable for MAP plots
     if marginal_variable_to_use == 'mu':
-        ax.legend(loc='upper right', bbox_to_anchor=(1.01, 1.01))
+        ax.legend(loc='upper right', bbox_to_anchor=(1.0, .25))
     elif marginal_variable_to_use == 'beta':
         ax.legend(loc='lower right')
     else:  # sigma
-        ax.legend(loc='upper right')
+        ax.legend(loc='upper right', bbox_to_anchor=(.95, .99))
     ax.set_title(tex_mapping[marginal_variable_to_use], fontsize=14)
     
         
@@ -131,18 +129,16 @@ if __name__ == '__main__':
     q = [0.025,0.975]
     colors = {1000: '#0073C2', 1500: '#EFC000', 2000: '#CD534C'}
 
-    step_size = 365
+    step_size = 168
     
-    dataset_path = os.path.join(os.path.dirname(os.getcwd()), 'data', 'temperature')#'energy','des') 
-    data = pd.read_csv(os.path.join(dataset_path, 'normalized_temperature_data1.csv'))#'des_2013-01-01_2017-12-12.csv'))
+    dataset_path = os.path.join(os.path.dirname(os.getcwd()), 'data' ,'temp_data_1999_01_01_2019_01_01') 
+    data = pd.read_csv(os.path.join(dataset_path, 'h_temp_data_1999-01-01_2019-01-01.csv'))
                                     #'VIX_25_y.csv'))['resid']#'normalized_temperature_data1.csv'))
-                                    
-    #data.set_index('Datetime',inplace=True)
     
     first_end = 2000
     ends = np.arange(first_end, len(data), step_size)
-    num_entries_to_use = 2
-    dates = data.iloc[ends][-num_entries_to_use:]#.Datetime[-num_entries_to_use:]
+    num_entries_to_use = 254
+    dates = data.iloc[ends].OBSERVATION_DATE[-num_entries_to_use:]
     samples_dict = dict()
     MAP_dict = dict()
     
@@ -153,14 +149,15 @@ if __name__ == '__main__':
     
     # Create combined figure for confidence intervals
     fig, axes = plt.subplots(1, 3, figsize=(15, 4.25))
-    fig.suptitle('95% Credible Intervals', y=0.98, fontsize=16.5)
+    fig.suptitle('95% Confidence Intervals', y=0.98, fontsize=16.5)
     
     plot_marginal_variable_with_confidence_regions(samples_dict, 'mu', step_size, q, axes[0])
-    plot_marginal_variable_with_confidence_regions(samples_dict, 'beta', step_size, q, axes[1])
-    plot_marginal_variable_with_confidence_regions(samples_dict, 'sigma', step_size, q, axes[2])
+    plot_marginal_variable_with_confidence_regions(samples_dict, 'sigma', step_size, q, axes[1])
+    plot_marginal_variable_with_confidence_regions(samples_dict, 'beta', step_size, q, axes[2])
+
     
     plt.tight_layout()
-    plt.savefig(os.path.join(dataset_path,'CI_for_marginal_params.pdf'), dpi=900, bbox_inches='tight')
+    plt.savefig('CI_for_marginal_params.pdf', dpi=900, bbox_inches='tight')
     plt.show()
     
     
@@ -169,9 +166,10 @@ if __name__ == '__main__':
     fig.suptitle('MAP Estimates', y=0.98, fontsize=14)
     
     plot_MLE(MAP_dict, 'mu', step_size, axes[0])
-    plot_MLE(MAP_dict, 'beta', step_size, axes[1])
-    plot_MLE(MAP_dict, 'sigma', step_size, axes[2])
+    plot_MLE(MAP_dict, 'sigma', step_size, axes[1])
+    plot_MLE(MAP_dict, 'beta', step_size, axes[2])
+
     
     plt.tight_layout()
-    plt.savefig(os.path.join(dataset_path,'MAP_for_marginal_params.pdf'), dpi=900, bbox_inches='tight')
+    plt.savefig('MAP_for_marginal_params.pdf', dpi=900, bbox_inches='tight')
     plt.show()
